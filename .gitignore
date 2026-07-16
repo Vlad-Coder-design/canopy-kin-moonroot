@@ -1,0 +1,8 @@
+/Library/
+/Temp/
+/Logs/
+/UserSettings/
+/Builds/Windows/
+*.log
+crash.dmp
+/test-results.xml

@@ -1,0 +1,6 @@
+{
+  "name": "CanopyKin.Runtime",
+  "rootNamespace": "CanopyKin",
+  "references": ["Unity.InputSystem"],
+  "autoReferenced": true
+}

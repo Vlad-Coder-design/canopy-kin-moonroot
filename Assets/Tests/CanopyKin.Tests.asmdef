@@ -1,0 +1,1 @@
+{"name":"CanopyKin.Tests","references":["CanopyKin.Runtime"],"optionalUnityReferences":["TestAssemblies"],"includePlatforms":["Editor"]}
