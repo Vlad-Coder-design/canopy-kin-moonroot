@@ -554,13 +554,13 @@ PlayerSettings:
   splashScreenBackgroundSourcePortrait: {fileID: 0}
   blurSplashScreenBackground: 1
   spritePackerPolicy: 
-  webGLMemorySize: 32
+  webGLMemorySize: 256
   webGLExceptionSupport: 1
-  webGLNameFilesAsHashes: 0
-  webGLShowDiagnostics: 0
+  webGLNameFilesAsHashes: 1
+  webGLShowDiagnostics: 1
   webGLDataCaching: 0
   webGLDebugSymbols: 0
-  webGLEmscriptenArgs: -s ALLOW_MEMORY_GROWTH=1
+  webGLEmscriptenArgs: 
   webGLModulesDirectory: 
   webGLTemplate: PROJECT:CanopyKin
   webGLAnalyzeBuildSize: 0
@@ -570,8 +570,8 @@ PlayerSettings:
   webGLLinkerTarget: 1
   webGLThreadsSupport: 0
   webGLDecompressionFallback: 0
-  webGLInitialMemorySize: 32
-  webGLMaximumMemorySize: 2048
+  webGLInitialMemorySize: 256
+  webGLMaximumMemorySize: 1024
   webGLMemoryGrowthMode: 2
   webGLMemoryLinearGrowthStep: 16
   webGLMemoryGeometricGrowthStep: 0.2

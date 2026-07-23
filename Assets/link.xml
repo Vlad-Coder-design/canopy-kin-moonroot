@@ -1,0 +1,6 @@
+<linker>
+  <!-- The forest is created procedurally with GameObject.CreatePrimitive.
+       These collider types are added internally and are not visible to the
+       managed linker, so WebGL must retain the physics module explicitly. -->
+  <assembly fullname="UnityEngine.PhysicsModule" preserve="all" />
+</linker>

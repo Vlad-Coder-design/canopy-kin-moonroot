@@ -21,7 +21,7 @@ namespace CanopyKin.Editor
             PlayerSettings.SetApplicationIdentifier(UnityEditor.Build.NamedBuildTarget.WebGL,"com.moonroot.canopykin");
             PlayerSettings.WebGL.compressionFormat=WebGLCompressionFormat.Disabled;
             PlayerSettings.WebGL.dataCaching=false;
-            PlayerSettings.WebGL.emscriptenArgs="-s ALLOW_MEMORY_GROWTH=1";
+            PlayerSettings.WebGL.emscriptenArgs=string.Empty;
             PlayerSettings.WebGL.template="PROJECT:CanopyKin";
             Directory.CreateDirectory("Builds/WebGL");
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL,BuildTarget.WebGL);

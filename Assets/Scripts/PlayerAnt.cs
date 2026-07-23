@@ -8,10 +8,18 @@ namespace CanopyKin
     {
         CharacterController body; Transform cam; float yaw, pitch=18, vertical; public float Health { get; private set; }=100; public float Stamina { get; private set; }=100;
         public Transform CameraTransform => cam;
-        void Start() { body=GetComponent<CharacterController>(); cam=Camera.main.transform; Cursor.lockState=CursorLockMode.Locked; }
+        void Start()
+        {
+            body=GetComponent<CharacterController>();
+            cam=Camera.main.transform;
+#if !UNITY_WEBGL
+            Cursor.lockState=CursorLockMode.Locked;
+#endif
+        }
         void Update()
         {
             var k=Keyboard.current; var m=Mouse.current; if(k==null) return;
+            if(Application.platform==RuntimePlatform.WebGLPlayer && Cursor.lockState!=CursorLockMode.Locked && m!=null && m.leftButton.wasPressedThisFrame) Cursor.lockState=CursorLockMode.Locked;
             if(k.escapeKey.wasPressedThisFrame) Cursor.lockState=Cursor.lockState==CursorLockMode.Locked?CursorLockMode.None:CursorLockMode.Locked;
             if(Cursor.lockState==CursorLockMode.Locked && m!=null) { var d=m.delta.ReadValue()*GameSettings.Sensitivity; yaw+=d.x; pitch=Mathf.Clamp(pitch-d.y,-10,55); }
             var input=new Vector2((k.dKey.isPressed?1:0)-(k.aKey.isPressed?1:0),(k.wKey.isPressed?1:0)-(k.sKey.isPressed?1:0)); input=Vector2.ClampMagnitude(input,1);
