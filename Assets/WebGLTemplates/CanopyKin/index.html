@@ -10,8 +10,10 @@
 <body><div id="shell"><div class="card"><div class="title">CANOPY KIN</div><p>Moonroot is waking beneath the forest floor…</p><div class="bar"><div id="fill" class="fill"></div></div><div id="status">Downloading game… 0%</div><div id="error" class="error"></div></div></div><canvas id="unity-canvas" tabindex="-1"></canvas><button id="full">Fullscreen</button>
 <script>
 const canvas=document.querySelector('#unity-canvas'),shell=document.querySelector('#shell'),fill=document.querySelector('#fill'),status=document.querySelector('#status'),errorBox=document.querySelector('#error');
+const diagnostics=[];window.webglDiagnostics=diagnostics;
+const record=(level,message)=>{const line=level+': '+String(message);diagnostics.push(line);if(diagnostics.length>200)diagnostics.shift();(level==='error'?console.error:console.log)(message)};
 const root='Build',loader=root+'/{{{ LOADER_FILENAME }}}';
-const config={dataUrl:root+'/{{{ DATA_FILENAME }}}',frameworkUrl:root+'/{{{ FRAMEWORK_FILENAME }}}',codeUrl:root+'/{{{ CODE_FILENAME }}}',streamingAssetsUrl:'StreamingAssets',companyName:'{{{ COMPANY_NAME }}}',productName:'{{{ PRODUCT_NAME }}}',productVersion:'{{{ PRODUCT_VERSION }}}'};
+const config={dataUrl:root+'/{{{ DATA_FILENAME }}}',frameworkUrl:root+'/{{{ FRAMEWORK_FILENAME }}}',codeUrl:root+'/{{{ CODE_FILENAME }}}',streamingAssetsUrl:'StreamingAssets',companyName:'{{{ COMPANY_NAME }}}',productName:'{{{ PRODUCT_NAME }}}',productVersion:'{{{ PRODUCT_VERSION }}}',print:message=>record('log',message),printErr:message=>record('error',message)};
 function fail(message){status.style.display='none';document.querySelector('.bar').style.display='none';errorBox.style.display='block';errorBox.textContent='The colony could not load. '+message+' Refresh the page or try a current desktop browser with WebGL enabled.'}
 const watchdog=setTimeout(()=>fail('Startup took longer than 90 seconds.'),90000);
 window.addEventListener('error',e=>fail(e.message||'Unexpected browser error.'));

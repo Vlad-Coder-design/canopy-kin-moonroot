@@ -25,6 +25,7 @@ namespace CanopyKin
             var pg=Prim(PrimitiveType.Capsule,"Player Ant",NestPoint+new Vector3(0,1,2),new Vector3(.55f,.35f,.8f),new Color(.05f,.035f,.025f),true); var cc=pg.AddComponent<CharacterController>();cc.height=1;cc.radius=.35f;Player=pg.AddComponent<PlayerAnt>();
             var camGo=new GameObject("Main Camera");camGo.tag="MainCamera";camGo.AddComponent<Camera>();camGo.AddComponent<AudioListener>();camGo.transform.position=pg.transform.position+new Vector3(0,3,-5);
             for(int i=0;i<6;i++){var u=Prim(PrimitiveType.Capsule,i<3?"Worker":"Soldier",NestPoint+new Vector3(i-3,.4f,-2),new Vector3(.35f,.22f,.5f),i<3?new Color(.18f,.1f,.04f):new Color(.32f,.08f,.03f));u.GetComponent<Collider>().enabled=false;squads.Add(u.transform);}
+            Debug.Log($"Moonroot world ready: {FindObjectsByType<Renderer>(FindObjectsSortMode.None).Length} renderers.");
         }
         GameObject Prim(PrimitiveType t,string n,Vector3 p,Vector3 s,Color c,bool keepCollider){var g=Prim(t,n,p,s,c);if(!keepCollider){}return g;}
         void SpawnResource(ResourceKind k,Vector3 p,Color c){var g=Prim(PrimitiveType.Sphere,k+" cache",p,new Vector3(.65f,.35f,.65f),c);var r=g.AddComponent<ResourceNode>();r.kind=k;var h=g.AddComponent<IInteractableHost>();h.Target=r;}

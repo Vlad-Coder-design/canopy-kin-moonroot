@@ -10,8 +10,10 @@
 <body><div id="shell"><div class="card"><div class="title">CANOPY KIN</div><p>Moonroot is waking beneath the forest floor…</p><div class="bar"><div id="fill" class="fill"></div></div><div id="status">Downloading game… 0%</div><div id="error" class="error"></div></div></div><canvas id="unity-canvas" tabindex="-1"></canvas><button id="full">Fullscreen</button>
 <script>
 const canvas=document.querySelector('#unity-canvas'),shell=document.querySelector('#shell'),fill=document.querySelector('#fill'),status=document.querySelector('#status'),errorBox=document.querySelector('#error');
-const root='Build',loader=root+'/b767bd9ade953d440824413a75a8a536.loader.js';
-const config={dataUrl:root+'/6f11a9cb3abdd862d68f6933e164631d.data',frameworkUrl:root+'/3b45367449048396b411c8996ad7b358.framework.js',codeUrl:root+'/ef872a47ac034571fab998e15d16f68b.wasm',streamingAssetsUrl:'StreamingAssets',companyName:'Moonroot Studio',productName:'Canopy Kin Moonroot',productVersion:'1.0'};
+const diagnostics=[];window.webglDiagnostics=diagnostics;
+const record=(level,message)=>{const line=level+': '+String(message);diagnostics.push(line);if(diagnostics.length>200)diagnostics.shift();(level==='error'?console.error:console.log)(message)};
+const root='Build',loader=root+'/cf25fbe3f1f35c1a99e3ddd88c5afef2.loader.js';
+const config={dataUrl:root+'/fc0b0e2faddbe34b8054581b517ad294.data',frameworkUrl:root+'/3b45367449048396b411c8996ad7b358.framework.js',codeUrl:root+'/8ff6ed20d47daa01fbf38dc75294d1f4.wasm',streamingAssetsUrl:'StreamingAssets',companyName:'Moonroot Studio',productName:'Canopy Kin Moonroot',productVersion:'1.0',print:message=>record('log',message),printErr:message=>record('error',message)};
 function fail(message){status.style.display='none';document.querySelector('.bar').style.display='none';errorBox.style.display='block';errorBox.textContent='The colony could not load. '+message+' Refresh the page or try a current desktop browser with WebGL enabled.'}
 const watchdog=setTimeout(()=>fail('Startup took longer than 90 seconds.'),90000);
 window.addEventListener('error',e=>fail(e.message||'Unexpected browser error.'));
