@@ -1,13 +1,46 @@
 # Canopy Kin: Moonroot
 
-An original Unity 6 ant-scale action-strategy vertical slice. All current art is procedurally assembled from Unity primitives and authored colors; no third-party game assets are included.
+An original Unity 6 ant-scale action-strategy vertical slice. The player controls an
+articulated ant, explores a rolling forest-floor region, enters an underground nursery,
+gathers resources, commands worker and soldier squads, fights three insect threats,
+upgrades the colony, and completes the First Rain tutorial mission.
 
-Open with Unity `6000.0.78f1`. Use **Canopy Kin > Build Windows** or the batch build method `CanopyKin.Editor.BuildGame.BuildWindows`.
+## Controls
 
-Controls: WASD movement, mouse camera, Shift sprint, Space vault, E interact/upgrade, left mouse bite, 1 gather, 2 attack, 3 follow, 4 defend, F5 save, F9 load, Escape cursor.
+- `WASD` — move
+- Mouse — orbit camera
+- `Shift` — sprint
+- `Space` — vault
+- `E` — interact, gather, enter the nest, or upgrade
+- Left mouse button — bite
+- `1` — workers gather
+- `2` — soldiers attack
+- `3` — squad follows
+- `4` — squad defends Moonroot
+- `Escape` — pause
+- `F5` / `F9` — quick save / load
 
-## Play in a browser
+The mission starts automatically after the introduction. Click the canvas once if the
+browser has not captured the mouse.
 
-Public WebGL build: https://vlad-coder-design.github.io/canopy-kin-moonroot/
+## Browser build
 
-The committed `Builds/WebGL` artifact is deployed automatically by `.github/workflows/pages.yml` on every push to `main`. The verified low-memory local build command uses `-job-worker-count 1 --burst-disable-compilation` with `CanopyKin.Editor.BuildGame.BuildWebGL`.
+Public build: https://vlad-coder-design.github.io/canopy-kin-moonroot/
+
+`Builds/WebGL` is deployed by `.github/workflows/pages.yml` on pushes to `main`.
+The project uses uncompressed, hash-named WebGL artifacts so GitHub Pages supplies the
+correct MIME types and browsers do not reuse an incompatible old build.
+
+## Development
+
+Unity version: `6000.0.78f1`.
+
+- `Canopy Kin > Build WebGL`
+- `Canopy Kin > Build Windows`
+
+The reliable low-memory batch build uses `-job-worker-count 1
+--burst-disable-compilation`.
+
+All environment geometry, insect models, gameplay, mission content, and interface
+layout are original project work. See `THIRD_PARTY_ASSETS.md` for the bundled interface
+font and license.
