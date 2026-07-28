@@ -98,6 +98,13 @@
   18.07 ms average frame, 24.0 ms p95, 84 batches, 62 SetPass calls,
   396K triangles, 117.9 MB allocated / 128.8 MB reserved and 0 B/frame GC.
   Evidence: `QA/Screenshots/webgl-local-0.4.0-20260728.jpg`.
+- GitHub Pages workflow run `30384132474` completed successfully for commit
+  `b819264`. A cache-busted fresh tab opened the real public URL, received the
+  0.4.0 manifest, rendered the mission HUD, accepted gameplay input and remained
+  free of console warnings/errors. Its 20-second public sample measured
+  51.02 FPS, 19.60 ms average frame, 28.0 ms p95, 84 batches, 62 SetPass calls,
+  396K triangles, 117.9 MB allocated / 128.8 MB reserved and 0 B/frame GC.
+  Evidence: `QA/Screenshots/webgl-public-0.4.0-b819264-20260728.jpg`.
 - Windows player: ordinary nursery start and optimized surface smoke both
   launched; queen objective, worker-only opening squad, production ant, licensed
   trunk, restored vegetation and corrected location materials were visually
@@ -152,6 +159,5 @@
   this development machine, not an unrelated PC.
 - Profile the surface region and combat encounters separately; optimize
   invisible work while preserving the Windows High presentation.
-- Deploy the independently optimized WebGL edition, open the real public URL in
-  a clean session and verify gameplay before declaring the 0.4.0 web checkpoint
-  published.
+- Complete a manual start-to-finish public WebGL playthrough in addition to the
+  verified startup/input/profile pass and automated 15-stage mission-flow test.
