@@ -543,8 +543,11 @@ namespace CanopyKin
             VisualFactory.Segment("Right feeler", parent, new Vector3(.18f, .5f, .92f), new Vector3(.52f, .54f, 1.35f), .026f, shell);
         }
 
-        public static void BuildSpider(Transform parent)
+        public static SpiderVisual BuildSpider(Transform parent)
         {
+            SpiderVisual production = SpiderVisual.Create(parent);
+            if (production) return production;
+
             Color body = new(.085f, .027f, .014f);
             VisualFactory.OrganicPart("Hair-textured spider abdomen", parent, OrganicMeshFactory.BodyShape.SpiderBody, new Vector3(0, .72f, -.32f), new Vector3(1.42f, 1.25f, 1.52f), body, .28f);
             VisualFactory.OrganicPart("Spider cephalothorax", parent, OrganicMeshFactory.BodyShape.Thorax, new Vector3(0, .5f, .58f), new Vector3(.9f, .78f, .82f), Color.Lerp(body, Color.black, .2f), .3f);
@@ -564,6 +567,7 @@ namespace CanopyKin
             BuildCreatureLegs(parent, 4, .4f, 1.55f, new Color(.052f, .014f, .009f), .065f);
             VisualFactory.MeshObject("Left fang", parent, OrganicMeshFactory.Mandible(true), new Vector3(-.12f, .34f, .92f), Vector3.one * 1.25f, VisualFactory.Material(body, .32f));
             VisualFactory.MeshObject("Right fang", parent, OrganicMeshFactory.Mandible(false), new Vector3(.12f, .34f, .92f), Vector3.one * 1.25f, VisualFactory.Material(body, .32f));
+            return null;
         }
 
         static void BuildCreatureLegs(Transform parent, int pairs, float y, float reach, Color color, float radius)

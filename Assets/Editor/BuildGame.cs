@@ -13,6 +13,10 @@ namespace CanopyKin.Editor
     {
         const string ScenePath = "Assets/Scenes/Moonroot.unity";
         const string ProductionAntPath = "Assets/Resources/Models/Ant/CanopyKinProductionAnt.fbx";
+        const string ProductionSpiderPath =
+            "Assets/Resources/Models/Creatures/CanopyKinFishingSpider.fbx";
+        const string SpiderAlbedoPath =
+            "Assets/Resources/HighQuality/Sketchfab/FishingSpider/fishing_spider_albedo_8k.jpg";
         const string ForestFloorPath = "Assets/Resources/HighQuality/PolyHaven/ForestFloor/forest_floor_diff_8k.jpg";
         const string DeadTreePath =
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
@@ -143,6 +147,9 @@ namespace CanopyKin.Editor
             AssetDatabase.ImportAsset(
                 DeadTreePath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.ImportAsset(
+                ProductionSpiderPath,
+                ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
 
             GameObject ant = AssetDatabase.LoadAssetAtPath<GameObject>(ProductionAntPath);
             if (!ant) throw new FileNotFoundException("Production ant FBX is missing", ProductionAntPath);
@@ -171,6 +178,60 @@ namespace CanopyKin.Editor
                 .ToArray();
             if (clips.Length < 9)
                 throw new InvalidOperationException($"Production ant requires nine animation clips; imported {clips.Length}.");
+
+            GameObject spider = AssetDatabase.LoadAssetAtPath<GameObject>(ProductionSpiderPath);
+            if (!spider)
+                throw new FileNotFoundException("Production fishing-spider FBX is missing", ProductionSpiderPath);
+            SkinnedMeshRenderer[] spiderSkins =
+                spider.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            int spiderTriangles = spiderSkins
+                .Where(renderer => renderer.sharedMesh)
+                .Sum(renderer => renderer.sharedMesh.triangles.Length / 3);
+            if (spiderSkins.Length < 2 || spiderTriangles < 135000)
+                throw new InvalidOperationException(
+                    $"Production spider requires two useful skinned LODs; " +
+                    $"renderers={spiderSkins.Length} triangles={spiderTriangles}.");
+            SkinnedMeshRenderer spiderHigh = spiderSkins
+                .Where(renderer => renderer.sharedMesh)
+                .OrderByDescending(renderer => renderer.sharedMesh.triangles.Length)
+                .FirstOrDefault();
+            string[] requiredSpiderBones =
+            {
+                "Root", "Thorax", "Abdomen", "Head",
+                "Leg_L_Front_Coxa", "Leg_R_Front_Coxa",
+                "Leg_L_Rear_Coxa", "Leg_R_Rear_Coxa"
+            };
+            var spiderBones = spiderHigh.bones
+                .Where(bone => bone)
+                .Select(bone => bone.name)
+                .ToHashSet();
+            string missingSpiderBone =
+                requiredSpiderBones.FirstOrDefault(required => !spiderBones.Contains(required));
+            if (missingSpiderBone != null)
+                throw new InvalidOperationException(
+                    $"Production spider rig is missing bone: {missingSpiderBone}");
+            AnimationClip[] spiderClips = AssetDatabase.LoadAllAssetsAtPath(ProductionSpiderPath)
+                .OfType<AnimationClip>()
+                .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
+                .ToArray();
+            if (spiderClips.Length < 8)
+                throw new InvalidOperationException(
+                    $"Production spider requires eight animation clips; imported {spiderClips.Length}.");
+
+            var spiderTextureImporter = AssetImporter.GetAtPath(SpiderAlbedoPath) as TextureImporter;
+            if (spiderTextureImporter == null)
+                throw new FileNotFoundException(
+                    "Production spider 8K scan texture is missing", SpiderAlbedoPath);
+            TextureImporterPlatformSettings spiderStandalone =
+                spiderTextureImporter.GetPlatformTextureSettings("Standalone");
+            TextureImporterPlatformSettings spiderWeb =
+                spiderTextureImporter.GetPlatformTextureSettings("WebGL");
+            if (!spiderStandalone.overridden || spiderStandalone.maxTextureSize < 8192)
+                throw new InvalidOperationException(
+                    "Windows spider import must retain the 8K scan texture.");
+            if (!spiderWeb.overridden || spiderWeb.maxTextureSize > 2048)
+                throw new InvalidOperationException(
+                    "WebGL spider import must use the independent 2K override.");
 
             var floorImporter = AssetImporter.GetAtPath(ForestFloorPath) as TextureImporter;
             if (floorImporter == null)
@@ -203,6 +264,9 @@ namespace CanopyKin.Editor
                 $"CANOPY_KIN_PRODUCTION_ASSETS_OK antVertices={skin.sharedMesh.vertexCount} " +
                 $"antTriangles={skin.sharedMesh.triangles.Length / 3} clips={clips.Length} " +
                 $"windowsTexture={standalone.maxTextureSize} webTexture={web.maxTextureSize} " +
+                $"spiderLods={spiderSkins.Length} spiderTriangles={spiderTriangles} " +
+                $"spiderClips={spiderClips.Length} spiderWindowsTexture={spiderStandalone.maxTextureSize} " +
+                $"spiderWebTexture={spiderWeb.maxTextureSize} " +
                 $"deadTreeMeshes={deadTreeMeshes.Length} deadTreeTriangles={deadTreeTriangles} " +
                 $"deadTreeBounds={largestDeadTreeMesh.bounds.size}");
         }

@@ -24,6 +24,11 @@
 - The project enforces a production-asset build contract so an accidentally
   missing rig, clip set, 8K Windows import, 2K WebGL override or landmark mesh
   fails the build.
+- The Ashback predator now uses the CC0 fishing-spider scan by ffish.asia /
+  floraZia.com instead of the procedural fallback: 111,999-triangle close LOD,
+  29,999-triangle distant LOD, 28-bone rig, eight animation clips and the
+  original high-resolution photographic atlas. Windows retains 8K while WebGL
+  imports an independent 2K copy.
 - The Windows High profile uses separate underground/surface visibility
   partitions. Invisible vegetation and terrain are not submitted while the
   player is in the nest, without reducing visible scene density.
@@ -56,7 +61,7 @@
 
 - Unity: `6000.0.78f1`.
 - Production asset contract: passed.
-- Windows x64 build: passed, `467,153,835` bytes in Unity's build report.
+- Windows x64 build: passed, `567,854,047` bytes in Unity's build report.
 - Windows player: ordinary nursery start and optimized surface smoke both
   launched; queen objective, worker-only opening squad, production ant, licensed
   trunk, restored vegetation and corrected location materials were visually
@@ -64,6 +69,13 @@
 - Runtime mission-flow smoke in the built executable passed all fifteen state
   transitions, verified zero active soldiers at the start, four after unlock,
   and restored final step 15 through an isolated temporary save/load slot.
+- Production-spider close-view QA passed in the built executable: two skinned
+  LODs, 141,998 combined triangles, approximately 3.2 x 2.17 x 3.49 m runtime
+  bounds and no console errors. The evidence frame is
+  `QA/Screenshots/spider-production-windows-20260728.jpg`.
+- Automated squad combat against the production spider passed in the built
+  executable: mission stage 7 advanced to 8 in 4.8 seconds after 19 real damage
+  events; the predator completed a telegraphed hit and its death sequence.
 - Measured High profile at 1920x1080 on RTX 3050 Laptop, 20-second warm samples:
   - underground opening: 59.00 FPS, 16.95 ms frame, 10.89 ms GPU,
     358 batches, 254 SetPass calls, 1.76M triangles, 160.4 MB allocated,
@@ -71,10 +83,13 @@
   - forest-floor trail: 52.95 FPS, 18.89 ms frame, 17.91 ms GPU,
     1,749 batches, 850 SetPass calls, 4.58M triangles, 152.3 MB allocated,
     0 B/frame GC.
+  - isolated production-spider arena view: 56.35 FPS, 17.75 ms frame,
+    16.77 ms GPU, 314 batches, 190 SetPass calls, 2.36M triangles,
+    171.0 MB allocated, 0 B/frame GC.
 
 ## Remaining production work
 
-- Replace the remaining procedural beetle/spider and coarse root silhouettes
+- Replace the remaining procedural beetle and coarse root silhouettes
   with authored production meshes and expand the licensed high-resolution
   material set.
 - Refine close camera composition, foot contact, slope posing, animation

@@ -50,3 +50,23 @@ https://polyhaven.com/license
   4K Standalone import and independent 2K WebGL texture override
 - Use: production fallen-log landmark, natural barrier and elevated traversal
   route in the Moonroot forest region
+
+## Sketchfab — CC0 Fishing Spider (Dolomedes orion)
+
+- Asset: `CC0 Fishing Spider (Dolomedes orion)`
+- Creator: ffish.asia / floraZia.com
+- Provider: Sketchfab
+- Source: https://sketchfab.com/3d-models/cc0-fishing-spider-dolomedes-orion-320e77ebe2e049dcbb759dd79ee03a8c
+- License: CC0 1.0 / public domain dedication
+- Imported files: original glTF scan and original 8K-class photographic
+  base-colour atlas
+- Modifications: scan-outlier cleanup; close-view LOD0 reduced from 437,892
+  to 111,999 triangles; 29,999-triangle LOD1; original 28-bone anatomical rig;
+  idle, walk, run, telegraph, attack, stagger, death and retreat clips; Unity
+  material reconstruction; BC compression and mip streaming; 8K Standalone
+  import and independent 2K WebGL texture override
+- Use: Ashback fishing-spider predator and mission boss in the Moonroot
+  forest region
+
+The downloaded model is explicitly published as CC0. Credit is retained here
+for provenance even though attribution is not required.

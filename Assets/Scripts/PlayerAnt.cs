@@ -304,6 +304,17 @@ namespace CanopyKin
             SnapCamera();
         }
 
+        public void Face(Vector3 target, float cameraPitch = 10f)
+        {
+            Vector3 direction = target - transform.position;
+            direction.y = 0;
+            if (direction.sqrMagnitude < .001f) return;
+            yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            pitch = Mathf.Clamp(cameraPitch, -18f, 62f);
+            transform.rotation = Quaternion.Euler(0, yaw, 0);
+            SnapCamera();
+        }
+
         void FindInteraction()
         {
             nearbyInteraction = null;

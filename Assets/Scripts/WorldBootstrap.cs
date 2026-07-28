@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.Rendering;
@@ -116,9 +117,109 @@ namespace CanopyKin
                          arguments,
                          argument => string.Equals(
                              argument,
+                             "-spider-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginSpiderQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-spider-combat-smoke",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginSpiderCombatSmoke());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
                              "-mission-flow-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginMissionFlowSmokeTest());
+        }
+
+        IEnumerator BeginSpiderCombatSmoke()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            Creature spider = creatures.Find(creature =>
+                creature && creature.Kind == Creature.Species.Spider);
+            if (!spider || !spider.GetComponentInChildren<SpiderVisual>(true))
+                throw new System.InvalidOperationException(
+                    "Spider combat smoke requires the production mission predator.");
+
+            Vector3 playerPosition = spider.transform.position + new Vector3(0, 0, 6f);
+            playerPosition.y = GroundHeight(playerPosition.x, playerPosition.z) + .05f;
+            Player.Teleport(playerPosition);
+            Player.Face(spider.transform.position + Vector3.up * .45f);
+            squads.Teleport(spider.transform.position + new Vector3(0, 0, 3.2f));
+            ApplyLocationLighting();
+            BeginPlay();
+            squads.SelectSoldiers();
+            squads.Set(SquadOrder.Attack);
+
+            float elapsed = 0;
+            while (elapsed < 32f && Mission.Step == MissionDirector.SpiderStep)
+            {
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+            yield return new WaitForSeconds(3f);
+
+            bool missionAdvanced = Mission.Step == MissionDirector.CaptureStep;
+            bool deathCompleted = !spider.gameObject.activeSelf;
+            if (!missionAdvanced || !deathCompleted || spider.DamageEvents < 2 ||
+                spider.AttackEvents < 1)
+                throw new System.InvalidOperationException(
+                    $"Spider combat smoke failed: mission={Mission.Step} " +
+                    $"active={spider.gameObject.activeSelf} damageEvents={spider.DamageEvents} " +
+                    $"attackEvents={spider.AttackEvents} hits={spider.SuccessfulAttacks} " +
+                    $"elapsed={elapsed:F1}.");
+
+            Debug.Log(
+                $"MOONROOT_SPIDER_COMBAT_SMOKE_OK elapsed={elapsed:F1} " +
+                $"damageEvents={spider.DamageEvents} attackEvents={spider.AttackEvents} " +
+                $"hits={spider.SuccessfulAttacks} mission={Mission.Step}");
+        }
+
+        IEnumerator BeginSpiderQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            Creature spider = creatures.Find(creature =>
+                creature && creature.Kind == Creature.Species.Spider);
+            if (!spider)
+                throw new System.InvalidOperationException(
+                    "Spider QA could not locate the real mission predator.");
+            SpiderVisual visual = spider.GetComponentInChildren<SpiderVisual>(true);
+            if (!visual)
+                throw new System.InvalidOperationException(
+                    "Spider QA found the predator but not its production visual.");
+            spider.FreezeForQa();
+            Vector3 playerPosition = spider.transform.position + new Vector3(0, 0, 4.5f);
+            playerPosition.y = GroundHeight(playerPosition.x, playerPosition.z) + .05f;
+            Player.Teleport(playerPosition);
+            Player.Face(spider.transform.position + Vector3.up * .45f);
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            ApplyLocationLighting();
+            BeginPlay();
+            int triangles = visual.GetComponentsInChildren<SkinnedMeshRenderer>(true)
+                .Where(renderer => renderer.sharedMesh)
+                .Sum(renderer => (int)renderer.sharedMesh.GetIndexCount(0) / 3);
+            string bounds = string.Join(
+                "; ",
+                visual.GetComponentsInChildren<SkinnedMeshRenderer>(true)
+                    .Select(renderer =>
+                        $"{renderer.name}:{renderer.bounds.size}"));
+            Debug.Log(
+                $"MOONROOT_SPIDER_QA_READY triangles={triangles} " +
+                $"lods={visual.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length} " +
+                $"bounds={bounds}");
         }
 
         IEnumerator BeginSurfaceSmokeTest()
@@ -759,7 +860,9 @@ namespace CanopyKin
             bool trail = Mathf.Abs(x - Mathf.Sin(z * .12f) * 1.4f) < 1.2f && z > -6f && z < 22f;
             bool nest = Vector2.Distance(new Vector2(x, z), new Vector2(0, -7)) < 4.6f;
             bool pond = Vector2.Distance(new Vector2(x, z), new Vector2(-13.5f, 13.5f)) < 5.2f;
-            return trail || nest || pond;
+            bool spiderArena =
+                Vector2.Distance(new Vector2(x, z), new Vector2(1.2f, -16.5f)) < 7.2f;
+            return trail || nest || pond || spiderArena;
         }
 
         void BuildResources()

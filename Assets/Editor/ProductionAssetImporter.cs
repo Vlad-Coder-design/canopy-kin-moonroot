@@ -12,6 +12,8 @@ namespace CanopyKin.Editor
     {
         const string HighQualityRoot = "Assets/Resources/HighQuality/";
         const string ProductionAnt = "Assets/Resources/Models/Ant/CanopyKinProductionAnt.fbx";
+        const string ProductionSpider =
+            "Assets/Resources/Models/Creatures/CanopyKinFishingSpider.fbx";
         const string DeadTreeTrunk =
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
 
@@ -33,7 +35,9 @@ namespace CanopyKin.Editor
             importer.mipmapEnabled = true;
             importer.streamingMipmaps = true;
             importer.streamingMipmapsPriority = assetPath.Contains("_diff_") ? 2 : 1;
-            importer.wrapMode = TextureWrapMode.Repeat;
+            importer.wrapMode = assetPath.Contains("/FishingSpider/")
+                ? TextureWrapMode.Clamp
+                : TextureWrapMode.Repeat;
             importer.filterMode = FilterMode.Trilinear;
             importer.anisoLevel = 16;
             importer.maxTextureSize = 8192;
@@ -84,7 +88,9 @@ namespace CanopyKin.Editor
                 return;
             }
 
-            if (!assetPath.Equals(ProductionAnt, System.StringComparison.Ordinal)) return;
+            bool productionAnt = assetPath.Equals(ProductionAnt, System.StringComparison.Ordinal);
+            bool productionSpider = assetPath.Equals(ProductionSpider, System.StringComparison.Ordinal);
+            if (!productionAnt && !productionSpider) return;
             importer.globalScale = 1f;
             importer.useFileScale = true;
             importer.importAnimation = true;
@@ -97,7 +103,9 @@ namespace CanopyKin.Editor
             importer.meshCompression = ModelImporterMeshCompression.Off;
             importer.importNormals = ModelImporterNormals.Import;
             importer.importTangents = ModelImporterTangents.CalculateMikk;
-            importer.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+            importer.materialImportMode = productionSpider
+                ? ModelImporterMaterialImportMode.None
+                : ModelImporterMaterialImportMode.ImportStandard;
         }
     }
 }

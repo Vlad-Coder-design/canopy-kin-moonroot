@@ -408,6 +408,9 @@ namespace CanopyKin
         public Species Kind { get; private set; }
         public float Health { get; private set; }
         public float MaxHealth { get; private set; }
+        public int DamageEvents { get; private set; }
+        public int AttackEvents { get; private set; }
+        public int SuccessfulAttacks { get; private set; }
         public bool IsActive => state != BrainState.Dead &&
                                 WorldBootstrap.Instance &&
                                 WorldBootstrap.Instance.IsPlaying &&
@@ -427,6 +430,14 @@ namespace CanopyKin
         Collider bodyCollider;
         Renderer[] renderers;
         AntVisual rivalVisual;
+        SpiderVisual spiderVisual;
+        bool qaFrozen;
+
+        public void FreezeForQa()
+        {
+            qaFrozen = true;
+            spiderVisual?.SetTelegraphing(false);
+        }
 
         public void Initialize(Species species, int missionStep)
         {
@@ -444,7 +455,7 @@ namespace CanopyKin
             else if (species == Species.Beetle)
                 CreatureVisuals.BuildBeetle(transform);
             else
-                CreatureVisuals.BuildSpider(transform);
+                spiderVisual = CreatureVisuals.BuildSpider(transform);
             renderers = GetComponentsInChildren<Renderer>();
             home = transform.position;
             wanderTarget = home;
@@ -456,6 +467,7 @@ namespace CanopyKin
         {
             WorldBootstrap world = WorldBootstrap.Instance;
             if (!world || !world.IsPlaying || world.IsPaused || state == BrainState.Dead) return;
+            if (qaFrozen) return;
             if (world.Mission.Step < requiredMissionStep)
             {
                 state = BrainState.Dormant;
@@ -464,6 +476,7 @@ namespace CanopyKin
             if (state == BrainState.Dormant) state = BrainState.Wander;
 
             stateTimer -= Time.deltaTime;
+            spiderVisual?.SetTelegraphing(state == BrainState.Telegraph);
             Transform target = ChooseTarget();
             float distance = target ? Vector3.Distance(transform.position, target.position) : float.MaxValue;
             switch (state)
@@ -566,7 +579,10 @@ namespace CanopyKin
         void ResolveAttack(Transform target)
         {
             transform.localScale = Vector3.one;
+            spiderVisual?.PlayAttack();
+            AttackEvents++;
             if (!target || Vector3.Distance(transform.position, target.position) > definition.attackRange * 1.28f) return;
+            SuccessfulAttacks++;
             if (target.TryGetComponent(out PlayerAnt player)) player.Damage(definition.damage);
             else target.GetComponent<SquadUnit>()?.Damage(definition.damage);
             AudioDirector.Instance?.PlayHit(target.position);
@@ -590,6 +606,7 @@ namespace CanopyKin
         public void Damage(float amount, Vector3 sourcePosition)
         {
             if (!IsActive) return;
+            DamageEvents++;
             Vector3 incoming = (sourcePosition - transform.position).normalized;
             float front = Vector3.Dot(transform.forward, incoming);
             float weakPointMultiplier = Kind switch
@@ -602,6 +619,7 @@ namespace CanopyKin
             AudioDirector.Instance?.PlayHit(transform.position);
             FxPool.Instance?.Burst(transform.position + Vector3.up * .42f, new Color(.65f, .24f, .06f), 10);
             rivalVisual?.PlayStagger();
+            spiderVisual?.PlayStagger();
             StartCoroutine(HitFlash());
             if (Health > 0)
             {
@@ -632,6 +650,7 @@ namespace CanopyKin
             state = BrainState.Dead;
             bodyCollider.enabled = false;
             rivalVisual?.PlayDeath();
+            spiderVisual?.PlayDeath();
             WorldBootstrap.Instance.Colony.Add(ResourceKind.Protein, Kind == Species.Spider ? 3 : 1);
             WorldBootstrap.Instance.Mission.NotifyKill(Kind);
             WorldBootstrap.Instance.ShowToast(GameText.Pick($"{DisplayName} defeated", $"{DisplayName} повержен"));
@@ -640,7 +659,11 @@ namespace CanopyKin
             while (elapsed < .8f)
             {
                 elapsed += Time.deltaTime;
-                transform.rotation = Quaternion.Slerp(start, start * Quaternion.Euler(0, 0, 82f), elapsed / .8f);
+                if (!spiderVisual)
+                    transform.rotation = Quaternion.Slerp(
+                        start,
+                        start * Quaternion.Euler(0, 0, 82f),
+                        elapsed / .8f);
                 yield return null;
             }
             yield return new WaitForSeconds(1.8f);
