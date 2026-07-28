@@ -1,0 +1,59 @@
+{
+  "source": "D:\\Рабочий Стол\\Empire of the Ants\\ArtSource\\ThirdParty\\Sketchfab\\RhinocerosBeetle\\Raw\\source\\IKINOSHIMA001-W07-1all-1.gltf",
+  "objects": [
+    {
+      "name": "Cube",
+      "vertices": 24,
+      "triangles": 12,
+      "materials": [
+        "Material.001"
+      ],
+      "dimensions": [
+        0.7371438145637512,
+        0.7371437549591064,
+        0.7371438145637512
+      ],
+      "location": [
+        3.579634666442871,
+        -0.004222743678838015,
+        -0.009604118764400482
+      ],
+      "parent": null
+    },
+    {
+      "name": "IKINOSHIMA001-W07-1all-1",
+      "vertices": 283599,
+      "triangles": 319517,
+      "materials": [
+        "IKINOSHIMA001-W07-1all-1"
+      ],
+      "dimensions": [
+        3.6694765090942383,
+        3.55086088180542,
+        5.655308246612549
+      ],
+      "location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "parent": null
+    }
+  ],
+  "selected": "IKINOSHIMA001-W07-1all-1",
+  "bounds_min": [
+    -3.4428043365478516,
+    -2.4099533557891846,
+    -3.469301223754883
+  ],
+  "bounds_max": [
+    3.3982958793640137,
+    2.794602394104004,
+    2.681753158569336
+  ],
+  "size": [
+    6.841100215911865,
+    5.204555511474609,
+    6.151054382324219
+  ]
+}

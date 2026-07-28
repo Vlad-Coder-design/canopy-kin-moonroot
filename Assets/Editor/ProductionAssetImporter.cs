@@ -14,6 +14,8 @@ namespace CanopyKin.Editor
         const string ProductionAnt = "Assets/Resources/Models/Ant/CanopyKinProductionAnt.fbx";
         const string ProductionSpider =
             "Assets/Resources/Models/Creatures/CanopyKinFishingSpider.fbx";
+        const string ProductionBeetle =
+            "Assets/Resources/Models/Creatures/CanopyKinRhinocerosBeetle.fbx";
         const string DeadTreeTrunk =
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
 
@@ -90,7 +92,8 @@ namespace CanopyKin.Editor
 
             bool productionAnt = assetPath.Equals(ProductionAnt, System.StringComparison.Ordinal);
             bool productionSpider = assetPath.Equals(ProductionSpider, System.StringComparison.Ordinal);
-            if (!productionAnt && !productionSpider) return;
+            bool productionBeetle = assetPath.Equals(ProductionBeetle, System.StringComparison.Ordinal);
+            if (!productionAnt && !productionSpider && !productionBeetle) return;
             importer.globalScale = 1f;
             importer.useFileScale = true;
             importer.importAnimation = true;
@@ -103,7 +106,7 @@ namespace CanopyKin.Editor
             importer.meshCompression = ModelImporterMeshCompression.Off;
             importer.importNormals = ModelImporterNormals.Import;
             importer.importTangents = ModelImporterTangents.CalculateMikk;
-            importer.materialImportMode = productionSpider
+            importer.materialImportMode = productionSpider || productionBeetle
                 ? ModelImporterMaterialImportMode.None
                 : ModelImporterMaterialImportMode.ImportStandard;
         }

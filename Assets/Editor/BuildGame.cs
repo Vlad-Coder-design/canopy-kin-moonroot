@@ -17,6 +17,10 @@ namespace CanopyKin.Editor
             "Assets/Resources/Models/Creatures/CanopyKinFishingSpider.fbx";
         const string SpiderAlbedoPath =
             "Assets/Resources/HighQuality/Sketchfab/FishingSpider/fishing_spider_albedo_8k.jpg";
+        const string ProductionBeetlePath =
+            "Assets/Resources/Models/Creatures/CanopyKinRhinocerosBeetle.fbx";
+        const string BeetleAlbedoPath =
+            "Assets/Resources/HighQuality/Sketchfab/RhinocerosBeetle/rhinoceros_beetle_albedo_8k.jpg";
         const string ForestFloorPath = "Assets/Resources/HighQuality/PolyHaven/ForestFloor/forest_floor_diff_8k.jpg";
         const string DeadTreePath =
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
@@ -150,6 +154,9 @@ namespace CanopyKin.Editor
             AssetDatabase.ImportAsset(
                 ProductionSpiderPath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.ImportAsset(
+                ProductionBeetlePath,
+                ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
 
             GameObject ant = AssetDatabase.LoadAssetAtPath<GameObject>(ProductionAntPath);
             if (!ant) throw new FileNotFoundException("Production ant FBX is missing", ProductionAntPath);
@@ -233,6 +240,61 @@ namespace CanopyKin.Editor
                 throw new InvalidOperationException(
                     "WebGL spider import must use the independent 2K override.");
 
+            GameObject beetle = AssetDatabase.LoadAssetAtPath<GameObject>(ProductionBeetlePath);
+            if (!beetle)
+                throw new FileNotFoundException(
+                    "Production rhinoceros-beetle FBX is missing", ProductionBeetlePath);
+            SkinnedMeshRenderer[] beetleSkins =
+                beetle.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            int beetleTriangles = beetleSkins
+                .Where(renderer => renderer.sharedMesh)
+                .Sum(renderer => renderer.sharedMesh.triangles.Length / 3);
+            if (beetleSkins.Length < 2 || beetleTriangles < 110000)
+                throw new InvalidOperationException(
+                    $"Production beetle requires two useful skinned LODs; " +
+                    $"renderers={beetleSkins.Length} triangles={beetleTriangles}.");
+            SkinnedMeshRenderer beetleHigh = beetleSkins
+                .Where(renderer => renderer.sharedMesh)
+                .OrderByDescending(renderer => renderer.sharedMesh.triangles.Length)
+                .FirstOrDefault();
+            string[] requiredBeetleBones =
+            {
+                "Root", "Thorax", "Abdomen", "Head", "Horn",
+                "Leg_L_Front_Coxa", "Leg_R_Front_Coxa",
+                "Leg_L_Rear_Coxa", "Leg_R_Rear_Coxa"
+            };
+            var beetleBones = beetleHigh.bones
+                .Where(bone => bone)
+                .Select(bone => bone.name)
+                .ToHashSet();
+            string missingBeetleBone =
+                requiredBeetleBones.FirstOrDefault(required => !beetleBones.Contains(required));
+            if (missingBeetleBone != null)
+                throw new InvalidOperationException(
+                    $"Production beetle rig is missing bone: {missingBeetleBone}");
+            AnimationClip[] beetleClips = AssetDatabase.LoadAllAssetsAtPath(ProductionBeetlePath)
+                .OfType<AnimationClip>()
+                .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
+                .ToArray();
+            if (beetleClips.Length < 8)
+                throw new InvalidOperationException(
+                    $"Production beetle requires eight animation clips; imported {beetleClips.Length}.");
+
+            var beetleTextureImporter = AssetImporter.GetAtPath(BeetleAlbedoPath) as TextureImporter;
+            if (beetleTextureImporter == null)
+                throw new FileNotFoundException(
+                    "Production beetle scan texture is missing", BeetleAlbedoPath);
+            TextureImporterPlatformSettings beetleStandalone =
+                beetleTextureImporter.GetPlatformTextureSettings("Standalone");
+            TextureImporterPlatformSettings beetleWeb =
+                beetleTextureImporter.GetPlatformTextureSettings("WebGL");
+            if (!beetleStandalone.overridden || beetleStandalone.maxTextureSize < 8192)
+                throw new InvalidOperationException(
+                    "Windows beetle import must retain the 8K scan texture.");
+            if (!beetleWeb.overridden || beetleWeb.maxTextureSize > 2048)
+                throw new InvalidOperationException(
+                    "WebGL beetle import must use the independent 2K override.");
+
             var floorImporter = AssetImporter.GetAtPath(ForestFloorPath) as TextureImporter;
             if (floorImporter == null)
                 throw new FileNotFoundException("Production forest-floor texture is missing", ForestFloorPath);
@@ -267,6 +329,9 @@ namespace CanopyKin.Editor
                 $"spiderLods={spiderSkins.Length} spiderTriangles={spiderTriangles} " +
                 $"spiderClips={spiderClips.Length} spiderWindowsTexture={spiderStandalone.maxTextureSize} " +
                 $"spiderWebTexture={spiderWeb.maxTextureSize} " +
+                $"beetleLods={beetleSkins.Length} beetleTriangles={beetleTriangles} " +
+                $"beetleClips={beetleClips.Length} beetleWindowsTexture={beetleStandalone.maxTextureSize} " +
+                $"beetleWebTexture={beetleWeb.maxTextureSize} " +
                 $"deadTreeMeshes={deadTreeMeshes.Length} deadTreeTriangles={deadTreeTriangles} " +
                 $"deadTreeBounds={largestDeadTreeMesh.bounds.size}");
         }

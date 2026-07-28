@@ -430,12 +430,14 @@ namespace CanopyKin
         Collider bodyCollider;
         Renderer[] renderers;
         AntVisual rivalVisual;
+        BeetleVisual beetleVisual;
         SpiderVisual spiderVisual;
         bool qaFrozen;
 
         public void FreezeForQa()
         {
             qaFrozen = true;
+            beetleVisual?.SetTelegraphing(false);
             spiderVisual?.SetTelegraphing(false);
         }
 
@@ -453,7 +455,7 @@ namespace CanopyKin
             if (species == Species.RivalAnt)
                 rivalVisual = AntVisual.Create(transform, new Color(.43f, .035f, .012f), 1.16f, AntCaste.Rival);
             else if (species == Species.Beetle)
-                CreatureVisuals.BuildBeetle(transform);
+                beetleVisual = CreatureVisuals.BuildBeetle(transform);
             else
                 spiderVisual = CreatureVisuals.BuildSpider(transform);
             renderers = GetComponentsInChildren<Renderer>();
@@ -476,6 +478,7 @@ namespace CanopyKin
             if (state == BrainState.Dormant) state = BrainState.Wander;
 
             stateTimer -= Time.deltaTime;
+            beetleVisual?.SetTelegraphing(state == BrainState.Telegraph);
             spiderVisual?.SetTelegraphing(state == BrainState.Telegraph);
             Transform target = ChooseTarget();
             float distance = target ? Vector3.Distance(transform.position, target.position) : float.MaxValue;
@@ -579,6 +582,7 @@ namespace CanopyKin
         void ResolveAttack(Transform target)
         {
             transform.localScale = Vector3.one;
+            beetleVisual?.PlayAttack();
             spiderVisual?.PlayAttack();
             AttackEvents++;
             if (!target || Vector3.Distance(transform.position, target.position) > definition.attackRange * 1.28f) return;
@@ -619,6 +623,7 @@ namespace CanopyKin
             AudioDirector.Instance?.PlayHit(transform.position);
             FxPool.Instance?.Burst(transform.position + Vector3.up * .42f, new Color(.65f, .24f, .06f), 10);
             rivalVisual?.PlayStagger();
+            beetleVisual?.PlayStagger();
             spiderVisual?.PlayStagger();
             StartCoroutine(HitFlash());
             if (Health > 0)
@@ -650,6 +655,7 @@ namespace CanopyKin
             state = BrainState.Dead;
             bodyCollider.enabled = false;
             rivalVisual?.PlayDeath();
+            beetleVisual?.PlayDeath();
             spiderVisual?.PlayDeath();
             WorldBootstrap.Instance.Colony.Add(ResourceKind.Protein, Kind == Species.Spider ? 3 : 1);
             WorldBootstrap.Instance.Mission.NotifyKill(Kind);
@@ -659,7 +665,7 @@ namespace CanopyKin
             while (elapsed < .8f)
             {
                 elapsed += Time.deltaTime;
-                if (!spiderVisual)
+                if (!spiderVisual && !beetleVisual)
                     transform.rotation = Quaternion.Slerp(
                         start,
                         start * Quaternion.Euler(0, 0, 82f),

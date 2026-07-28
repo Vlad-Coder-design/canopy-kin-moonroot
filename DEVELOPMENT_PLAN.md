@@ -29,6 +29,13 @@
   29,999-triangle distant LOD, 28-bone rig, eight animation clips and the
   original high-resolution photographic atlas. Windows retains 8K while WebGL
   imports an independent 2K copy.
+- The Barkshield encounter now uses the CC0 Japanese rhinoceros-beetle scan by
+  ffish.asia / floraZia.com instead of the procedural fallback: 92,000-triangle
+  close LOD, 24,000-triangle distant LOD, 23-bone rig, eight animation clips and
+  the original high-resolution photographic atlas. Windows retains 8K while
+  WebGL imports an independent 2K copy. The visual heading was corrected to
+  agree with gameplay forward, so charging, damage-side tests and the horn all
+  use the same direction.
 - The Windows High profile uses separate underground/surface visibility
   partitions. Invisible vegetation and terrain are not submitted while the
   player is in the nest, without reducing visible scene density.
@@ -61,7 +68,7 @@
 
 - Unity: `6000.0.78f1`.
 - Production asset contract: passed.
-- Windows x64 build: passed, `567,854,047` bytes in Unity's build report.
+- Windows x64 build: passed, `666,414,219` bytes in Unity's build report.
 - Windows player: ordinary nursery start and optimized surface smoke both
   launched; queen objective, worker-only opening squad, production ant, licensed
   trunk, restored vegetation and corrected location materials were visually
@@ -76,6 +83,14 @@
 - Automated squad combat against the production spider passed in the built
   executable: mission stage 7 advanced to 8 in 4.8 seconds after 19 real damage
   events; the predator completed a telegraphed hit and its death sequence.
+- Production-beetle close-view QA passed in the built executable: two skinned
+  LODs, 116,000 combined triangles, approximately 2.75 x 2.43 x 3.45 m runtime
+  bounds, correct forward orientation and no console errors. The evidence frame
+  is `QA/Screenshots/beetle-production-windows-20260728.jpg`.
+- Automated player combat against the production beetle passed in the built
+  executable: mission stage 5 advanced to 6 in 6.4 seconds after 11 real bite
+  damage events; Barkshield completed 10 telegraphed attacks, 10 successful
+  hits and its production death sequence.
 - Measured High profile at 1920x1080 on RTX 3050 Laptop, 20-second warm samples:
   - underground opening: 59.00 FPS, 16.95 ms frame, 10.89 ms GPU,
     358 batches, 254 SetPass calls, 1.76M triangles, 160.4 MB allocated,
@@ -89,9 +104,8 @@
 
 ## Remaining production work
 
-- Replace the remaining procedural beetle and coarse root silhouettes
-  with authored production meshes and expand the licensed high-resolution
-  material set.
+- Replace coarse root silhouettes with authored production meshes and expand
+  the licensed high-resolution material set.
 - Refine close camera composition, foot contact, slope posing, animation
   blending, combat alignment and creature audio.
 - Time a complete manual start-to-finish playthrough and tune travel/combat

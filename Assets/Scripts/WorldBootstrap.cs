@@ -124,6 +124,13 @@ namespace CanopyKin
                          arguments,
                          argument => string.Equals(
                              argument,
+                             "-beetle-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginBeetleQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
                              "-spider-combat-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginSpiderCombatSmoke());
@@ -131,9 +138,110 @@ namespace CanopyKin
                          arguments,
                          argument => string.Equals(
                              argument,
+                             "-beetle-combat-smoke",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginBeetleCombatSmoke());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
                              "-mission-flow-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginMissionFlowSmokeTest());
+        }
+
+        IEnumerator BeginBeetleQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            Mission.Restore(MissionDirector.BeetleStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            Creature beetle = creatures.Find(creature =>
+                creature && creature.Kind == Creature.Species.Beetle);
+            BeetleVisual visual = beetle
+                ? beetle.GetComponentInChildren<BeetleVisual>(true)
+                : null;
+            if (!beetle || !visual)
+                throw new System.InvalidOperationException(
+                    "Beetle QA requires the production mission predator.");
+            beetle.FreezeForQa();
+            // Place the actual player in front of the frozen mission actor so the
+            // QA view proves the horn, eyes and mandibles, not only the elytra.
+            Vector3 playerPosition =
+                beetle.transform.position + beetle.transform.forward * 7.5f;
+            playerPosition.y = GroundHeight(playerPosition.x, playerPosition.z) + .05f;
+            Player.Teleport(playerPosition);
+            Player.Face(beetle.transform.position + Vector3.up * .4f);
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            ApplyLocationLighting();
+            BeginPlay();
+            SkinnedMeshRenderer[] skins =
+                visual.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            int triangles = skins
+                .Where(renderer => renderer.sharedMesh)
+                .Sum(renderer => (int)renderer.sharedMesh.GetIndexCount(0) / 3);
+            string bounds = string.Join(
+                "; ",
+                skins.Select(renderer =>
+                    $"{renderer.name}:size={renderer.bounds.size}," +
+                    $"offset={renderer.bounds.center - beetle.transform.position}"));
+            Debug.Log(
+                $"MOONROOT_BEETLE_QA_READY triangles={triangles} " +
+                $"lods={skins.Length} bounds={bounds}");
+        }
+
+        IEnumerator BeginBeetleCombatSmoke()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            Mission.Restore(MissionDirector.BeetleStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            Creature beetle = creatures.Find(creature =>
+                creature && creature.Kind == Creature.Species.Beetle);
+            if (!beetle || !beetle.GetComponentInChildren<BeetleVisual>(true))
+                throw new System.InvalidOperationException(
+                    "Beetle combat smoke requires the production mission predator.");
+
+            Vector3 playerPosition = beetle.transform.position + Vector3.forward * 1.25f;
+            playerPosition.y = GroundHeight(playerPosition.x, playerPosition.z) + .05f;
+            Player.Teleport(playerPosition);
+            Player.Face(beetle.transform.position + Vector3.up * .35f);
+            ApplyLocationLighting();
+            BeginPlay();
+
+            float elapsed = 0;
+            float biteTimer = .85f;
+            while (elapsed < 24f && Mission.Step == MissionDirector.BeetleStep)
+            {
+                elapsed += Time.deltaTime;
+                biteTimer -= Time.deltaTime;
+                Player.Face(beetle.transform.position + Vector3.up * .35f);
+                if (biteTimer <= 0)
+                {
+                    biteTimer = .55f;
+                    Player.BiteForQa();
+                }
+                yield return null;
+            }
+            yield return new WaitForSeconds(3f);
+
+            bool missionAdvanced = Mission.Step == MissionDirector.UnlockSoldiersStep;
+            bool deathCompleted = !beetle.gameObject.activeSelf;
+            if (!missionAdvanced || !deathCompleted || beetle.DamageEvents < 4 ||
+                beetle.AttackEvents < 1)
+                throw new System.InvalidOperationException(
+                    $"Beetle combat smoke failed: mission={Mission.Step} " +
+                    $"active={beetle.gameObject.activeSelf} damageEvents={beetle.DamageEvents} " +
+                    $"attackEvents={beetle.AttackEvents} hits={beetle.SuccessfulAttacks} " +
+                    $"elapsed={elapsed:F1}.");
+
+            Debug.Log(
+                $"MOONROOT_BEETLE_COMBAT_SMOKE_OK elapsed={elapsed:F1} " +
+                $"damageEvents={beetle.DamageEvents} attackEvents={beetle.AttackEvents} " +
+                $"hits={beetle.SuccessfulAttacks} mission={Mission.Step}");
         }
 
         IEnumerator BeginSpiderCombatSmoke()
@@ -862,7 +970,9 @@ namespace CanopyKin
             bool pond = Vector2.Distance(new Vector2(x, z), new Vector2(-13.5f, 13.5f)) < 5.2f;
             bool spiderArena =
                 Vector2.Distance(new Vector2(x, z), new Vector2(1.2f, -16.5f)) < 7.2f;
-            return trail || nest || pond || spiderArena;
+            bool beetleArena =
+                Vector2.Distance(new Vector2(x, z), new Vector2(7.3f, 14.2f)) < 6.4f;
+            return trail || nest || pond || spiderArena || beetleArena;
         }
 
         void BuildResources()

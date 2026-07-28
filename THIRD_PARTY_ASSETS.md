@@ -70,3 +70,22 @@ https://polyhaven.com/license
 
 The downloaded model is explicitly published as CC0. Credit is retained here
 for provenance even though attribution is not required.
+
+## Sketchfab — CC0 Japanese Rhinoceros Beetle
+
+- Asset: `CC0 Japanese Rhinoceros Beetle`
+- Creator: ffish.asia / floraZia.com
+- Provider: Sketchfab
+- Source: https://sketchfab.com/3d-models/cc0-japanese-rhinoceros-beetle-6395f798f7d243e19975a55b76608a8b
+- License: CC0 1.0 / public domain dedication
+- Imported files: original glTF scan and original high-resolution photographic
+  base-colour atlas
+- Modifications: scan-outlier cleanup; close-view LOD0 reduced from 319,517
+  to 92,000 triangles; 24,000-triangle LOD1; original 23-bone anatomical rig;
+  idle, walk, run, charge telegraph, charge, stagger, death and retreat clips;
+  Unity material reconstruction; BC compression and mip streaming; 8K
+  Standalone import and independent 2K WebGL texture override
+- Use: Barkshield rhinoceros-beetle enemy and weak-point combat encounter
+
+The downloaded model is explicitly published as CC0. Credit is retained here
+for provenance even though attribution is not required.

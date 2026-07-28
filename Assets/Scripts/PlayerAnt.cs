@@ -226,6 +226,13 @@ namespace CanopyKin
             WorldBootstrap.Instance.FlashCrosshair(hitSomething);
         }
 
+        public void BiteForQa()
+        {
+            visual?.PlayAttack();
+            AudioDirector.Instance?.PlayBite(transform.position + transform.forward * .45f);
+            ResolveBite();
+        }
+
         void HandleTacticalInput(Mouse mouse)
         {
             if (!viewCamera || mouse == null) return;

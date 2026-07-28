@@ -517,8 +517,11 @@ namespace CanopyKin
 
     public static class CreatureVisuals
     {
-        public static void BuildBeetle(Transform parent)
+        public static BeetleVisual BuildBeetle(Transform parent)
         {
+            BeetleVisual production = BeetleVisual.Create(parent);
+            if (production) return production;
+
             Color shell = new(.045f, .11f, .075f);
             Color wing = new(.12f, .27f, .15f);
             VisualFactory.OrganicPart("Ridged beetle abdomen", parent, OrganicMeshFactory.BodyShape.BeetleShell, new Vector3(0, .48f, -.18f), new Vector3(1.15f, 1.05f, 1.3f), shell, .68f);
@@ -541,6 +544,7 @@ namespace CanopyKin
             BuildCreatureLegs(parent, 3, .34f, .98f, new Color(.025f, .05f, .032f), .055f);
             VisualFactory.Segment("Left feeler", parent, new Vector3(-.18f, .5f, .92f), new Vector3(-.52f, .54f, 1.35f), .026f, shell);
             VisualFactory.Segment("Right feeler", parent, new Vector3(.18f, .5f, .92f), new Vector3(.52f, .54f, 1.35f), .026f, shell);
+            return null;
         }
 
         public static SpiderVisual BuildSpider(Transform parent)
