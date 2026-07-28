@@ -57,6 +57,8 @@ namespace CanopyKin.Editor
             ConfigureShared();
             ConfigureWebGL();
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.WebGL, "com.moonroot.canopykin");
+            if (Directory.Exists("Builds/WebGL"))
+                Directory.Delete("Builds/WebGL", true);
             Directory.CreateDirectory("Builds/WebGL");
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL);
             BuildReport report = BuildPipeline.BuildPlayer(
@@ -101,12 +103,32 @@ namespace CanopyKin.Editor
 
         static void ConfigureWebGL()
         {
+            bool diagnostics = string.Equals(
+                Environment.GetEnvironmentVariable("MOONROOT_WEBGL_DIAGNOSTICS"),
+                "1",
+                StringComparison.Ordinal);
             PlayerSettings.stripEngineCode = true;
-            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, ManagedStrippingLevel.High);
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            // High managed stripping produced a release-only WebGL regression:
+            // Unity removed runtime-reached Input System/UI code and the player
+            // emitted a NullReferenceException every frame. Low still strips
+            // unused assemblies while preserving the reflection-driven paths
+            // used by the actual game.
+            PlayerSettings.SetManagedStrippingLevel(
+                NamedBuildTarget.WebGL,
+                ManagedStrippingLevel.Low);
+            // GitHub Pages cannot supply repository-defined Content-Encoding
+            // headers. Gzip plus Unity's JavaScript fallback keeps the payload
+            // below Git's single-file limit and still loads when the server
+            // returns the compressed bytes as ordinary static content.
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
             PlayerSettings.WebGL.dataCaching = true;
-            PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.Off;
-            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+            PlayerSettings.WebGL.debugSymbolMode = diagnostics
+                ? WebGLDebugSymbolMode.Embedded
+                : WebGLDebugSymbolMode.Off;
+            PlayerSettings.WebGL.exceptionSupport = diagnostics
+                ? WebGLExceptionSupport.FullWithStacktrace
+                : WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
             PlayerSettings.WebGL.memorySize = 512;
             PlayerSettings.WebGL.emscriptenArgs = string.Empty;
             PlayerSettings.WebGL.template = "PROJECT:CanopyKin";

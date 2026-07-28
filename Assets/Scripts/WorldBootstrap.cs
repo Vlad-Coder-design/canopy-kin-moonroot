@@ -561,16 +561,20 @@ namespace CanopyKin
             SetLocationRenderers();
             if (IsUnderground)
             {
-                RenderSettings.ambientSkyColor = new Color(.27f, .29f, .25f);
-                RenderSettings.ambientEquatorColor = new Color(.2f, .19f, .155f);
-                RenderSettings.ambientGroundColor = new Color(.095f, .078f, .056f);
-                RenderSettings.fogColor = new Color(.13f, .155f, .14f);
+                // The nest remains subterranean and warm, but its playable
+                // silhouettes must stay readable on ordinary browser displays.
+                // This uses ambient/fill energy rather than extra per-pixel
+                // lights, so WebGL draw cost is unchanged.
+                RenderSettings.ambientSkyColor = new Color(.35f, .37f, .32f);
+                RenderSettings.ambientEquatorColor = new Color(.255f, .24f, .195f);
+                RenderSettings.ambientGroundColor = new Color(.135f, .108f, .076f);
+                RenderSettings.fogColor = new Color(.16f, .185f, .17f);
                 RenderSettings.fogDensity = .0065f;
-                if (sunLight) sunLight.intensity = .13f;
-                if (skyFillLight) skyFillLight.intensity = .12f;
-                if (amberNestLight) amberNestLight.intensity = 1.72f;
-                if (tunnelFillLight) tunnelFillLight.intensity = 1.28f;
-                if (nurseryFillLight) nurseryFillLight.intensity = .76f;
+                if (sunLight) sunLight.intensity = .17f;
+                if (skyFillLight) skyFillLight.intensity = .17f;
+                if (amberNestLight) amberNestLight.intensity = 2.05f;
+                if (tunnelFillLight) tunnelFillLight.intensity = 1.55f;
+                if (nurseryFillLight) nurseryFillLight.intensity = 1f;
                 return;
             }
 

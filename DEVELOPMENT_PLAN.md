@@ -46,6 +46,14 @@
   player is in the nest, without reducing visible scene density.
 - Player-build telemetry measures frame time, GPU/CPU timing, batches, SetPass
   calls, triangles, memory and GC rather than relying on estimates.
+- WebGL now uses gzip output with Unity's JavaScript decompression fallback, so
+  GitHub Pages can serve the build without custom `Content-Encoding` headers.
+  The responsive production loader reports real download progress, has a
+  120-second failure watchdog, retry guidance and fullscreen support.
+- WebGL managed stripping was reduced from High to Low after a release-only
+  regression was reproduced: High removed runtime-reached Input System/UI paths
+  and caused a per-frame `NullReferenceException`. Low retains useful stripping
+  while preserving the reflection-driven runtime code.
 
 ## Gameplay already connected
 
@@ -76,12 +84,20 @@
 - Windows x64 build: passed, `667,058,663` bytes in Unity's build report.
 - Distributable archive:
   `Releases/CanopyKin-Moonroot-Windows-x64-v0.4.0.zip`,
-  `568,664,862` bytes, SHA-256
-  `83C54C9A03C3EA72CD2FFDE4844496141476830303F731FADEE4697385EFBF76`.
+  `568,664,867` bytes, SHA-256
+  `C57F23D610F1A8C9ED97128008CE00DEA96B1F21009D3064697595CF401F632A`.
 - The archive was extracted into a new temporary directory and the executable
   was launched from that clean copy. Its mission-flow smoke reached final step
   15, confirmed four unlocked soldiers and completed an isolated save/load
   round trip.
+- WebGL 0.4.0 release build: passed, `55,558,369` bytes. A fresh local-browser
+  session loaded through a plain static server (therefore exercising the
+  JavaScript gzip fallback), displayed the HUD and accepted gameplay input with
+  zero console warnings or errors.
+- Measured WebGL opening at 1600x900 over a 20-second sample: 55.33 FPS,
+  18.07 ms average frame, 24.0 ms p95, 84 batches, 62 SetPass calls,
+  396K triangles, 117.9 MB allocated / 128.8 MB reserved and 0 B/frame GC.
+  Evidence: `QA/Screenshots/webgl-local-0.4.0-20260728.jpg`.
 - Windows player: ordinary nursery start and optimized surface smoke both
   launched; queen objective, worker-only opening squad, production ant, licensed
   trunk, restored vegetation and corrected location materials were visually
@@ -136,6 +152,6 @@
   this development machine, not an unrelated PC.
 - Profile the surface region and combat encounters separately; optimize
   invisible work while preserving the Windows High presentation.
-- Rebuild and smoke-test the independently optimized WebGL edition, deploy it,
-  open the real public URL in a clean session and verify gameplay before
-  publishing 0.4.0.
+- Deploy the independently optimized WebGL edition, open the real public URL in
+  a clean session and verify gameplay before declaring the 0.4.0 web checkpoint
+  published.

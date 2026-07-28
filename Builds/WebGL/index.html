@@ -1,23 +1,144 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,viewport-fit=cover">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,height=device-height,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#080b08">
   <title>Canopy Kin Moonroot</title>
   <style>
-    *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080b08;color:#f4e8be;font-family:system-ui,sans-serif}#shell{position:fixed;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 40%,#273723,#080b08 70%)}#unity-canvas{width:100%;height:100%;background:#111;display:none}.card{width:min(520px,88vw);text-align:center}.title{font-size:clamp(28px,5vw,52px);letter-spacing:.08em}.bar{height:12px;border:1px solid #9b8654;border-radius:9px;padding:2px;margin:25px 0 12px}.fill{height:100%;width:0;background:linear-gradient(90deg,#607b3e,#d4b86a);border-radius:6px;transition:width .15s}.error{display:none;color:#ffb4a8;line-height:1.5}button{position:fixed;right:16px;bottom:16px;border:1px solid #bca66d;background:#141b12;color:#f4e8be;border-radius:8px;padding:10px 14px;cursor:pointer}
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #080b08;
+      color: #f4e8be;
+      font-family: Inter, system-ui, sans-serif;
+    }
+    #shell {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: max(22px, env(safe-area-inset-top)) max(22px, env(safe-area-inset-right))
+        max(22px, env(safe-area-inset-bottom)) max(22px, env(safe-area-inset-left));
+      background: radial-gradient(circle at 50% 38%, #31452a, #101810 46%, #080b08 78%);
+    }
+    #unity-canvas {
+      display: none;
+      width: 100vw;
+      height: 100dvh;
+      background: #111;
+      touch-action: none;
+      outline: none;
+    }
+    .card { width: min(560px, 90vw); text-align: center; }
+    .title { font-size: clamp(30px, 6vw, 58px); letter-spacing: .09em; }
+    .subtitle { color: #d4c99f; line-height: 1.55; }
+    .bar { height: 13px; border: 1px solid #9b8654; border-radius: 9px; padding: 2px; margin: 26px 0 12px; }
+    .fill { height: 100%; width: 0; background: linear-gradient(90deg, #607b3e, #d4b86a); border-radius: 6px; transition: width .15s; }
+    .error { display: none; color: #ffb4a8; line-height: 1.55; white-space: pre-wrap; }
+    button {
+      border: 1px solid #bca66d;
+      background: #141b12;
+      color: #f4e8be;
+      border-radius: 8px;
+      padding: 11px 16px;
+      cursor: pointer;
+    }
+    #full { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); }
+    #retry { display: none; margin: 18px auto 0; }
+    @media (max-width: 700px) { #full { font-size: 13px; padding: 9px 12px; } }
   </style>
 </head>
-<body><div id="shell"><div class="card"><div class="title">CANOPY KIN</div><p>Moonroot is waking beneath the forest floor…</p><div class="bar"><div id="fill" class="fill"></div></div><div id="status">Downloading game… 0%</div><div id="error" class="error"></div></div></div><canvas id="unity-canvas" tabindex="-1"></canvas><button id="full">Fullscreen</button>
-<script>
-const canvas=document.querySelector('#unity-canvas'),shell=document.querySelector('#shell'),fill=document.querySelector('#fill'),status=document.querySelector('#status'),errorBox=document.querySelector('#error');
-const diagnostics=[];window.webglDiagnostics=diagnostics;
-const record=(level,message)=>{const line=level+': '+String(message);diagnostics.push(line);if(diagnostics.length>200)diagnostics.shift();(level==='error'?console.error:console.log)(message)};
-const root='Build',loader=root+'/6fa096a13772d004cc14c752cf44abf8.loader.js';
-const config={dataUrl:root+'/8a6f595be0caf642a4f01a8f926d0efd.data',frameworkUrl:root+'/c3d76aec034afc509fd1b041e29f355b.framework.js',codeUrl:root+'/5ed8376c24fdd307f4b789827514436c.wasm',streamingAssetsUrl:'StreamingAssets',companyName:'Moonroot Studio',productName:'Canopy Kin Moonroot',productVersion:'0.3.0',print:message=>record('log',message),printErr:message=>record('error',message)};
-function fail(message){status.style.display='none';document.querySelector('.bar').style.display='none';errorBox.style.display='block';errorBox.textContent='The colony could not load. '+message+' Refresh the page or try a current desktop browser with WebGL enabled.'}
-const watchdog=setTimeout(()=>fail('Startup took longer than 90 seconds.'),90000);
-window.addEventListener('error',e=>fail(e.message||'Unexpected browser error.'));
-window.addEventListener('unhandledrejection',e=>fail(e.reason?.message||String(e.reason||'Unexpected startup error.')));
-const script=document.createElement('script');script.src=loader;script.onload=()=>createUnityInstance(canvas,config,p=>{const n=Math.round(p*100);fill.style.width=n+'%';status.textContent=n<90?'Downloading game… '+n+'%':'Starting colony simulation…'}).then(instance=>{clearTimeout(watchdog);window.game=instance;shell.style.display='none';canvas.style.display='block';canvas.focus()}).catch(e=>fail(e.message||String(e)));script.onerror=()=>fail('A required game file was not found.');document.body.appendChild(script);
-document.querySelector('#full').onclick=()=>window.game?window.game.SetFullscreen(1):document.documentElement.requestFullscreen?.();
-</script></body></html>
+<body>
+  <div id="shell">
+    <div class="card">
+      <div class="title">CANOPY KIN</div>
+      <p class="subtitle">Moonroot is waking beneath the forest floor&hellip;</p>
+      <div class="bar"><div id="fill" class="fill"></div></div>
+      <div id="status">Downloading game&hellip; 0%</div>
+      <div id="error" class="error"></div>
+      <button id="retry" type="button">Reload game</button>
+    </div>
+  </div>
+  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <button id="full" type="button">Fullscreen</button>
+  <script>
+    const canvas = document.querySelector('#unity-canvas');
+    const shell = document.querySelector('#shell');
+    const fill = document.querySelector('#fill');
+    const status = document.querySelector('#status');
+    const errorBox = document.querySelector('#error');
+    const retry = document.querySelector('#retry');
+    const diagnostics = [];
+    window.webglDiagnostics = diagnostics;
+
+    const record = (level, message) => {
+      const line = level + ': ' + String(message);
+      diagnostics.push(line);
+      if (diagnostics.length > 200) diagnostics.shift();
+      (level === 'error' ? console.error : console.log)(message);
+    };
+
+    const root = 'Build';
+    const loader = root + '/3ce3216c83a8e0accc91301cf04f7ede.loader.js';
+    const config = {
+      dataUrl: root + '/c8fe8a2769a3632aed1e7411fa7effd2.data.unityweb',
+      frameworkUrl: root + '/02e52e6978c24b74c0c75fb4eabaaf9c.framework.js.unityweb',
+      codeUrl: root + '/38bab48ee344dc9945b20b3f5e4353a9.wasm.unityweb',
+      streamingAssetsUrl: 'StreamingAssets',
+      companyName: 'Moonroot Studio',
+      productName: 'Canopy Kin Moonroot',
+      productVersion: '0.4.0',
+      devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      matchWebGLToCanvasSize: true,
+      autoSyncPersistentDataPath: true,
+      print: message => record('log', message),
+      printErr: message => record('error', message)
+    };
+
+    let watchdog;
+    function fail(message) {
+      clearTimeout(watchdog);
+      status.style.display = 'none';
+      document.querySelector('.bar').style.display = 'none';
+      errorBox.style.display = 'block';
+      retry.style.display = 'block';
+      errorBox.textContent =
+        'The colony could not load. ' + message +
+        '\nRefresh the page or use a current desktop browser with WebGL and hardware acceleration enabled.';
+    }
+
+    watchdog = setTimeout(() => fail('Startup took longer than 120 seconds.'), 120000);
+    window.addEventListener('error', event => fail(event.message || 'Unexpected browser error.'));
+    window.addEventListener('unhandledrejection', event =>
+      fail(event.reason?.message || String(event.reason || 'Unexpected startup error.')));
+    retry.onclick = () => location.reload();
+
+    const script = document.createElement('script');
+    script.src = loader;
+    script.onload = () => createUnityInstance(canvas, config, progress => {
+      const percent = Math.round(progress * 100);
+      fill.style.width = percent + '%';
+      status.textContent = percent < 90
+        ? 'Downloading game... ' + percent + '%'
+        : 'Starting colony simulation...';
+    }).then(instance => {
+      clearTimeout(watchdog);
+      window.game = instance;
+      shell.style.display = 'none';
+      canvas.style.display = 'block';
+      canvas.focus();
+    }).catch(error => fail(error.message || String(error)));
+    script.onerror = () => fail('A required game file was not found.');
+    document.body.appendChild(script);
+
+    canvas.addEventListener('pointerdown', () => canvas.focus());
+    document.querySelector('#full').onclick = () =>
+      window.game ? window.game.SetFullscreen(1) : document.documentElement.requestFullscreen?.();
+  </script>
+</body>
+</html>
