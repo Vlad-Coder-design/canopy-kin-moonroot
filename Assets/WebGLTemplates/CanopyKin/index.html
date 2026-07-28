@@ -64,7 +64,7 @@
       <button id="retry" type="button">Reload game</button>
     </div>
   </div>
-  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <canvas id="unity-canvas" tabindex="0" aria-label="Canopy Kin game canvas"></canvas>
   <button id="full" type="button">Fullscreen</button>
   <script>
     const canvas = document.querySelector('#unity-canvas');
@@ -73,8 +73,22 @@
     const status = document.querySelector('#status');
     const errorBox = document.querySelector('#error');
     const retry = document.querySelector('#retry');
+    const query = new URLSearchParams(location.search);
     const diagnostics = [];
     window.webglDiagnostics = diagnostics;
+    const inputAcceptance = {
+      canvasFocusEvents: 0,
+      movementKeydowns: 0,
+      focusedMovementKeydowns: 0,
+      fullscreenRecoveries: 0,
+      lastMovementCode: null
+    };
+    window.webglInputAcceptance = inputAcceptance;
+    window.getWebglInputAcceptance = () => ({
+      ...inputAcceptance,
+      activeElement: document.activeElement === canvas ? 'canvas' : document.activeElement?.tagName || 'none',
+      fullscreen: Boolean(document.fullscreenElement)
+    });
 
     const record = (level, message) => {
       const line = level + ': ' + String(message);
@@ -131,14 +145,37 @@
       window.game = instance;
       shell.style.display = 'none';
       canvas.style.display = 'block';
-      canvas.focus();
+      focusCanvas();
+      if (query.get('movementDiagnostics') === '1')
+        instance.SendMessage('Player scout ant', 'SetMovementDiagnostics', '1');
     }).catch(error => fail(error.message || String(error)));
     script.onerror = () => fail('A required game file was not found.');
     document.body.appendChild(script);
 
-    canvas.addEventListener('pointerdown', () => canvas.focus());
-    document.querySelector('#full').onclick = () =>
-      window.game ? window.game.SetFullscreen(1) : document.documentElement.requestFullscreen?.();
+    function focusCanvas() {
+      try { canvas.focus({ preventScroll: true }); }
+      catch { canvas.focus(); }
+    }
+    canvas.addEventListener('focus', () => inputAcceptance.canvasFocusEvents++);
+    canvas.addEventListener('pointerdown', focusCanvas);
+    window.addEventListener('focus', focusCanvas);
+    document.addEventListener('fullscreenchange', () => setTimeout(() => {
+      focusCanvas();
+      inputAcceptance.fullscreenRecoveries++;
+    }, 0));
+    window.addEventListener('keydown', event => {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'].includes(event.code)) {
+        inputAcceptance.movementKeydowns++;
+        inputAcceptance.lastMovementCode = event.code;
+        if (document.activeElement === canvas) inputAcceptance.focusedMovementKeydowns++;
+        event.preventDefault();
+      }
+    }, { passive: false });
+    document.querySelector('#full').onclick = () => {
+      focusCanvas();
+      if (window.game) window.game.SetFullscreen(1);
+      else document.documentElement.requestFullscreen?.();
+    };
   </script>
 </body>
 </html>

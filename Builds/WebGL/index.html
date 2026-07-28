@@ -64,7 +64,7 @@
       <button id="retry" type="button">Reload game</button>
     </div>
   </div>
-  <canvas id="unity-canvas" tabindex="-1"></canvas>
+  <canvas id="unity-canvas" tabindex="0" aria-label="Canopy Kin game canvas"></canvas>
   <button id="full" type="button">Fullscreen</button>
   <script>
     const canvas = document.querySelector('#unity-canvas');
@@ -73,8 +73,22 @@
     const status = document.querySelector('#status');
     const errorBox = document.querySelector('#error');
     const retry = document.querySelector('#retry');
+    const query = new URLSearchParams(location.search);
     const diagnostics = [];
     window.webglDiagnostics = diagnostics;
+    const inputAcceptance = {
+      canvasFocusEvents: 0,
+      movementKeydowns: 0,
+      focusedMovementKeydowns: 0,
+      fullscreenRecoveries: 0,
+      lastMovementCode: null
+    };
+    window.webglInputAcceptance = inputAcceptance;
+    window.getWebglInputAcceptance = () => ({
+      ...inputAcceptance,
+      activeElement: document.activeElement === canvas ? 'canvas' : document.activeElement?.tagName || 'none',
+      fullscreen: Boolean(document.fullscreenElement)
+    });
 
     const record = (level, message) => {
       const line = level + ': ' + String(message);
@@ -84,15 +98,15 @@
     };
 
     const root = 'Build';
-    const loader = root + '/3ce3216c83a8e0accc91301cf04f7ede.loader.js';
+    const loader = root + '/77c0564bb5bdbfb897c2f03dea35f754.loader.js';
     const config = {
-      dataUrl: root + '/c8fe8a2769a3632aed1e7411fa7effd2.data.unityweb',
-      frameworkUrl: root + '/02e52e6978c24b74c0c75fb4eabaaf9c.framework.js.unityweb',
-      codeUrl: root + '/38bab48ee344dc9945b20b3f5e4353a9.wasm.unityweb',
+      dataUrl: root + '/90e177588a04a67fa6dd562b4ea1ef44.data.unityweb',
+      frameworkUrl: root + '/1ae7164fee3b169fad2c1ad724b14f16.framework.js.unityweb',
+      codeUrl: root + '/5d71f33395e135b622dbcbee2d7d5165.wasm.unityweb',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: 'Moonroot Studio',
       productName: 'Canopy Kin Moonroot',
-      productVersion: '0.4.0',
+      productVersion: '0.4.1',
       devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       matchWebGLToCanvasSize: true,
       autoSyncPersistentDataPath: true,
@@ -131,14 +145,37 @@
       window.game = instance;
       shell.style.display = 'none';
       canvas.style.display = 'block';
-      canvas.focus();
+      focusCanvas();
+      if (query.get('movementDiagnostics') === '1')
+        instance.SendMessage('Player scout ant', 'SetMovementDiagnostics', '1');
     }).catch(error => fail(error.message || String(error)));
     script.onerror = () => fail('A required game file was not found.');
     document.body.appendChild(script);
 
-    canvas.addEventListener('pointerdown', () => canvas.focus());
-    document.querySelector('#full').onclick = () =>
-      window.game ? window.game.SetFullscreen(1) : document.documentElement.requestFullscreen?.();
+    function focusCanvas() {
+      try { canvas.focus({ preventScroll: true }); }
+      catch { canvas.focus(); }
+    }
+    canvas.addEventListener('focus', () => inputAcceptance.canvasFocusEvents++);
+    canvas.addEventListener('pointerdown', focusCanvas);
+    window.addEventListener('focus', focusCanvas);
+    document.addEventListener('fullscreenchange', () => setTimeout(() => {
+      focusCanvas();
+      inputAcceptance.fullscreenRecoveries++;
+    }, 0));
+    window.addEventListener('keydown', event => {
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ShiftLeft', 'ShiftRight'].includes(event.code)) {
+        inputAcceptance.movementKeydowns++;
+        inputAcceptance.lastMovementCode = event.code;
+        if (document.activeElement === canvas) inputAcceptance.focusedMovementKeydowns++;
+        event.preventDefault();
+      }
+    }, { passive: false });
+    document.querySelector('#full').onclick = () => {
+      focusCanvas();
+      if (window.game) window.game.SetFullscreen(1);
+      else document.documentElement.requestFullscreen?.();
+    };
   </script>
 </body>
 </html>

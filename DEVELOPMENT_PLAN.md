@@ -161,3 +161,25 @@
   invisible work while preserving the Windows High presentation.
 - Complete a manual start-to-finish public WebGL playthrough in addition to the
   verified startup/input/profile pass and automated 15-stage mission-flow test.
+
+## 0.4.1 movement and route correction
+
+- Reproduced the public no-movement defect: the player build enabled only the
+  legacy Input Manager while gameplay read the new Input System.
+- Enabled the correct input backend, buffered short browser key events and
+  rebuilt camera-relative movement, grounding, obstacle handling, slope posing,
+  focus recovery and distance-driven gait.
+- Added a physical nest-mouth-to-first-resource route with bark, soil banks,
+  stones, wet ground, a leaf bridge, reactive vegetation, pushable debris,
+  pheromone guidance and ambient patrol ants.
+- Forced clean target builds after an incremental WebGL build reproduced a
+  per-frame runtime null reference.
+- Clean WebGL build passed at 55,615,623 bytes. Manual canvas testing verified
+  underground movement, nest exit, the outdoor route, pause/resume,
+  fullscreen/refocus and continued movement to the first resource prompt.
+- Clean Windows x64 build passed at 667,078,743 bytes, launched, entered
+  gameplay and produced no runtime exception. The Windows automation driver's
+  synthetic keyboard events are rejected by Unity Raw Input, so hardware-key
+  movement on Windows remains an explicitly unverified manual acceptance item.
+- Detailed evidence and exact positions are recorded in
+  `QA/MOVEMENT_ACCEPTANCE_0.4.1.md`.

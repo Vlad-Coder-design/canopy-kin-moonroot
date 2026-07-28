@@ -1,6 +1,8 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
+using UnityEngine.InputSystem.LowLevel;
 
 namespace CanopyKin
 {
@@ -20,25 +22,54 @@ namespace CanopyKin
         float footstepTravel;
         float cameraShake;
         float tacticalBlend;
+        float blockedTimer;
+        float diagnosticTimer;
+        float surfaceSpeedMultiplier = 1f;
+        float bufferedW;
+        float bufferedA;
+        float bufferedS;
+        float bufferedD;
+        float bufferedSprint;
+        Vector2 rawInput;
+        Vector3 processedMovement;
+        Vector3 actualVelocity;
+        Vector3 groundNormal = Vector3.up;
+        float slopeAngle;
+        string currentSurface = "Soil";
+        bool diagnosticsVisible;
         IInteractable nearbyInteraction;
         bool pointerWasLocked;
         bool dying;
+        readonly RaycastHit[] castHits = new RaycastHit[32];
 
         public float Health { get; private set; } = 100;
         public float Stamina { get; private set; } = 100;
         public string CurrentPrompt { get; private set; }
         public Transform CameraTransform => viewCamera ? viewCamera.transform : null;
         public bool TacticalView { get; private set; }
+        public Vector2 RawInput => rawInput;
+        public Vector3 ProcessedMovement => processedMovement;
+        public Vector3 ActualVelocity => actualVelocity;
+        public bool Grounded { get; private set; }
+        public string CurrentSurface => currentSurface;
+        public float SlopeAngle => slopeAngle;
+        public bool HasInputFocus =>
+            Application.isFocused &&
+            (Application.platform != RuntimePlatform.WebGLPlayer ||
+             Cursor.lockState == CursorLockMode.Locked);
+        public string LocomotionState { get; private set; } = "Idle";
+        public string AnimationState => visual ? visual.AnimationState : "Unavailable";
 
         void Awake()
         {
             body = GetComponent<CharacterController>();
-            body.height = .74f;
-            body.radius = .25f;
-            body.center = new Vector3(0, .37f, 0);
-            body.stepOffset = .3f;
-            body.slopeLimit = 58f;
-            body.skinWidth = .035f;
+            body.height = .68f;
+            body.radius = .23f;
+            body.center = new Vector3(0, .34f, 0);
+            body.stepOffset = .22f;
+            body.slopeLimit = 54f;
+            body.skinWidth = .025f;
+            body.minMoveDistance = 0;
             visual = AntVisual.Create(transform, new Color(.16f, .035f, .012f), .92f, AntCaste.Scout);
         }
 
@@ -53,11 +84,41 @@ namespace CanopyKin
             SnapCamera();
         }
 
+        void OnEnable() => InputSystem.onEvent += BufferKeyboardEvent;
+
+        void OnDisable() => InputSystem.onEvent -= BufferKeyboardEvent;
+
+        void BufferKeyboardEvent(InputEventPtr eventPointer, InputDevice device)
+        {
+            Keyboard keyboard = device as Keyboard;
+            if (keyboard == null ||
+                (!eventPointer.IsA<StateEvent>() &&
+                 !eventPointer.IsA<DeltaStateEvent>())) return;
+
+            BufferPressed(eventPointer, keyboard.wKey, ref bufferedW);
+            BufferPressed(eventPointer, keyboard.aKey, ref bufferedA);
+            BufferPressed(eventPointer, keyboard.sKey, ref bufferedS);
+            BufferPressed(eventPointer, keyboard.dKey, ref bufferedD);
+            BufferPressed(eventPointer, keyboard.leftShiftKey, ref bufferedSprint);
+            BufferPressed(eventPointer, keyboard.rightShiftKey, ref bufferedSprint);
+        }
+
+        static void BufferPressed(
+            InputEventPtr eventPointer,
+            KeyControl key,
+            ref float buffer)
+        {
+            if (key.ReadValueFromEvent(eventPointer) > .5f)
+                buffer = Mathf.Max(buffer, .085f);
+        }
+
         void Update()
         {
             Keyboard keyboard = Keyboard.current;
             Mouse mouse = Mouse.current;
             if (keyboard == null || WorldBootstrap.Instance == null) return;
+            if (keyboard.f10Key.wasPressedThisFrame)
+                diagnosticsVisible = !diagnosticsVisible;
 
             WorldBootstrap world = WorldBootstrap.Instance;
             bool startPressed = keyboard.enterKey.wasPressedThisFrame ||
@@ -97,11 +158,11 @@ namespace CanopyKin
 
         void CapturePointer(Mouse mouse)
         {
-            if (Application.platform != RuntimePlatform.WebGLPlayer ||
-                Cursor.lockState == CursorLockMode.Locked ||
+            if (Cursor.lockState == CursorLockMode.Locked ||
                 mouse == null ||
                 !mouse.leftButton.wasPressedThisFrame) return;
             Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
             pointerWasLocked = true;
         }
 
@@ -116,63 +177,233 @@ namespace CanopyKin
 
         void Move(Keyboard keyboard)
         {
-            Vector2 input = new(
-                (keyboard.dKey.isPressed ? 1 : 0) - (keyboard.aKey.isPressed ? 1 : 0),
-                (keyboard.wKey.isPressed ? 1 : 0) - (keyboard.sKey.isPressed ? 1 : 0));
-            input = Vector2.ClampMagnitude(input, 1);
+            rawInput = new Vector2(
+                DigitalValue(keyboard.dKey, bufferedD) - DigitalValue(keyboard.aKey, bufferedA),
+                DigitalValue(keyboard.wKey, bufferedW) - DigitalValue(keyboard.sKey, bufferedS));
+            Vector2 input = Vector2.ClampMagnitude(rawInput, 1);
             Vector3 forward = Quaternion.Euler(0, yaw, 0) * Vector3.forward;
             Vector3 right = Quaternion.Euler(0, yaw, 0) * Vector3.right;
-            bool sprint = keyboard.leftShiftKey.isPressed && Stamina > 2 && input.sqrMagnitude > .1f;
-            float speed = sprint ? 5.1f : 3.15f;
-            Stamina = Mathf.Clamp(Stamina + (sprint ? -23f : 17f) * Time.deltaTime, 0, 100);
+            bool sprint =
+                (keyboard.leftShiftKey.isPressed ||
+                 keyboard.rightShiftKey.isPressed ||
+                 bufferedSprint > 0) &&
+                Stamina > 2 &&
+                input.sqrMagnitude > .1f;
+            ConsumeInputBuffers();
+            Stamina = Mathf.Clamp(Stamina + (sprint ? -21f : 18f) * Time.deltaTime, 0, 100);
 
-            Vector3 desired = (forward * input.y + right * input.x) * speed;
-            float acceleration = body.isGrounded ? (sprint ? 11f : 15f) : 4f;
+            Grounded = ProbeGround(out RaycastHit groundHit);
+            if (Grounded)
+            {
+                groundNormal = groundHit.normal;
+                slopeAngle = Vector3.Angle(groundNormal, Vector3.up);
+                MovementSurface surface = groundHit.collider.GetComponentInParent<MovementSurface>();
+                currentSurface = surface ? surface.DisplayName : SurfaceName(groundHit.collider);
+                surfaceSpeedMultiplier = surface ? surface.SpeedMultiplier : 1f;
+            }
+            else
+            {
+                groundNormal = Vector3.up;
+                slopeAngle = 0;
+                currentSurface = "Air";
+                surfaceSpeedMultiplier = 1f;
+            }
+
+            float speed = (sprint ? 4.25f : 2.55f) * surfaceSpeedMultiplier;
+            Vector3 wishDirection = forward * input.y + right * input.x;
+            if (wishDirection.sqrMagnitude > 1f) wishDirection.Normalize();
+            if (Grounded && slopeAngle <= body.slopeLimit)
+                wishDirection = Vector3.ProjectOnPlane(wishDirection, groundNormal).normalized * input.magnitude;
+            processedMovement = wishDirection;
+            Vector3 desired = wishDirection * speed;
+            float acceleration = Grounded
+                ? (desired.sqrMagnitude > planarVelocity.sqrMagnitude ? (sprint ? 18f : 24f) : 30f)
+                : 5.5f;
             planarVelocity = Vector3.MoveTowards(planarVelocity, desired, acceleration * Time.deltaTime);
 
-            if (body.isGrounded) vertical = -.65f;
-            else vertical -= 13f * Time.deltaTime;
-            if (keyboard.spaceKey.wasPressedThisFrame && body.isGrounded)
+            if (Grounded && vertical <= 0) vertical = -1.8f;
+            else vertical -= 15.5f * Time.deltaTime;
+            if (keyboard.spaceKey.wasPressedThisFrame && Grounded)
             {
                 if (!TryClimb(planarVelocity.normalized))
-                    vertical = 3.15f;
+                    vertical = 3.35f;
             }
-            if (body.isGrounded && input.sqrMagnitude > .12f)
-                AutoTraverse(planarVelocity.normalized);
 
             Vector3 before = transform.position;
-            body.Move((planarVelocity + Vector3.up * vertical) * Time.deltaTime);
+            CollisionFlags collision = body.Move((planarVelocity + Vector3.up * vertical) * Time.deltaTime);
             Vector3 moved = transform.position - before;
+            actualVelocity = moved / Mathf.Max(Time.deltaTime, .0001f);
+            Vector3 actualPlanar = Vector3.ProjectOnPlane(actualVelocity, Vector3.up);
+            float actualSpeed = actualPlanar.magnitude;
+            if ((collision & CollisionFlags.Below) != 0)
+                Grounded = true;
+            if ((collision & CollisionFlags.Above) != 0 && vertical > 0)
+                vertical = 0;
+
+            if (input.sqrMagnitude > .1f && actualSpeed < .08f)
+                blockedTimer += Time.deltaTime;
+            else
+                blockedTimer = 0;
+            if (blockedTimer > .22f && Grounded)
+            {
+                Vector3 escape = Vector3.ProjectOnPlane(wishDirection, groundNormal);
+                planarVelocity = Vector3.Lerp(planarVelocity, escape * speed * .65f, .55f);
+            }
+
             footstepTravel += new Vector2(moved.x, moved.z).magnitude;
-            if (footstepTravel > (sprint ? .5f : .72f))
+            if (footstepTravel > (sprint ? .42f : .58f))
             {
                 footstepTravel = 0;
-                AudioDirector.Instance?.PlayStep(transform.position);
+                AudioDirector.Instance?.PlayStep(transform.position, currentSurface);
+                FxPool.Instance?.Burst(
+                    transform.position + Vector3.up * .035f,
+                    FootstepColor(currentSurface),
+                    sprint ? 5 : 3);
             }
-            if (planarVelocity.sqrMagnitude > .08f)
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(planarVelocity), 10.5f * Time.deltaTime);
+            if (actualPlanar.sqrMagnitude > .003f || wishDirection.sqrMagnitude > .1f)
+            {
+                Vector3 facing = actualPlanar.sqrMagnitude > .003f ? actualPlanar : wishDirection;
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation,
+                    Quaternion.LookRotation(facing, Vector3.up),
+                    520f * Time.deltaTime);
+            }
+
+            float speed01 = Mathf.InverseLerp(0, 4.25f, actualSpeed);
+            visual?.SetPlayerMotion(actualSpeed, speed01, Grounded, groundNormal);
+            LocomotionState = !Grounded
+                ? (vertical > .05f ? "Vault" : "Falling")
+                : actualSpeed < .06f
+                    ? "Idle"
+                    : sprint && actualSpeed > 2.85f ? "Run" : "Walk";
+            EmitDiagnostics();
+        }
+
+        static float DigitalValue(KeyControl key, float buffered)
+            => key.isPressed || key.wasPressedThisFrame || buffered > 0 ? 1f : 0f;
+
+        void ConsumeInputBuffers()
+        {
+            float step = Time.unscaledDeltaTime;
+            bufferedW = Mathf.Max(0, bufferedW - step);
+            bufferedA = Mathf.Max(0, bufferedA - step);
+            bufferedS = Mathf.Max(0, bufferedS - step);
+            bufferedD = Mathf.Max(0, bufferedD - step);
+            bufferedSprint = Mathf.Max(0, bufferedSprint - step);
+        }
+
+        bool ProbeGround(out RaycastHit best)
+        {
+            best = default;
+            Vector3 origin = transform.position + Vector3.up * .42f;
+            int count = Physics.SphereCastNonAlloc(
+                origin,
+                .18f,
+                Vector3.down,
+                castHits,
+                .72f,
+                ~0,
+                QueryTriggerInteraction.Ignore);
+            float nearest = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit candidate = castHits[i];
+                if (!candidate.collider || IgnoreMovementCollider(candidate.collider)) continue;
+                if (candidate.distance >= nearest) continue;
+                nearest = candidate.distance;
+                best = candidate;
+            }
+            return best.collider != null && Vector3.Angle(best.normal, Vector3.up) <= body.slopeLimit + 8f;
+        }
+
+        bool TryFilteredSphereCast(
+            Vector3 origin,
+            float radius,
+            Vector3 direction,
+            float distance,
+            out RaycastHit best)
+        {
+            best = default;
+            int count = Physics.SphereCastNonAlloc(
+                origin,
+                radius,
+                direction.normalized,
+                castHits,
+                distance,
+                ~0,
+                QueryTriggerInteraction.Ignore);
+            float nearest = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit candidate = castHits[i];
+                if (!candidate.collider || IgnoreMovementCollider(candidate.collider)) continue;
+                if (candidate.distance >= nearest) continue;
+                nearest = candidate.distance;
+                best = candidate;
+            }
+            return best.collider != null;
+        }
+
+        bool IgnoreMovementCollider(Collider collider)
+        {
+            if (!collider) return true;
+            Transform candidate = collider.transform;
+            if (candidate == transform || candidate.IsChildOf(transform)) return true;
+            return collider.GetComponentInParent<SquadUnit>() != null;
+        }
+
+        static string SurfaceName(Collider collider)
+        {
+            if (!collider) return "Unknown";
+            string value = collider.name.ToLowerInvariant();
+            if (value.Contains("root") || value.Contains("bark") || value.Contains("leaf"))
+                return "Wood";
+            if (value.Contains("stone") || value.Contains("pebble") || value.Contains("rock"))
+                return "Stone";
+            if (value.Contains("moss")) return "Moss";
+            if (value.Contains("mud") || value.Contains("pool") || value.Contains("water"))
+                return "Wet soil";
+            return "Soil";
+        }
+
+        static Color FootstepColor(string surface)
+        {
+            if (surface.Contains("Wood")) return new Color(.38f, .2f, .075f);
+            if (surface.Contains("Stone")) return new Color(.5f, .52f, .46f);
+            if (surface.Contains("Moss")) return new Color(.25f, .47f, .13f);
+            if (surface.Contains("Wet")) return new Color(.22f, .16f, .09f);
+            return new Color(.48f, .3f, .13f);
+        }
+
+        void EmitDiagnostics()
+        {
+            if (!diagnosticsVisible) return;
+            diagnosticTimer -= Time.unscaledDeltaTime;
+            if (diagnosticTimer > 0) return;
+            diagnosticTimer = .5f;
+            Debug.Log(
+                $"MOONROOT_MOVEMENT_SAMPLE pos={transform.position:F2} raw={rawInput:F2} " +
+                $"processed={processedMovement:F2} velocity={actualVelocity:F2} " +
+                $"grounded={Grounded} state={LocomotionState} animation={AnimationState} " +
+                $"focus={Application.isFocused} pointer={Cursor.lockState} " +
+                $"surface={currentSurface} slope={slopeAngle:F1}");
         }
 
         bool TryClimb(Vector3 direction)
         {
             if (direction.sqrMagnitude < .1f) direction = transform.forward;
             Vector3 low = transform.position + Vector3.up * .18f;
-            bool obstacle = Physics.SphereCast(low, .12f, direction, out _, .65f, ~0, QueryTriggerInteraction.Ignore);
-            bool clear = !Physics.SphereCast(transform.position + Vector3.up * .72f, .11f, direction, out _, .72f, ~0, QueryTriggerInteraction.Ignore);
+            bool obstacle = TryFilteredSphereCast(low, .12f, direction, .58f, out _);
+            bool clear = !TryFilteredSphereCast(
+                transform.position + Vector3.up * .64f,
+                .1f,
+                direction,
+                .66f,
+                out _);
             if (!obstacle || !clear) return false;
-            body.Move(Vector3.up * .28f + direction * .18f);
-            vertical = 1.1f;
+            vertical = 2.15f;
+            planarVelocity = direction * Mathf.Max(1.45f, planarVelocity.magnitude);
             return true;
-        }
-
-        void AutoTraverse(Vector3 direction)
-        {
-            if (direction.sqrMagnitude < .1f) return;
-            Vector3 low = transform.position + Vector3.up * .12f;
-            if (Physics.Raycast(low, direction, out RaycastHit hit, .34f, ~0, QueryTriggerInteraction.Ignore) &&
-                !Physics.Raycast(transform.position + Vector3.up * .48f, direction, .48f, ~0, QueryTriggerInteraction.Ignore) &&
-                hit.normal.y < .45f)
-                body.Move(Vector3.up * Time.deltaTime * 1.3f);
         }
 
         void UpdateInteractions(Keyboard keyboard)
@@ -272,23 +503,28 @@ namespace CanopyKin
             if (!viewCamera || WorldBootstrap.Instance == null) return;
             if (WorldBootstrap.Instance.IsCinematic) return;
             tacticalBlend = Mathf.MoveTowards(tacticalBlend, TacticalView ? 1 : 0, Time.unscaledDeltaTime * 2.5f);
-            Vector3 target = transform.position + Vector3.up * Mathf.Lerp(.5f, .2f, tacticalBlend);
+            Vector3 target = transform.position + Vector3.up * Mathf.Lerp(.38f, .2f, tacticalBlend);
             float tacticalPitch = Mathf.Lerp(pitch, 68f, tacticalBlend);
-            float distance = Mathf.Lerp(3.55f, 9.2f, tacticalBlend);
-            float height = Mathf.Lerp(.58f, 3.4f, tacticalBlend);
+            float distance = Mathf.Lerp(2.72f, 9.2f, tacticalBlend);
+            float height = Mathf.Lerp(.36f, 3.4f, tacticalBlend);
             Quaternion orbit = Quaternion.Euler(tacticalPitch, yaw, 0);
             Vector3 wanted = target + orbit * new Vector3(0, height, -distance);
             Vector3 direction = wanted - target;
-            if (Physics.SphereCast(target, .16f, direction.normalized, out RaycastHit hit, direction.magnitude, ~0, QueryTriggerInteraction.Ignore))
-                wanted = hit.point - direction.normalized * .2f;
+            if (TryFilteredSphereCast(
+                    target,
+                    .13f,
+                    direction,
+                    direction.magnitude,
+                    out RaycastHit hit))
+                wanted = hit.point - direction.normalized * .16f;
             cameraShake = Mathf.MoveTowards(cameraShake, 0, Time.unscaledDeltaTime * .8f);
             if (cameraShake > 0) wanted += UnityEngine.Random.insideUnitSphere * cameraShake;
-            float smoothing = WorldBootstrap.Instance.IsPlaying ? 10.5f : 4f;
+            float smoothing = WorldBootstrap.Instance.IsPlaying ? 16f : 5f;
             viewCamera.transform.position = Vector3.Lerp(viewCamera.transform.position, wanted, smoothing * Time.unscaledDeltaTime);
             viewCamera.transform.rotation = Quaternion.Slerp(
                 viewCamera.transform.rotation,
                 Quaternion.LookRotation(target - viewCamera.transform.position, Vector3.up),
-                smoothing * Time.unscaledDeltaTime);
+                (smoothing + 2f) * Time.unscaledDeltaTime);
             viewCamera.fieldOfView = Mathf.Lerp(viewCamera.fieldOfView, Mathf.Lerp(GameSettings.FieldOfView, 53f, tacticalBlend), Time.unscaledDeltaTime * 5f);
         }
 
@@ -296,8 +532,8 @@ namespace CanopyKin
         {
             if (!viewCamera) viewCamera = Camera.main;
             if (!viewCamera) return;
-            Vector3 target = transform.position + Vector3.up * .5f;
-            viewCamera.transform.position = target + Quaternion.Euler(pitch, yaw, 0) * new Vector3(0, .58f, -3.55f);
+            Vector3 target = transform.position + Vector3.up * .38f;
+            viewCamera.transform.position = target + Quaternion.Euler(pitch, yaw, 0) * new Vector3(0, .36f, -2.72f);
             viewCamera.transform.rotation = Quaternion.LookRotation(target - viewCamera.transform.position);
         }
 
@@ -308,6 +544,8 @@ namespace CanopyKin
             transform.position = position;
             body.enabled = enabledBefore;
             planarVelocity = Vector3.zero;
+            actualVelocity = Vector3.zero;
+            vertical = 0;
             SnapCamera();
         }
 
@@ -376,6 +614,73 @@ namespace CanopyKin
             if (pointerWasLocked || Cursor.lockState == CursorLockMode.Locked)
                 Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+        }
+
+        public void RequestPointerCapture()
+        {
+            if (WorldBootstrap.Instance == null ||
+                !WorldBootstrap.Instance.IsPlaying ||
+                WorldBootstrap.Instance.IsPaused ||
+                TacticalView) return;
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+            pointerWasLocked = true;
+        }
+
+        public void SetMovementDiagnostics(string value)
+        {
+            diagnosticsVisible =
+                string.Equals(value, "1", System.StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(value, "true", System.StringComparison.OrdinalIgnoreCase);
+            diagnosticTimer = 0;
+        }
+
+        void OnApplicationFocus(bool focused)
+        {
+            if (!focused)
+            {
+                rawInput = Vector2.zero;
+                planarVelocity = Vector3.zero;
+                actualVelocity = Vector3.zero;
+                return;
+            }
+
+            if (Application.platform != RuntimePlatform.WebGLPlayer &&
+                WorldBootstrap.Instance != null &&
+                WorldBootstrap.Instance.IsPlaying &&
+                !WorldBootstrap.Instance.IsPaused)
+                RequestPointerCapture();
+        }
+
+        void OnControllerColliderHit(ControllerColliderHit hit)
+        {
+            Rigidbody rigidbody = hit.collider.attachedRigidbody;
+            if (!rigidbody || rigidbody.isKinematic || hit.moveDirection.y < -.25f) return;
+            Vector3 force = new(hit.moveDirection.x, .06f, hit.moveDirection.z);
+            rigidbody.AddForceAtPosition(force * 1.35f, hit.point, ForceMode.Impulse);
+        }
+
+        void OnGUI()
+        {
+            if (!diagnosticsVisible) return;
+            const float width = 440f;
+            Rect panel = new(16, Screen.height - 236, width, 220);
+            Color previous = GUI.color;
+            GUI.color = new Color(.02f, .035f, .025f, .92f);
+            GUI.Box(panel, GUIContent.none);
+            GUI.color = Color.white;
+            GUI.Label(
+                new Rect(panel.x + 12, panel.y + 10, width - 24, 200),
+                "MOVEMENT DIAGNOSTICS  [F10 hide]\n" +
+                $"Position        {transform.position:F2}\n" +
+                $"Raw input       {rawInput:F2}\n" +
+                $"Processed       {processedMovement:F2}\n" +
+                $"Actual velocity {actualVelocity:F2}\n" +
+                $"Grounded        {Grounded}   slope {slopeAngle:F1}°\n" +
+                $"Locomotion      {LocomotionState} / {AnimationState}\n" +
+                $"Input focus     {Application.isFocused}   pointer {Cursor.lockState}\n" +
+                $"Surface         {currentSurface}   speed x{surfaceSpeedMultiplier:F2}");
+            GUI.color = previous;
         }
     }
 

@@ -38,8 +38,9 @@ browser has not captured the mouse.
 Public build: https://vlad-coder-design.github.io/canopy-kin-moonroot/
 
 `Builds/WebGL` is deployed by `.github/workflows/pages.yml` on pushes to `main`.
-The project uses uncompressed, hash-named WebGL artifacts so GitHub Pages supplies the
-correct MIME types and browsers do not reuse an incompatible old build.
+Version 0.4.1 uses hash-named gzip WebGL artifacts with Unity's JavaScript
+decompression fallback. This keeps the data file below GitHub's per-file limit
+while still loading correctly from GitHub Pages without custom response headers.
 
 ## Development
 

@@ -26,7 +26,7 @@ namespace CanopyKin.Editor
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
         const string RootNetworkPath =
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
-        const string ProductVersion = "0.4.0";
+        const string ProductVersion = "0.4.1";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
@@ -34,13 +34,15 @@ namespace CanopyKin.Editor
             ConfigureShared();
             ConfigureWindows();
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, "com.moonroot.canopykin");
+            if (Directory.Exists("Builds/Windows"))
+                Directory.Delete("Builds/Windows", true);
             Directory.CreateDirectory("Builds/Windows");
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
             BuildReport report = BuildPipeline.BuildPlayer(
                 EnabledScenes(),
                 "Builds/Windows/CanopyKin.exe",
                 BuildTarget.StandaloneWindows64,
-                BuildOptions.None);
+                BuildOptions.CleanBuildCache);
             RequireSuccess(report, "Windows");
             WriteManifest("Builds/Windows", "Windows Full Quality", report);
             const string readmeSource = "Packaging/WINDOWS_README.txt";
@@ -65,7 +67,7 @@ namespace CanopyKin.Editor
                 EnabledScenes(),
                 "Builds/WebGL",
                 BuildTarget.WebGL,
-                BuildOptions.None);
+                BuildOptions.CleanBuildCache);
             RequireSuccess(report, "WebGL");
             File.WriteAllText("Builds/WebGL/.nojekyll", string.Empty);
             WriteManifest("Builds/WebGL", "WebGL Optimized", report);

@@ -24,7 +24,7 @@ namespace CanopyKin
         public bool IsCinematic { get; private set; }
         public bool IsAutomationSmoke { get; private set; }
         public Vector3 NestPosition => new(NestPoint.x, GroundHeight(NestPoint.x, NestPoint.z), NestPoint.z);
-        public Vector3 SurfacePlayerSpawn => new(0, GroundHeight(0, -.4f) + .05f, -.4f);
+        public Vector3 SurfacePlayerSpawn => new(0, GroundHeight(0, -4.15f) + .05f, -4.15f);
         public Vector3 UndergroundPlayerSpawn => UndergroundCenter + new Vector3(0, .28f, .9f);
         public Vector3 PlayerRespawn => IsUnderground ? UndergroundPlayerSpawn : SurfacePlayerSpawn;
 
@@ -379,14 +379,16 @@ namespace CanopyKin
         {
             yield return null;
             IsUnderground = false;
-            // The smoke test starts on the authored navigation corridor, so the
-            // frame evaluates the forest region rather than clipping through a
-            // deliberately macro-scale grass tuft.
-            Vector3 landmarkView = At(0f, 1.5f, .05f);
-            Player.Teleport(landmarkView);
-            squads.Teleport(landmarkView + Vector3.back * .7f);
+            // Movement QA begins at the real surface mouth and uses the same
+            // nest-to-resource route as the mission. The diagnostic overlay is
+            // forced on for this command-line-only mode so screenshots can
+            // prove physical displacement against fixed landmarks.
+            Vector3 entranceView = SurfacePlayerSpawn;
+            Player.Teleport(entranceView);
+            squads.Teleport(entranceView + Vector3.back * 1.8f);
             ApplyLocationLighting();
             BeginPlay();
+            Player.SetMovementDiagnostics("1");
             Debug.Log("MOONROOT_SURFACE_SMOKE_READY");
         }
 
@@ -506,6 +508,7 @@ namespace CanopyKin
                 new Color(.82f, .76f, .65f));
             BuildDistantEnclosure();
             BuildNest();
+            BuildForageRoute();
             BuildLandmarks();
             BuildVegetation();
             BuildResources();
@@ -1031,6 +1034,190 @@ namespace CanopyKin
             }
         }
 
+        void BuildForageRoute()
+        {
+            var route = new GameObject("Physical nest-to-forage route").transform;
+            route.SetParent(environment, false);
+
+            // A low root arch makes the player pass through the world rather
+            // than merely viewing scenery beyond the playable corridor.
+            GameObject arch = VisualFactory.TexturedRoot(
+                "Walk-under bark arch",
+                route,
+                new[]
+                {
+                    At(-1.42f, -2.05f, .02f),
+                    At(-.94f, -1.95f, .92f),
+                    At(0, -1.9f, 1.34f),
+                    At(.94f, -1.86f, .92f),
+                    At(1.42f, -1.78f, .02f)
+                },
+                new[] { .24f, .2f, .17f, .2f, .24f },
+                true);
+            arch.AddComponent<MovementSurface>().Initialize("Wood", .96f);
+
+            // A step-height feeder root verifies stable CharacterController
+            // stepping without requiring a scripted teleport.
+            GameObject stepRoot = VisualFactory.TexturedRoot(
+                "Traversable feeder root",
+                route,
+                new[]
+                {
+                    At(-1.35f, -.15f, .06f),
+                    At(-.2f, .02f, .13f),
+                    At(1.3f, .18f, .07f)
+                },
+                new[] { .13f, .11f, .08f },
+                true);
+            stepRoot.AddComponent<MovementSurface>().Initialize("Wood", .94f);
+
+            Material routeSoil = VisualFactory.PbrMaterial(
+                "Soil",
+                new Color(.72f, .58f, .42f),
+                .035f,
+                1.35f,
+                new Vector2(1.4f, 1.4f));
+            Vector3[] clumpPositions =
+            {
+                At(-1.5f, -3.25f, .08f), At(1.42f, -3.02f, .06f),
+                At(-1.28f, -.8f, .07f), At(1.34f, .92f, .06f),
+                At(-1.4f, 3.75f, .08f), At(1.36f, 4.22f, .07f)
+            };
+            for (int i = 0; i < clumpPositions.Length; i++)
+            {
+                GameObject clump = VisualFactory.Stone(
+                    "Route soil bank",
+                    route,
+                    clumpPositions[i],
+                    new Vector3(.86f + i % 2 * .18f, .48f, .72f),
+                    90 + i,
+                    true,
+                    false);
+                clump.GetComponent<Renderer>().sharedMaterial = routeSoil;
+                clump.AddComponent<MovementSurface>().Initialize("Soil");
+            }
+
+            // The glade narrows between two real colliders. The opening is
+            // wider than the scout but requires a visible navigation choice.
+            for (int side = -1; side <= 1; side += 2)
+            {
+                GameObject stone = VisualFactory.Stone(
+                    side < 0 ? "Left moss gate stone" : "Right moss gate stone",
+                    route,
+                    At(side * .76f, 1.28f, .12f),
+                    new Vector3(.74f, .66f, .84f),
+                    112 + side,
+                    true,
+                    true);
+                stone.AddComponent<MovementSurface>().Initialize("Moss", .88f);
+            }
+
+            // A shallow wet patch slows the ant. A thick curled leaf provides
+            // the dry, shorter bridge while the banks remain passable.
+            GameObject wetPatch = VisualFactory.Water(
+                route,
+                At(0, 2.72f, .025f),
+                new Vector3(2.45f, .055f, 1.2f));
+            wetPatch.name = "Slow wet-soil crossing";
+            wetPatch.AddComponent<BoxCollider>();
+            wetPatch.AddComponent<MovementSurface>().Initialize("Wet soil", .68f);
+
+            GameObject leafBridge = VisualFactory.FallenLeaf(
+                route,
+                At(.05f, 2.73f, .13f),
+                new Vector3(1.7f, 1.15f, 1.55f),
+                27);
+            leafBridge.name = "Traversable curled leaf bridge";
+            leafBridge.transform.localRotation = Quaternion.Euler(-4f, 4f, 1.5f);
+            MeshFilter bridgeMesh = leafBridge.GetComponent<MeshFilter>();
+            if (bridgeMesh && bridgeMesh.sharedMesh)
+                leafBridge.AddComponent<MeshCollider>().sharedMesh = bridgeMesh.sharedMesh;
+            leafBridge.AddComponent<MovementSurface>().Initialize("Wood", .98f);
+
+            // Nearby broad leaves bend and shed pollen when the player or a
+            // squad passes. They sit inside the camera frustum for strong
+            // foreground parallax.
+            for (int i = 0; i < 14; i++)
+            {
+                float side = (i & 1) == 0 ? -1f : 1f;
+                float z = -3.45f + i * .62f;
+                GameObject grass = VisualFactory.GrassTuft(
+                    route,
+                    At(side * (.72f + (i % 3) * .18f), z),
+                    1.25f + (i % 4) * .24f,
+                    Color.Lerp(new Color(.17f, .38f, .08f), new Color(.47f, .65f, .2f), i / 13f),
+                    120 + i);
+                grass.name = "Reactive route grass";
+                grass.AddComponent<ReactiveVegetation>().Initialize();
+                var trigger = grass.AddComponent<CapsuleCollider>();
+                trigger.center = new Vector3(0, .48f, 0);
+                trigger.height = 1.05f;
+                trigger.radius = .09f;
+                trigger.isTrigger = true;
+            }
+
+            // Small loose clods are actual rigidbodies and can be nudged aside
+            // by the CharacterController.
+            for (int i = 0; i < 6; i++)
+            {
+                float x = -.48f + (i % 3) * .46f;
+                float z = 3.45f + (i / 3) * .52f;
+                GameObject debris = VisualFactory.Stone(
+                    "Pushable route pebble",
+                    route,
+                    At(x, z, .12f),
+                    Vector3.one * (.2f + i % 2 * .045f),
+                    150 + i,
+                    false,
+                    i % 2 == 0);
+                var collider = debris.AddComponent<SphereCollider>();
+                collider.radius = .48f;
+                var rigidbody = debris.AddComponent<Rigidbody>();
+                rigidbody.mass = .085f;
+                rigidbody.linearDamping = .9f;
+                rigidbody.angularDamping = .7f;
+                rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+                rigidbody.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
+            }
+
+            // Physical pheromone beads sit directly on the travel line and
+            // visibly converge on the first seed glade.
+            for (int i = 0; i < 18; i++)
+            {
+                float t = i / 17f;
+                float z = Mathf.Lerp(-4.05f, 4.95f, t);
+                float x = Mathf.Sin(t * Mathf.PI * 3.2f) * .3f;
+                GameObject marker = VisualFactory.OrganicPart(
+                    "Pheromone trail bead",
+                    route,
+                    OrganicMeshFactory.BodyShape.Brood,
+                    At(x, z, .065f),
+                    new Vector3(.09f, .045f, .13f),
+                    new Color(.18f, .76f, .82f),
+                    .62f);
+                marker.AddComponent<PheromonePulse>().Initialize(i);
+            }
+
+            // Neutral foragers give the route independent ecosystem motion.
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 a = At(-1.55f + i * .35f, -3.2f + i * 2.1f, .035f);
+                Vector3 b = At(-1.2f + i * .42f, 1.2f + i * 1.65f, .035f);
+                var forager = new GameObject($"Independent route forager {i + 1}");
+                forager.transform.SetParent(route, false);
+                forager.transform.position = a;
+                AntVisual.Create(
+                    forager.transform,
+                    new Color(.17f, .04f, .012f),
+                    .72f,
+                    AntCaste.Worker);
+                var collider = forager.AddComponent<SphereCollider>();
+                collider.center = new Vector3(0, .22f, 0);
+                collider.radius = .18f;
+                forager.AddComponent<AmbientAntPatrol>().Initialize(a, b, 1.05f + i * .12f);
+            }
+        }
+
         bool KeepClear(float x, float z)
         {
             bool trail = Mathf.Abs(x - Mathf.Sin(z * .12f) * 1.4f) < 1.2f && z > -6f && z < 22f;
@@ -1238,8 +1425,9 @@ namespace CanopyKin
             IsPlaying = true;
             IsPaused = false;
             Time.timeScale = 1;
-            if (Application.platform == RuntimePlatform.WebGLPlayer && Mouse.current != null && Mouse.current.leftButton.isPressed)
-                Cursor.lockState = CursorLockMode.Locked;
+            if (Application.platform != RuntimePlatform.WebGLPlayer ||
+                (Mouse.current != null && Mouse.current.leftButton.isPressed))
+                Player?.RequestPointerCapture();
             ShowToast(GameText.Pick("Wake in the nursery and follow the blue tunnel light", "Проснитесь в яслях и следуйте к голубому свету тоннеля"));
         }
 
@@ -1249,7 +1437,7 @@ namespace CanopyKin
             IsPaused = !IsPaused;
             Time.timeScale = IsPaused ? 0 : 1;
             if (IsPaused) Player.UnlockPointer();
-            else if (Application.platform == RuntimePlatform.WebGLPlayer) Cursor.lockState = CursorLockMode.Locked;
+            else Player.RequestPointerCapture();
         }
 
         public void ToggleNest(PlayerAnt player, bool fromUnderground)
@@ -1258,14 +1446,14 @@ namespace CanopyKin
             {
                 IsUnderground = false;
                 player.Teleport(SurfacePlayerSpawn);
-                squads.Teleport(SurfacePlayerSpawn + Vector3.back * .7f);
+                squads.Teleport(SurfacePlayerSpawn + Vector3.forward * .8f);
                 ShowToast(GameText.Pick("Forest floor — the rain has stopped", "Лесная подстилка — дождь закончился"));
             }
             else
             {
                 IsUnderground = true;
                 player.Teleport(UndergroundPlayerSpawn);
-                squads.Teleport(UndergroundPlayerSpawn + Vector3.forward * .8f);
+                squads.Teleport(UndergroundPlayerSpawn + Vector3.forward * 1.25f);
                 ShowToast(GameText.Pick("Moonroot underground colony", "Подземная колония Лунного Корня"));
             }
             ApplyLocationLighting();

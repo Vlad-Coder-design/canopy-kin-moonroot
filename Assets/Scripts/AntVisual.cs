@@ -48,10 +48,16 @@ namespace CanopyKin
         float carrying;
         float climb;
         float turnLean;
+        float suppliedSpeed;
+        float suppliedSpeed01;
+        Vector3 suppliedGroundNormal = Vector3.up;
+        bool suppliedGrounded;
+        bool playerMotionSupplied;
         bool dead;
         bool built;
 
         public AntCaste Caste { get; private set; }
+        public string AnimationState { get; private set; } = "Idle";
 
         public static AntVisual Create(
             Transform parent,
@@ -438,6 +444,21 @@ namespace CanopyKin
         public void SetCarrying(bool value) => carrying = value ? 1f : 0f;
         public void PlayAttack() => attack = 1f;
         public void PlayStagger() => stagger = 1f;
+        public void SetPlayerMotion(
+            float speed,
+            float speed01,
+            bool grounded,
+            Vector3 surfaceNormal)
+        {
+            playerMotionSupplied = true;
+            suppliedSpeed = Mathf.Max(0, speed);
+            suppliedSpeed01 = Mathf.Clamp01(speed01);
+            suppliedGrounded = grounded;
+            suppliedGroundNormal = surfaceNormal.sqrMagnitude > .1f
+                ? surfaceNormal.normalized
+                : Vector3.up;
+        }
+
         public void PlayDeath()
         {
             dead = true;
@@ -449,7 +470,8 @@ namespace CanopyKin
             if (!built) return;
             float dt = Mathf.Max(Time.deltaTime, .0001f);
             Vector3 displacement = transform.position - previousPosition;
-            float speed = new Vector2(displacement.x, displacement.z).magnitude / dt;
+            float planarDistance = new Vector2(displacement.x, displacement.z).magnitude;
+            float speed = playerMotionSupplied ? suppliedSpeed : planarDistance / dt;
             float verticalSpeed = Mathf.Abs(displacement.y) / dt;
             previousPosition = transform.position;
             Quaternion parentRotation = transform.parent ? transform.parent.rotation : transform.rotation;
@@ -458,13 +480,34 @@ namespace CanopyKin
                 parentRotation * Vector3.forward,
                 Vector3.up) / dt;
             previousParentRotation = parentRotation;
-            locomotion = Mathf.MoveTowards(locomotion, Mathf.InverseLerp(.05f, 3.5f, speed), dt * 6f);
-            climb = Mathf.MoveTowards(climb, Mathf.InverseLerp(.15f, 1.25f, verticalSpeed), dt * 4f);
+            float targetLocomotion = playerMotionSupplied
+                ? suppliedSpeed01
+                : Mathf.InverseLerp(.05f, 3.8f, speed);
+            locomotion = Mathf.MoveTowards(locomotion, targetLocomotion, dt * 7.5f);
+            float targetClimb = playerMotionSupplied && !suppliedGrounded
+                ? Mathf.Clamp01(verticalSpeed)
+                : Mathf.InverseLerp(.15f, 1.25f, verticalSpeed);
+            climb = Mathf.MoveTowards(climb, targetClimb, dt * 4f);
             turnLean = Mathf.MoveTowards(turnLean, Mathf.Clamp(yawRate / 220f, -1f, 1f), dt * 5f);
-            stride += dt * Mathf.Lerp(3.2f, 12.5f, locomotion);
+            float travelled = playerMotionSupplied ? suppliedSpeed * dt : planarDistance;
+            if (locomotion > .015f)
+                stride += travelled * Mathf.Lerp(6.6f, 8.8f, locomotion);
             attack = Mathf.MoveTowards(attack, 0, dt * 3.8f);
             stagger = Mathf.MoveTowards(stagger, 0, dt * 3.2f);
             death = Mathf.MoveTowards(death, dead ? 1f : 0f, dt * 1.2f);
+            AnimationState = dead || death > .05f
+                ? "Death"
+                : stagger > .05f
+                    ? "Stagger"
+                    : attack > .05f
+                        ? "Attack"
+                        : carrying > .5f
+                            ? "Carry"
+                            : climb > .2f
+                                ? "Climb"
+                                : speed > 3.05f
+                                    ? "Run"
+                                    : speed > .06f ? "Walk" : "Idle";
 
             for (int i = 0; i < legs.Count; i++)
             {
@@ -506,6 +549,12 @@ namespace CanopyKin
 
         void LateUpdate()
         {
+            if (playerMotionSupplied)
+            {
+                Quaternion target = Quaternion.FromToRotation(Vector3.up, suppliedGroundNormal);
+                slopeRotation = Quaternion.Slerp(slopeRotation, target, Time.deltaTime * 8f);
+                return;
+            }
             Vector3 origin = transform.parent ? transform.parent.position + Vector3.up * .75f : transform.position + Vector3.up * .75f;
             if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 1.8f, ~0, QueryTriggerInteraction.Ignore))
             {

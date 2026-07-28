@@ -19,6 +19,10 @@ namespace CanopyKin
         AudioClip bite;
         AudioClip hit;
         AudioClip step;
+        AudioClip woodStep;
+        AudioClip stoneStep;
+        AudioClip mossStep;
+        AudioClip wetStep;
         AudioClip order;
         int voice;
 
@@ -31,6 +35,10 @@ namespace CanopyKin
             bite = MakeTransient("Mandible snap", .14f, 1450, 160, .34f);
             hit = MakeTransient("Shell impact", .22f, 280, 75, .6f);
             step = MakeTransient("Soil footstep", .08f, 420, 125, .16f);
+            woodStep = MakeTransient("Bark footstep", .075f, 690, 210, .12f);
+            stoneStep = MakeTransient("Stone footstep", .07f, 1120, 360, .08f);
+            mossStep = MakeTransient("Moss footstep", .09f, 250, 82, .34f);
+            wetStep = MakeTransient("Wet soil footstep", .11f, 185, 58, .52f);
             order = MakeTransient("Pheromone order", .28f, 930, 420, .24f);
             for (int i = 0; i < 8; i++)
             {
@@ -78,6 +86,18 @@ namespace CanopyKin
         public void PlayBite(Vector3 position) => Play(bite, position, .72f, UnityEngine.Random.Range(.93f, 1.08f));
         public void PlayHit(Vector3 position) => Play(hit, position, .78f, UnityEngine.Random.Range(.9f, 1.04f));
         public void PlayStep(Vector3 position) => Play(step, position, .22f, UnityEngine.Random.Range(.82f, 1.15f));
+        public void PlayStep(Vector3 position, string surface)
+        {
+            AudioClip clip = surface.Contains("Wood")
+                ? woodStep
+                : surface.Contains("Stone")
+                    ? stoneStep
+                    : surface.Contains("Moss")
+                        ? mossStep
+                        : surface.Contains("Wet") ? wetStep : step;
+            float volume = surface.Contains("Moss") ? .15f : surface.Contains("Wet") ? .2f : .22f;
+            Play(clip, position, volume, UnityEngine.Random.Range(.92f, 1.08f));
+        }
         public void PlayOrder(Vector3 position) => Play(order, position, .48f, UnityEngine.Random.Range(.96f, 1.05f));
 
         void Play(AudioClip clip, Vector3 position, float volume, float pitch)

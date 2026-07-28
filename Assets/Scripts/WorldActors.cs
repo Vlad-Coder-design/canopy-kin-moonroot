@@ -951,10 +951,10 @@ namespace CanopyKin
         {
             Vector3[] formation =
             {
-                new(-.95f, 0, -.25f), new(.95f, 0, -.25f),
-                new(-1.3f, 0, .55f), new(1.3f, 0, .55f),
-                new(-.78f, 0, 1.25f), new(.78f, 0, 1.25f),
-                new(0, 0, 1.75f), new(0, 0, -.92f)
+                new(-1.25f, 0, 1.05f), new(1.25f, 0, 1.05f),
+                new(-1.72f, 0, 1.82f), new(1.72f, 0, 1.82f),
+                new(-1.05f, 0, 2.55f), new(1.05f, 0, 2.55f),
+                new(-.35f, 0, 3.05f), new(.35f, 0, 3.05f)
             };
             Vector3 result = formation[index % formation.Length];
             if (role == UnitRole.HeavySoldier) result *= .82f;
