@@ -11,3 +11,10 @@
 
 All game models, environment geometry, materials, interface layout, and gameplay
 code are original project work assembled procedurally at runtime.
+
+## Original generated texture sources
+
+The soil, bark, moss, leaf-litter, and ant-exoskeleton texture sources were generated
+specifically for this project and converted locally into albedo, normal, and
+roughness maps. They are project-owned source assets and do not import third-party
+game content.

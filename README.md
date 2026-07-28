@@ -1,9 +1,14 @@
 # Canopy Kin: Moonroot
 
 An original Unity 6 ant-scale action-strategy vertical slice. The player controls an
-articulated ant, explores a rolling forest-floor region, enters an underground nursery,
-gathers resources, commands worker and soldier squads, fights three insect threats,
-upgrades the colony, and completes the First Rain tutorial mission.
+articulated ant, explores a rolling forest-floor region and an underground nursery,
+gathers and carries resources, commands worker and soldier squads, fights multiple
+insect castes, upgrades the colony, and completes the Moonroot tutorial mission.
+
+The production slice uses custom procedural meshes, authored PBR texture sets,
+articulated insect animation, LOD vegetation, positional effects, an original
+procedural soundtrack, bilingual UI, settings, save/load, and a complete WebGL
+loading shell.
 
 ## Controls
 
@@ -41,6 +46,6 @@ Unity version: `6000.0.78f1`.
 The reliable low-memory batch build uses `-job-worker-count 1
 --burst-disable-compilation`.
 
-All environment geometry, insect models, gameplay, mission content, and interface
-layout are original project work. See `THIRD_PARTY_ASSETS.md` for the bundled interface
-font and license.
+All environment geometry, insect models, generated source textures, gameplay,
+mission content, audio, and interface layout are original project work. See
+`THIRD_PARTY_ASSETS.md` for the bundled interface font and license.

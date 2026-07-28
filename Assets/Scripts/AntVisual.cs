@@ -1,21 +1,60 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace CanopyKin
 {
+    public enum AntCaste { Scout, Worker, LightSoldier, HeavySoldier, Rival }
+
+    /// <summary>
+    /// A fully articulated original ant assembled from sculpted meshes and tapered
+    /// limb geometry. Animation is procedural so every WebGL build keeps the same
+    /// close-camera silhouette without shipping a heavyweight animation package.
+    /// </summary>
     public sealed class AntVisual : MonoBehaviour
     {
-        readonly Transform[] legRoots = new Transform[6];
-        readonly Quaternion[] legRest = new Quaternion[6];
+        sealed class LegRig
+        {
+            public Transform Hip;
+            public Transform Knee;
+            public Transform Ankle;
+            public Quaternion HipRest;
+            public Quaternion KneeRest;
+            public Quaternion AnkleRest;
+            public float Phase;
+            public float Side;
+            public float Pair;
+        }
+
+        readonly List<LegRig> legs = new();
+        readonly Transform[] antennae = new Transform[2];
+        readonly Quaternion[] antennaRest = new Quaternion[2];
+        Transform leftMandible;
+        Transform rightMandible;
+        Transform abdomen;
+        Transform thorax;
         Vector3 previousPosition;
+        Quaternion slopeRotation = Quaternion.identity;
+        float locomotion;
         float stride;
+        float attack;
+        float stagger;
+        float death;
+        float carrying;
         bool built;
 
-        public static AntVisual Create(Transform parent, Color shell, float scale = 1f)
+        public AntCaste Caste { get; private set; }
+
+        public static AntVisual Create(
+            Transform parent,
+            Color shell,
+            float scale = 1f,
+            AntCaste caste = AntCaste.Worker)
         {
-            var visualRoot = new GameObject("Animated ant").transform;
+            var visualRoot = new GameObject($"Detailed {caste} ant").transform;
             visualRoot.SetParent(parent, false);
             visualRoot.localScale = Vector3.one * scale;
             var visual = visualRoot.gameObject.AddComponent<AntVisual>();
+            visual.Caste = caste;
             visual.Build(shell);
             return visual;
         }
@@ -24,56 +63,315 @@ namespace CanopyKin
         {
             if (built) return;
             built = true;
-            Color dark = Color.Lerp(shell, Color.black, .48f);
-            Color eye = new(.015f, .012f, .008f);
-
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Abdomen", transform, new Vector3(0, .34f, -.33f), new Vector3(.34f, .25f, .48f), shell, false, .48f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Thorax", transform, new Vector3(0, .32f, .12f), new Vector3(.28f, .23f, .31f), Color.Lerp(shell, dark, .16f), false, .42f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Head", transform, new Vector3(0, .34f, .48f), new Vector3(.27f, .21f, .26f), dark, false, .4f);
-
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Left eye", transform, new Vector3(-.205f, .41f, .59f), Vector3.one * .055f, eye, false, .7f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Right eye", transform, new Vector3(.205f, .41f, .59f), Vector3.one * .055f, eye, false, .7f);
-            VisualFactory.Segment("Left antenna", transform, new Vector3(-.12f, .47f, .65f), new Vector3(-.28f, .64f, .92f), .018f, dark);
-            VisualFactory.Segment("Right antenna", transform, new Vector3(.12f, .47f, .65f), new Vector3(.28f, .64f, .92f), .018f, dark);
-            VisualFactory.Segment("Left mandible", transform, new Vector3(-.1f, .28f, .66f), new Vector3(-.2f, .22f, .84f), .035f, dark);
-            VisualFactory.Segment("Right mandible", transform, new Vector3(.1f, .28f, .66f), new Vector3(.2f, .22f, .84f), .035f, dark);
-
-            float[] z = { .28f, .07f, -.16f };
-            for (int pair = 0; pair < 3; pair++)
+            Color joint = Color.Lerp(shell, new Color(.025f, .014f, .008f), .58f);
+            Color armor = Color.Lerp(shell, new Color(.65f, .24f, .045f), Caste == AntCaste.Rival ? .25f : .08f);
+            Color textureTint = Color.Lerp(new Color(.92f, .84f, .76f), shell, .28f);
+            Material shellMaterial = VisualFactory.PbrMaterial(
+                "Exoskeleton",
+                textureTint,
+                .62f,
+                .72f,
+                new Vector2(3.2f, 3.2f));
+            float headSize = Caste switch
             {
-                for (int sideIndex = 0; sideIndex < 2; sideIndex++)
-                {
-                    float side = sideIndex == 0 ? -1f : 1f;
-                    int index = pair * 2 + sideIndex;
-                    Transform root = new GameObject($"Leg {index + 1}").transform;
-                    root.SetParent(transform, false);
-                    root.localPosition = new Vector3(side * .16f, .29f, z[pair]);
-                    float forward = (1 - pair) * .16f;
-                    Vector3 knee = new(side * .37f, -.07f, forward);
-                    Vector3 foot = new(side * .62f, -.28f, forward + (pair - 1) * .1f);
-                    VisualFactory.Segment("Upper leg", root, Vector3.zero, knee, .025f, dark);
-                    VisualFactory.Segment("Lower leg", root, knee, foot, .019f, dark);
-                    legRoots[index] = root;
-                    legRest[index] = root.localRotation;
-                }
-            }
+                AntCaste.LightSoldier => 1.16f,
+                AntCaste.HeavySoldier => 1.34f,
+                AntCaste.Rival => 1.15f,
+                _ => 1f
+            };
+            float abdomenSize = Caste == AntCaste.Worker ? 1.08f : 1f;
+
+            GameObject abdomenObject = VisualFactory.OrganicPart(
+                "Tapered segmented abdomen",
+                transform,
+                OrganicMeshFactory.BodyShape.Abdomen,
+                new Vector3(0, .36f, -.42f),
+                new Vector3(.62f, .54f, .82f * abdomenSize),
+                shell,
+                .58f);
+            abdomenObject.GetComponent<Renderer>().sharedMaterial = shellMaterial;
+            abdomen = abdomenObject.transform;
+            abdomen.localRotation = Quaternion.Euler(-4f, 0, 0);
+
+            GameObject thoraxObject = VisualFactory.OrganicPart(
+                "Armoured thorax",
+                transform,
+                OrganicMeshFactory.BodyShape.Thorax,
+                new Vector3(0, .36f, .08f),
+                new Vector3(.51f, .54f, .63f),
+                armor,
+                .5f);
+            thoraxObject.GetComponent<Renderer>().sharedMaterial = shellMaterial;
+            thorax = thoraxObject.transform;
+
+            GameObject headObject = VisualFactory.OrganicPart(
+                "Anatomical head",
+                transform,
+                OrganicMeshFactory.BodyShape.Head,
+                new Vector3(0, .37f, .48f),
+                new Vector3(.58f * headSize, .48f * headSize, .55f * headSize),
+                Color.Lerp(shell, joint, .18f),
+                .48f);
+            headObject.GetComponent<Renderer>().sharedMaterial = shellMaterial;
+            Transform head = headObject.transform;
+
+            BuildNeckAndWaist(joint);
+            BuildEyes(head, headSize);
+            BuildMandibles(head, joint, headSize);
+            BuildAntennae(head, joint, headSize);
+            BuildLegs(joint);
+            AddArmorDetail(armor);
             previousPosition = transform.position;
         }
+
+        void BuildNeckAndWaist(Color joint)
+        {
+            VisualFactory.Segment(
+                "Flexible neck",
+                transform,
+                new Vector3(0, .34f, .28f),
+                new Vector3(0, .35f, .38f),
+                .065f,
+                joint,
+                false,
+                .36f);
+            VisualFactory.Segment(
+                "Petiole waist",
+                transform,
+                new Vector3(0, .34f, -.13f),
+                new Vector3(0, .33f, -.25f),
+                .07f,
+                joint,
+                false,
+                .38f);
+            VisualFactory.OrganicPart(
+                "Waist node",
+                transform,
+                OrganicMeshFactory.BodyShape.Thorax,
+                new Vector3(0, .35f, -.2f),
+                new Vector3(.18f, .19f, .2f),
+                joint,
+                .4f);
+        }
+
+        void BuildEyes(Transform head, float headSize)
+        {
+            Color eye = Caste == AntCaste.Rival
+                ? new Color(.055f, .012f, .008f)
+                : new Color(.018f, .035f, .022f);
+            for (int sideIndex = 0; sideIndex < 2; sideIndex++)
+            {
+                float side = sideIndex == 0 ? -1f : 1f;
+                Transform eyeRoot = new GameObject(side < 0 ? "Left compound eye" : "Right compound eye").transform;
+                eyeRoot.SetParent(head, false);
+                eyeRoot.localPosition = new Vector3(side * .39f, .16f, .3f);
+                eyeRoot.localRotation = Quaternion.Euler(0, side * 24f, side * -7f);
+                VisualFactory.OrganicPart(
+                    "Faceted eye plate",
+                    eyeRoot,
+                    OrganicMeshFactory.BodyShape.Eye,
+                    Vector3.zero,
+                    new Vector3(.22f, .28f, .18f) * headSize,
+                    eye,
+                    .74f);
+                for (int facet = 0; facet < 4; facet++)
+                {
+                    float fy = (facet / 2 - .5f) * .075f;
+                    float fz = (facet % 2 - .5f) * .065f;
+                    VisualFactory.OrganicPart(
+                        "Eye facet",
+                        eyeRoot,
+                        OrganicMeshFactory.BodyShape.Eye,
+                        new Vector3(side * .11f, fy, fz),
+                        Vector3.one * .045f,
+                        Color.Lerp(eye, new Color(.16f, .2f, .12f), .3f),
+                        .86f);
+                }
+            }
+        }
+
+        void BuildMandibles(Transform head, Color color, float size)
+        {
+            leftMandible = BuildMandible(head, true, color, size);
+            rightMandible = BuildMandible(head, false, color, size);
+        }
+
+        static Transform BuildMandible(Transform head, bool left, Color color, float size)
+        {
+            var root = new GameObject(left ? "Left hooked mandible" : "Right hooked mandible").transform;
+            root.SetParent(head, false);
+            root.localPosition = new Vector3(left ? -.12f : .12f, -.08f, .42f);
+            root.localScale = Vector3.one * size;
+            VisualFactory.MeshObject(
+                "Serrated jaw",
+                root,
+                OrganicMeshFactory.Mandible(left),
+                Vector3.zero,
+                Vector3.one,
+                VisualFactory.Material(color, .46f));
+            return root;
+        }
+
+        void BuildAntennae(Transform head, Color color, float size)
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                float side = i == 0 ? -1f : 1f;
+                Transform root = new GameObject(side < 0 ? "Left responsive antenna" : "Right responsive antenna").transform;
+                root.SetParent(head, false);
+                root.localPosition = new Vector3(side * .18f, .24f, .4f);
+                root.localScale = Vector3.one * size;
+                VisualFactory.Segment(
+                    "Scape",
+                    root,
+                    Vector3.zero,
+                    new Vector3(side * .12f, .18f, .25f),
+                    .025f,
+                    color,
+                    false,
+                    .38f);
+                Transform tip = new GameObject("Antenna elbow").transform;
+                tip.SetParent(root, false);
+                tip.localPosition = new Vector3(side * .12f, .18f, .25f);
+                VisualFactory.Segment(
+                    "Flexible flagellum",
+                    tip,
+                    Vector3.zero,
+                    new Vector3(side * .18f, .06f, .34f),
+                    .019f,
+                    color,
+                    false,
+                    .36f);
+                antennae[i] = root;
+                antennaRest[i] = root.localRotation;
+            }
+        }
+
+        void BuildLegs(Color color)
+        {
+            float[] z = { .26f, .03f, -.18f };
+            for (int pair = 0; pair < 3; pair++)
+            for (int sideIndex = 0; sideIndex < 2; sideIndex++)
+            {
+                float side = sideIndex == 0 ? -1f : 1f;
+                float forward = (1 - pair) * .18f;
+                var rig = new LegRig
+                {
+                    Side = side,
+                    Pair = pair,
+                    Phase = (pair + sideIndex) % 2 == 0 ? 0 : Mathf.PI
+                };
+
+                rig.Hip = new GameObject($"Leg {pair + 1} {(side < 0 ? "L" : "R")} coxa").transform;
+                rig.Hip.SetParent(transform, false);
+                rig.Hip.localPosition = new Vector3(side * .19f, .34f, z[pair]);
+                Vector3 coxaEnd = new(side * .17f, -.035f, forward * .3f);
+                VisualFactory.Segment("Coxa", rig.Hip, Vector3.zero, coxaEnd, .058f, color, false, .36f);
+
+                rig.Knee = new GameObject("Femur joint").transform;
+                rig.Knee.SetParent(rig.Hip, false);
+                rig.Knee.localPosition = coxaEnd;
+                Vector3 femurEnd = new(side * .28f, -.17f, forward);
+                VisualFactory.Segment("Sculpted femur", rig.Knee, Vector3.zero, femurEnd, .049f, color, false, .34f);
+
+                rig.Ankle = new GameObject("Tibia joint").transform;
+                rig.Ankle.SetParent(rig.Knee, false);
+                rig.Ankle.localPosition = femurEnd;
+                Vector3 tibiaEnd = new(side * .27f, -.17f, forward * .55f);
+                VisualFactory.Segment("Tapered tibia", rig.Ankle, Vector3.zero, tibiaEnd, .036f, color, false, .31f);
+                VisualFactory.Segment(
+                    "Hooked tarsus",
+                    rig.Ankle,
+                    tibiaEnd,
+                    tibiaEnd + new Vector3(side * .1f, -.018f, .055f),
+                    .022f,
+                    color,
+                    false,
+                    .28f);
+
+                rig.HipRest = Quaternion.Euler(0, (pair - 1) * side * 8f, 0);
+                rig.KneeRest = Quaternion.identity;
+                rig.AnkleRest = Quaternion.identity;
+                legs.Add(rig);
+            }
+        }
+
+        void AddArmorDetail(Color armor)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                float z = -.22f - i * .12f;
+                VisualFactory.Segment(
+                    "Abdominal armor seam",
+                    abdomen,
+                    new Vector3(-.28f + i * .018f, .16f, z),
+                    new Vector3(.28f - i * .018f, .16f, z),
+                    .011f,
+                    Color.Lerp(armor, Color.black, .42f),
+                    false,
+                    .24f);
+            }
+        }
+
+        public void SetCarrying(bool value) => carrying = value ? 1f : 0f;
+        public void PlayAttack() => attack = 1f;
+        public void PlayStagger() => stagger = 1f;
+        public void PlayDeath() => death = 1f;
 
         void Update()
         {
             if (!built) return;
-            float delta = Vector3.Distance(transform.position, previousPosition);
+            float dt = Mathf.Max(Time.deltaTime, .0001f);
+            float speed = Vector3.Distance(transform.position, previousPosition) / dt;
             previousPosition = transform.position;
-            float targetStride = Time.deltaTime > 0 ? Mathf.Clamp01(delta / Time.deltaTime / 3f) : 0;
-            stride = Mathf.Lerp(stride, targetStride, 10f * Time.deltaTime);
-            for (int i = 0; i < legRoots.Length; i++)
+            locomotion = Mathf.MoveTowards(locomotion, Mathf.InverseLerp(.05f, 3.5f, speed), dt * 6f);
+            stride += dt * Mathf.Lerp(3.2f, 12.5f, locomotion);
+            attack = Mathf.MoveTowards(attack, 0, dt * 3.8f);
+            stagger = Mathf.MoveTowards(stagger, 0, dt * 3.2f);
+            death = Mathf.MoveTowards(death, 0, dt * .18f);
+
+            for (int i = 0; i < legs.Count; i++)
             {
-                float tripodPhase = (i == 0 || i == 3 || i == 4) ? 0 : Mathf.PI;
-                float wave = Mathf.Sin(Time.time * 10f + tripodPhase) * 24f * stride;
-                legRoots[i].localRotation = legRest[i] * Quaternion.Euler(0, wave, Mathf.Abs(wave) * (i % 2 == 0 ? -0.12f : .12f));
+                LegRig leg = legs[i];
+                float cycle = Mathf.Sin(stride + leg.Phase);
+                float lift = Mathf.Max(0, cycle) * locomotion;
+                float sweep = cycle * Mathf.Lerp(3f, 26f, locomotion);
+                leg.Hip.localRotation = leg.HipRest * Quaternion.Euler(-lift * 18f, sweep * leg.Side, 0);
+                leg.Knee.localRotation = leg.KneeRest * Quaternion.Euler(lift * 32f - Mathf.Abs(cycle) * 5f, 0, -sweep * .14f);
+                leg.Ankle.localRotation = leg.AnkleRest * Quaternion.Euler(-lift * 24f + Mathf.Abs(cycle) * 7f, 0, sweep * .08f);
             }
-            transform.localPosition = new Vector3(0, Mathf.Abs(Mathf.Sin(Time.time * 10f)) * .018f * stride, 0);
+
+            float mandibleClose = Mathf.Sin(attack * Mathf.PI) * 34f;
+            if (leftMandible) leftMandible.localRotation = Quaternion.Euler(0, mandibleClose, 0);
+            if (rightMandible) rightMandible.localRotation = Quaternion.Euler(0, -mandibleClose, 0);
+
+            for (int i = 0; i < antennae.Length; i++)
+            {
+                if (!antennae[i]) continue;
+                float side = i == 0 ? -1f : 1f;
+                float search = Mathf.Sin(Time.time * 2.7f + i * 1.8f) * 9f;
+                float response = locomotion * Mathf.Sin(stride * .5f + i) * 7f;
+                antennae[i].localRotation = antennaRest[i] * Quaternion.Euler(search * .5f, side * (search + response), -locomotion * 7f);
+            }
+
+            float bob = Mathf.Abs(Mathf.Sin(stride)) * .018f * locomotion;
+            transform.localPosition = new Vector3(0, bob + carrying * .025f, 0);
+            transform.localRotation = slopeRotation *
+                Quaternion.Euler(stagger * Mathf.Sin(Time.time * 34f) * 8f, 0, -death * 72f);
+            if (abdomen)
+                abdomen.localRotation = Quaternion.Euler(-4f - carrying * 10f + locomotion * Mathf.Sin(stride * .5f) * 2f, 0, 0);
+            if (thorax)
+                thorax.localPosition = new Vector3(0, .36f + bob * .35f, .08f);
+        }
+
+        void LateUpdate()
+        {
+            Vector3 origin = transform.parent ? transform.parent.position + Vector3.up * .75f : transform.position + Vector3.up * .75f;
+            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 1.8f, ~0, QueryTriggerInteraction.Ignore))
+            {
+                Quaternion target = Quaternion.FromToRotation(Vector3.up, hit.normal);
+                slopeRotation = Quaternion.Slerp(slopeRotation, target, Time.deltaTime * 5.5f);
+            }
         }
     }
 
@@ -81,37 +379,65 @@ namespace CanopyKin
     {
         public static void BuildBeetle(Transform parent)
         {
-            Color shell = new(.08f, .17f, .12f);
-            Color wing = new(.17f, .28f, .18f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Beetle body", parent, new Vector3(0, .42f, 0), new Vector3(.52f, .32f, .72f), shell, false, .75f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Wing case left", parent, new Vector3(-.18f, .55f, -.08f), new Vector3(.28f, .12f, .58f), wing, false, .82f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Wing case right", parent, new Vector3(.18f, .55f, -.08f), new Vector3(.28f, .12f, .58f), Color.Lerp(wing, Color.black, .12f), false, .82f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Beetle head", parent, new Vector3(0, .38f, .64f), new Vector3(.4f, .28f, .35f), shell, false, .7f);
-            BuildLegs(parent, 3, .33f, .72f, new Color(.04f, .08f, .05f));
+            Color shell = new(.045f, .11f, .075f);
+            Color wing = new(.12f, .27f, .15f);
+            VisualFactory.OrganicPart("Ridged beetle abdomen", parent, OrganicMeshFactory.BodyShape.BeetleShell, new Vector3(0, .48f, -.18f), new Vector3(1.15f, 1.05f, 1.3f), shell, .68f);
+            Transform wings = new GameObject("Split wing cases").transform;
+            wings.SetParent(parent, false);
+            for (int sideIndex = 0; sideIndex < 2; sideIndex++)
+            {
+                float side = sideIndex == 0 ? -1f : 1f;
+                GameObject wingCase = VisualFactory.OrganicPart(
+                    side < 0 ? "Left textured elytron" : "Right textured elytron",
+                    wings,
+                    OrganicMeshFactory.BodyShape.BeetleShell,
+                    new Vector3(side * .22f, .63f, -.22f),
+                    new Vector3(.54f, .3f, 1.08f),
+                    Color.Lerp(wing, Color.black, sideIndex * .09f),
+                    .77f);
+                wingCase.transform.localRotation = Quaternion.Euler(-4f, side * 3f, side * -4f);
+            }
+            VisualFactory.OrganicPart("Shielded beetle head", parent, OrganicMeshFactory.BodyShape.Head, new Vector3(0, .4f, .72f), new Vector3(.82f, .66f, .72f), shell, .56f);
+            BuildCreatureLegs(parent, 3, .34f, .98f, new Color(.025f, .05f, .032f), .055f);
+            VisualFactory.Segment("Left feeler", parent, new Vector3(-.18f, .5f, .92f), new Vector3(-.52f, .54f, 1.35f), .026f, shell);
+            VisualFactory.Segment("Right feeler", parent, new Vector3(.18f, .5f, .92f), new Vector3(.52f, .54f, 1.35f), .026f, shell);
         }
 
         public static void BuildSpider(Transform parent)
         {
-            Color body = new(.11f, .045f, .025f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Ashback abdomen", parent, new Vector3(0, .62f, -.25f), new Vector3(.72f, .48f, .82f), body, false, .42f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Ash marking", parent, new Vector3(0, .98f, -.3f), new Vector3(.38f, .08f, .48f), new Color(.55f, .18f, .06f), false, .25f);
-            VisualFactory.Primitive(PrimitiveType.Sphere, "Spider head", parent, new Vector3(0, .48f, .55f), new Vector3(.5f, .38f, .45f), Color.Lerp(body, Color.black, .2f), false, .35f);
-            BuildLegs(parent, 4, .34f, 1.05f, new Color(.07f, .025f, .018f));
+            Color body = new(.085f, .027f, .014f);
+            VisualFactory.OrganicPart("Hair-textured spider abdomen", parent, OrganicMeshFactory.BodyShape.SpiderBody, new Vector3(0, .72f, -.32f), new Vector3(1.42f, 1.25f, 1.52f), body, .28f);
+            VisualFactory.OrganicPart("Spider cephalothorax", parent, OrganicMeshFactory.BodyShape.Thorax, new Vector3(0, .5f, .58f), new Vector3(.9f, .78f, .82f), Color.Lerp(body, Color.black, .2f), .3f);
+            for (int eye = 0; eye < 6; eye++)
+            {
+                float side = (eye % 3 - 1) * .16f;
+                float row = eye / 3;
+                VisualFactory.OrganicPart(
+                    "Reflective spider eye",
+                    parent,
+                    OrganicMeshFactory.BodyShape.Eye,
+                    new Vector3(side, .67f + row * .09f, .98f - row * .04f),
+                    Vector3.one * (row == 0 ? .105f : .08f),
+                    new Color(.035f, .065f, .045f),
+                    .9f);
+            }
+            BuildCreatureLegs(parent, 4, .4f, 1.55f, new Color(.052f, .014f, .009f), .065f);
+            VisualFactory.MeshObject("Left fang", parent, OrganicMeshFactory.Mandible(true), new Vector3(-.12f, .34f, .92f), Vector3.one * 1.25f, VisualFactory.Material(body, .32f));
+            VisualFactory.MeshObject("Right fang", parent, OrganicMeshFactory.Mandible(false), new Vector3(.12f, .34f, .92f), Vector3.one * 1.25f, VisualFactory.Material(body, .32f));
         }
 
-        static void BuildLegs(Transform parent, int pairs, float y, float reach, Color color)
+        static void BuildCreatureLegs(Transform parent, int pairs, float y, float reach, Color color, float radius)
         {
             for (int pair = 0; pair < pairs; pair++)
+            for (int s = -1; s <= 1; s += 2)
             {
-                float z = Mathf.Lerp(.42f, -.42f, pairs == 1 ? 0 : pair / (float)(pairs - 1));
-                for (int s = -1; s <= 1; s += 2)
-                {
-                    Vector3 hip = new(s * .22f, y, z);
-                    Vector3 knee = new(s * reach * .58f, y + .08f, z + (pair - (pairs - 1) * .5f) * .1f);
-                    Vector3 foot = new(s * reach, .04f, z + (pair - (pairs - 1) * .5f) * .22f);
-                    VisualFactory.Segment("Insect leg upper", parent, hip, knee, .035f, color);
-                    VisualFactory.Segment("Insect leg lower", parent, knee, foot, .026f, color);
-                }
+                float normalized = pairs == 1 ? 0 : pair / (float)(pairs - 1);
+                float z = Mathf.Lerp(.46f, -.48f, normalized);
+                Vector3 hip = new(s * .27f, y, z);
+                Vector3 knee = new(s * reach * .58f, y + .18f, z + (pair - (pairs - 1) * .5f) * .14f);
+                Vector3 foot = new(s * reach, .045f, z + (pair - (pairs - 1) * .5f) * .3f);
+                VisualFactory.Segment("Muscular upper leg", parent, hip, knee, radius, color, false, .26f);
+                VisualFactory.Segment("Tapered lower leg", parent, knee, foot, radius * .72f, color, false, .24f);
             }
         }
     }

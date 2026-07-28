@@ -5,32 +5,123 @@ using UnityEngine;
 namespace CanopyKin
 {
     /// <summary>
-    /// Small runtime art kit used by the vertical slice. It keeps the project
-    /// self-contained while producing a readable, original ant-scale world.
+    /// Runtime art kit for the vertical slice. All visible geometry is built from
+    /// original organic meshes; Unity primitive renderers are never exposed.
     /// </summary>
     public static class VisualFactory
     {
-        static readonly Dictionary<long, Material> Materials = new();
+        static readonly Dictionary<string, Material> Materials = new();
+        static Mesh unitBox;
+        static Mesh unitTube;
 
         public static Material Material(Color color, float smoothness = .2f)
+            => PbrMaterial(null, color, smoothness, 0);
+
+        public static Material PbrMaterial(
+            string textureFolder,
+            Color tint,
+            float smoothness = .18f,
+            float normalStrength = 1f,
+            Vector2? tiling = null)
         {
-            Color32 c = color;
-            long key = c.r | ((long)c.g << 8) | ((long)c.b << 16) | ((long)c.a << 24) |
-                       ((long)Mathf.RoundToInt(smoothness * 100f) << 32);
+            Vector2 tile = tiling ?? Vector2.one;
+            Color32 c = tint;
+            string key = $"{textureFolder}|{c.r:X2}{c.g:X2}{c.b:X2}{c.a:X2}|{smoothness:F2}|{normalStrength:F2}|{tile.x:F1},{tile.y:F1}";
             if (Materials.TryGetValue(key, out Material cached)) return cached;
 
             Shader shader = Resources.Load<Shader>("CanopyKinLit") ?? Shader.Find("Standard");
             var material = new Material(shader)
             {
-                color = color,
+                color = tint,
                 enableInstancing = true,
-                name = $"Moonroot {c.r:X2}{c.g:X2}{c.b:X2}"
+                name = $"Moonroot PBR {textureFolder ?? "shell"}"
             };
+            if (material.HasProperty("_Color")) material.SetColor("_Color", tint);
             if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
+            if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", normalStrength);
+            if (!string.IsNullOrEmpty(textureFolder))
+            {
+                Texture2D albedo = Resources.Load<Texture2D>($"Textures/{textureFolder}/albedo");
+                Texture2D normal = Resources.Load<Texture2D>($"Textures/{textureFolder}/normal");
+                Texture2D roughness = Resources.Load<Texture2D>($"Textures/{textureFolder}/roughness");
+                ConfigureTexture(albedo);
+                ConfigureTexture(normal);
+                ConfigureTexture(roughness);
+                if (albedo) material.SetTexture("_MainTex", albedo);
+                if (normal) material.SetTexture("_BumpMap", normal);
+                if (roughness) material.SetTexture("_RoughnessMap", roughness);
+                material.SetTextureScale("_MainTex", tile);
+                material.SetTextureScale("_BumpMap", tile);
+                material.SetTextureScale("_RoughnessMap", tile);
+            }
             Materials[key] = material;
             return material;
         }
 
+        public static Material VegetationMaterial(Color color)
+        {
+            Color32 c = color;
+            string key = $"vegetation-{c.r:X2}{c.g:X2}{c.b:X2}";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinVegetation") ?? Shader.Find("Diffuse");
+            var material = new Material(shader)
+            {
+                name = "Moonroot living foliage",
+                color = color,
+                enableInstancing = true
+            };
+            material.SetColor("_Color", color);
+            Texture2D albedo = Resources.Load<Texture2D>("Textures/Moss/albedo");
+            ConfigureTexture(albedo);
+            if (albedo) material.SetTexture("_MainTex", albedo);
+            Materials[key] = material;
+            return material;
+        }
+
+        public static Material WaterMaterial()
+        {
+            const string key = "water";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinWater") ?? Shader.Find("Transparent/Diffuse");
+            var material = new Material(shader) { name = "Rainwater" };
+            material.SetColor("_Color", new Color(.035f, .19f, .18f, .72f));
+            Materials[key] = material;
+            return material;
+        }
+
+        static void ConfigureTexture(Texture2D texture)
+        {
+            if (!texture) return;
+            texture.wrapMode = TextureWrapMode.Repeat;
+            texture.filterMode = FilterMode.Trilinear;
+            texture.anisoLevel = 4;
+        }
+
+        public static GameObject MeshObject(
+            string name,
+            Transform parent,
+            Mesh mesh,
+            Vector3 localPosition,
+            Vector3 localScale,
+            Material material,
+            bool collider = false)
+        {
+            var item = new GameObject(name);
+            item.transform.SetParent(parent, false);
+            item.transform.localPosition = localPosition;
+            item.transform.localScale = localScale;
+            item.AddComponent<MeshFilter>().sharedMesh = mesh;
+            MeshRenderer renderer = item.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = material;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            renderer.receiveShadows = true;
+            if (collider)
+                item.AddComponent<MeshCollider>().sharedMesh = mesh;
+            return item;
+        }
+
+        // Compatibility entry point. It now substitutes bespoke meshes for every
+        // old visible primitive so no default Unity sphere/cylinder survives.
         public static GameObject Primitive(
             PrimitiveType type,
             string name,
@@ -41,15 +132,14 @@ namespace CanopyKin
             bool keepCollider = false,
             float smoothness = .2f)
         {
-            GameObject item = GameObject.CreatePrimitive(type);
-            item.name = name;
-            item.transform.SetParent(parent, false);
-            item.transform.localPosition = localPosition;
-            item.transform.localScale = localScale;
-            item.GetComponent<Renderer>().sharedMaterial = Material(color, smoothness);
-            if (!keepCollider && item.TryGetComponent(out Collider collider))
-                UnityEngine.Object.Destroy(collider);
-            return item;
+            Mesh mesh = type switch
+            {
+                PrimitiveType.Cube => UnitBox(),
+                PrimitiveType.Cylinder or PrimitiveType.Capsule => UnitTube(),
+                PrimitiveType.Quad or PrimitiveType.Plane => UnitBox(),
+                _ => OrganicMeshFactory.Body(OrganicMeshFactory.BodyShape.SpiderBody)
+            };
+            return MeshObject(name, parent, mesh, localPosition, localScale, Material(color, smoothness), keepCollider);
         }
 
         public static GameObject WorldPrimitive(
@@ -77,18 +167,15 @@ namespace CanopyKin
             bool keepCollider = false,
             float smoothness = .2f)
         {
-            Vector3 direction = localEnd - localStart;
-            GameObject segment = Primitive(
-                PrimitiveType.Cylinder,
-                name,
-                parent,
-                (localStart + localEnd) * .5f,
-                new Vector3(radius, direction.magnitude * .5f, radius),
-                color,
-                keepCollider,
-                smoothness);
-            segment.transform.localRotation = Quaternion.FromToRotation(Vector3.up, direction.normalized);
-            return segment;
+            Vector3 delta = localEnd - localStart;
+            Vector3 lateral = Vector3.Cross(delta.normalized, Vector3.up);
+            if (lateral.sqrMagnitude < .01f) lateral = Vector3.right;
+            lateral.Normalize();
+            Vector3 bow = lateral * Mathf.Min(.08f, delta.magnitude * .06f);
+            var path = new[] { localStart, Vector3.Lerp(localStart, localEnd, .5f) + bow, localEnd };
+            var radii = new[] { radius, radius * 1.04f, radius * .72f };
+            Mesh mesh = OrganicMeshFactory.Tube(path, radii, 7);
+            return MeshObject(name, parent, mesh, Vector3.zero, Vector3.one, Material(color, smoothness), keepCollider);
         }
 
         public static GameObject WorldSegment(
@@ -101,18 +188,56 @@ namespace CanopyKin
             bool keepCollider = false,
             float smoothness = .2f)
         {
-            Vector3 direction = end - start;
-            GameObject segment = WorldPrimitive(
-                PrimitiveType.Cylinder,
+            Vector3 localStart = parent ? parent.InverseTransformPoint(start) : start;
+            Vector3 localEnd = parent ? parent.InverseTransformPoint(end) : end;
+            GameObject segment = Segment(name, parent, localStart, localEnd, radius, color, keepCollider, smoothness);
+            return segment;
+        }
+
+        public static GameObject TexturedRoot(
+            string name,
+            Transform parent,
+            IReadOnlyList<Vector3> path,
+            IReadOnlyList<float> radii,
+            bool collider = true)
+        {
+            Mesh mesh = OrganicMeshFactory.Tube(path, radii, 12);
+            return MeshObject(
                 name,
                 parent,
-                (start + end) * .5f,
-                new Vector3(radius, direction.magnitude * .5f, radius),
-                color,
-                keepCollider,
-                smoothness);
-            segment.transform.rotation = Quaternion.FromToRotation(Vector3.up, direction.normalized);
-            return segment;
+                mesh,
+                Vector3.zero,
+                Vector3.one,
+                PbrMaterial("Bark", new Color(.68f, .61f, .54f), .12f, 1.2f, new Vector2(2.2f, 5.5f)),
+                collider);
+        }
+
+        public static GameObject OrganicPart(
+            string name,
+            Transform parent,
+            OrganicMeshFactory.BodyShape shape,
+            Vector3 localPosition,
+            Vector3 localScale,
+            Color color,
+            float smoothness = .35f,
+            bool collider = false)
+            => MeshObject(name, parent, OrganicMeshFactory.Body(shape), localPosition, localScale, Material(color, smoothness), collider);
+
+        public static GameObject Stone(
+            string name,
+            Transform parent,
+            Vector3 position,
+            Vector3 scale,
+            int variant,
+            bool collider = true,
+            bool moss = true)
+        {
+            Material material = moss
+                ? PbrMaterial("Moss", new Color(.83f, .9f, .78f), .12f, 1.15f, new Vector2(1.7f, 1.7f))
+                : PbrMaterial("Soil", new Color(.55f, .55f, .56f), .08f, .8f);
+            GameObject stone = MeshObject(name, parent, OrganicMeshFactory.Stone(variant % 7), position, scale, material, collider);
+            stone.transform.localRotation = Quaternion.Euler(variant * 13f, variant * 47f, variant * 7f);
+            return stone;
         }
 
         public static GameObject Terrain(
@@ -125,14 +250,11 @@ namespace CanopyKin
         {
             var root = new GameObject(name);
             root.transform.SetParent(parent, false);
-            var filter = root.AddComponent<MeshFilter>();
-            var renderer = root.AddComponent<MeshRenderer>();
-            var collider = root.AddComponent<MeshCollider>();
-            var mesh = new Mesh { name = "Moonroot rolling soil" };
-
+            var mesh = new Mesh { name = "Moonroot sculpted soil" };
             int row = resolution + 1;
             var vertices = new Vector3[row * row];
             var uv = new Vector2[vertices.Length];
+            var colors = new Color[vertices.Length];
             var triangles = new int[resolution * resolution * 6];
             for (int z = 0; z <= resolution; z++)
             {
@@ -142,83 +264,142 @@ namespace CanopyKin
                     float pz = (z / (float)resolution - .5f) * size;
                     int index = z * row + x;
                     vertices[index] = new Vector3(px, height(px, pz), pz);
-                    uv[index] = new Vector2(x / (float)resolution, z / (float)resolution);
+                    uv[index] = new Vector2(px / 3.5f, pz / 3.5f);
+                    float wet = Mathf.PerlinNoise((px + 22) * .12f, (pz + 31) * .12f);
+                    colors[index] = new Color(wet, wet, wet, 1);
                 }
             }
-
             int t = 0;
             for (int z = 0; z < resolution; z++)
+            for (int x = 0; x < resolution; x++)
             {
-                for (int x = 0; x < resolution; x++)
-                {
-                    int a = z * row + x;
-                    int b = a + 1;
-                    int c = a + row;
-                    int d = c + 1;
-                    triangles[t++] = a;
-                    triangles[t++] = c;
-                    triangles[t++] = b;
-                    triangles[t++] = b;
-                    triangles[t++] = c;
-                    triangles[t++] = d;
-                }
+                int a = z * row + x;
+                int b = a + 1;
+                int c = a + row;
+                int d = c + 1;
+                triangles[t++] = a; triangles[t++] = c; triangles[t++] = b;
+                triangles[t++] = b; triangles[t++] = c; triangles[t++] = d;
             }
-
             mesh.vertices = vertices;
             mesh.uv = uv;
+            mesh.colors = colors;
             mesh.triangles = triangles;
             mesh.RecalculateNormals();
+            mesh.RecalculateTangents();
             mesh.RecalculateBounds();
-            filter.sharedMesh = mesh;
-            collider.sharedMesh = mesh;
-            renderer.sharedMaterial = Material(color, .05f);
+            root.AddComponent<MeshFilter>().sharedMesh = mesh;
+            MeshRenderer renderer = root.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = PbrMaterial("Soil", color, .05f, 1.15f, Vector2.one);
+            renderer.receiveShadows = true;
+            root.AddComponent<MeshCollider>().sharedMesh = mesh;
             return root;
         }
 
-        public static void GrassTuft(Transform parent, Vector3 position, float height, Color color)
+        public static GameObject GrassTuft(Transform parent, Vector3 position, float height, Color color, int variant = 0)
         {
-            var tuft = new GameObject("Wind grass").transform;
-            tuft.SetParent(parent, false);
-            tuft.position = position;
-            float width = Mathf.Lerp(.025f, .055f, height / 2.8f);
-            for (int i = 0; i < 3; i++)
+            var root = new GameObject("Broad wind-bent grass");
+            root.transform.SetParent(parent, false);
+            root.transform.position = position;
+            root.transform.localScale = new Vector3(.82f, height, .82f);
+
+            var high = MeshObject("Detailed leaves", root.transform, OrganicMeshFactory.BladeCluster(variant % 8), Vector3.zero, Vector3.one, VegetationMaterial(color));
+            var low = MeshObject("Distant leaves", root.transform, OrganicMeshFactory.BladeCluster(variant % 8, true), Vector3.zero, Vector3.one, VegetationMaterial(color));
+            var lod = root.AddComponent<LODGroup>();
+            lod.SetLODs(new[]
             {
-                GameObject blade = Primitive(
-                    PrimitiveType.Cube,
-                    "Blade",
-                    tuft,
-                    new Vector3((i - 1) * .07f, height * .5f, (i % 2) * .05f),
-                    new Vector3(width, height, width),
-                    color,
-                    false,
-                    .05f);
-                blade.transform.localRotation = Quaternion.Euler((i - 1) * 7f, i * 37f, (i - 1) * -6f);
-            }
+                new LOD(.22f, new Renderer[] { high.GetComponent<Renderer>() }),
+                new LOD(.055f, new Renderer[] { low.GetComponent<Renderer>() })
+            });
+            lod.RecalculateBounds();
+            return root;
         }
 
         public static void Flower(Transform parent, Vector3 position, Color petals)
         {
-            var flower = new GameObject("Seed flower").transform;
+            var flower = new GameObject("Woodland flower").transform;
             flower.SetParent(parent, false);
             flower.position = position;
-            Primitive(PrimitiveType.Cylinder, "Stem", flower, new Vector3(0, .7f, 0), new Vector3(.035f, .7f, .035f), new Color(.18f, .42f, .11f));
-            Primitive(PrimitiveType.Sphere, "Flower heart", flower, new Vector3(0, 1.45f, 0), Vector3.one * .13f, new Color(.9f, .62f, .13f), false, .3f);
-            for (int i = 0; i < 6; i++)
+            Segment("Flexible stem", flower, Vector3.zero, new Vector3(0, 1.18f, .08f), .032f, new Color(.18f, .38f, .08f));
+            OrganicPart("Pollen heart", flower, OrganicMeshFactory.BodyShape.Brood, new Vector3(0, 1.25f, .08f), Vector3.one * .24f, new Color(.88f, .53f, .08f), .22f);
+            for (int i = 0; i < 7; i++)
             {
-                float angle = i * Mathf.PI / 3f;
-                Vector3 offset = new(Mathf.Cos(angle) * .2f, 1.45f, Mathf.Sin(angle) * .2f);
-                Primitive(PrimitiveType.Sphere, "Petal", flower, offset, new Vector3(.18f, .055f, .11f), petals, false, .25f)
-                    .transform.localRotation = Quaternion.Euler(0, -i * 60f, 0);
+                float angle = i / 7f * Mathf.PI * 2f;
+                var petal = MeshObject(
+                    "Veined petal",
+                    flower,
+                    OrganicMeshFactory.FallenLeaf(i),
+                    new Vector3(Mathf.Cos(angle) * .2f, 1.22f, Mathf.Sin(angle) * .2f + .08f),
+                    new Vector3(.42f, .42f, .36f),
+                    Material(petals, .18f));
+                petal.transform.localRotation = Quaternion.Euler(-12f, -angle * Mathf.Rad2Deg, 0);
             }
         }
 
         public static void Mushroom(Transform parent, Vector3 position, float scale, Color cap)
         {
-            var mushroom = new GameObject("Mooncap mushroom").transform;
+            var mushroom = new GameObject("Ribbed mooncap").transform;
             mushroom.SetParent(parent, false);
             mushroom.position = position;
-            Primitive(PrimitiveType.Cylinder, "Pale stem", mushroom, new Vector3(0, scale * .35f, 0), new Vector3(scale * .12f, scale * .35f, scale * .12f), new Color(.72f, .64f, .48f));
-            Primitive(PrimitiveType.Sphere, "Mooncap", mushroom, new Vector3(0, scale * .73f, 0), new Vector3(scale * .5f, scale * .18f, scale * .5f), cap, false, .35f);
+            Segment("Tapered stem", mushroom, Vector3.zero, new Vector3(0, scale * .72f, 0), scale * .12f, new Color(.62f, .52f, .38f), false, .12f);
+            GameObject crown = OrganicPart(
+                "Undulating cap",
+                mushroom,
+                OrganicMeshFactory.BodyShape.BeetleShell,
+                new Vector3(0, scale * .79f, 0),
+                new Vector3(scale, scale * .36f, scale),
+                cap,
+                .24f);
+            crown.transform.localRotation = Quaternion.Euler(0, scale * 41f, 0);
+        }
+
+        public static GameObject FallenLeaf(Transform parent, Vector3 position, Vector3 scale, int variant)
+        {
+            GameObject leaf = MeshObject(
+                "Curled rain-dark leaf",
+                parent,
+                OrganicMeshFactory.FallenLeaf(variant),
+                position,
+                scale,
+                PbrMaterial("LeafLitter", new Color(.82f, .73f, .58f), .08f, .65f, new Vector2(.8f, 1.2f)));
+            leaf.transform.localRotation = Quaternion.Euler(0, variant * 47f, (variant % 5 - 2) * 4f);
+            return leaf;
+        }
+
+        public static GameObject Water(Transform parent, Vector3 position, Vector3 scale)
+        {
+            GameObject water = MeshObject("Reflective rain pool", parent, UnitBox(), position, scale, WaterMaterial());
+            return water;
+        }
+
+        static Mesh UnitTube()
+        {
+            if (unitTube) return unitTube;
+            unitTube = OrganicMeshFactory.Tube(
+                new[] { new Vector3(0, -1, 0), Vector3.zero, new Vector3(0, 1, 0) },
+                new[] { .5f, .52f, .48f },
+                10);
+            unitTube.name = "Bespoke unit tube";
+            return unitTube;
+        }
+
+        static Mesh UnitBox()
+        {
+            if (unitBox) return unitBox;
+            Vector3[] vertices =
+            {
+                new(-.5f,-.5f,-.5f), new(.5f,-.5f,-.5f), new(.5f,.5f,-.5f), new(-.5f,.5f,-.5f),
+                new(-.5f,-.5f,.5f), new(.5f,-.5f,.5f), new(.5f,.5f,.5f), new(-.5f,.5f,.5f)
+            };
+            int[] triangles =
+            {
+                0,2,1, 0,3,2, 1,2,6, 1,6,5, 5,6,7, 5,7,4,
+                4,7,3, 4,3,0, 3,7,6, 3,6,2, 4,0,1, 4,1,5
+            };
+            unitBox = new Mesh { name = "Bespoke unit box", vertices = vertices, triangles = triangles };
+            unitBox.RecalculateNormals();
+            unitBox.RecalculateTangents();
+            unitBox.RecalculateBounds();
+            return unitBox;
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,16 +10,15 @@ namespace CanopyKin
         public int Remaining { get; private set; }
         public bool Available => Remaining > 0;
         readonly List<GameObject> pieces = new();
-        GameObject beacon;
 
         public string Prompt => Remaining > 0
-            ? GameText.Pick($"Collect {Kind.ToString().ToLowerInvariant()}", Kind switch
+            ? GameText.Pick($"Pick up {Kind.ToString().ToLowerInvariant()}", Kind switch
             {
-                ResourceKind.Seed => "Собрать лунное семя",
-                ResourceKind.Resin => "Собрать янтарную смолу",
-                _ => "Собрать белок"
+                ResourceKind.Seed => "Поднять лесное семя",
+                ResourceKind.Resin => "Поднять янтарную смолу",
+                _ => "Поднять белковую пищу"
             })
-            : GameText.Pick("Depleted", "Источник исчерпан");
+            : GameText.Pick("This source is depleted", "Источник исчерпан");
 
         public void Initialize(ResourceKind kind, int amount)
         {
@@ -26,235 +26,596 @@ namespace CanopyKin
             Remaining = amount;
             var collider = gameObject.AddComponent<SphereCollider>();
             collider.radius = .72f;
-            collider.center = new Vector3(0, .35f, 0);
+            collider.center = new Vector3(0, .3f, 0);
             collider.isTrigger = true;
-            var host = gameObject.AddComponent<IInteractableHost>();
-            host.Target = this;
+            gameObject.AddComponent<IInteractableHost>().Target = this;
 
-            Color color = kind switch
-            {
-                ResourceKind.Seed => new Color(.76f, .42f, .08f),
-                ResourceKind.Resin => new Color(1f, .38f, .035f),
-                _ => new Color(.46f, .12f, .08f)
-            };
             for (int i = 0; i < amount; i++)
             {
                 float angle = i * 2.399f;
-                GameObject piece = VisualFactory.Primitive(
-                    PrimitiveType.Sphere,
-                    kind.ToString(),
-                    transform,
-                    new Vector3(Mathf.Cos(angle) * .28f, .2f + i * .035f, Mathf.Sin(angle) * .28f),
-                    kind == ResourceKind.Resin ? Vector3.one * .22f : new Vector3(.18f, .13f, .34f),
-                    color,
-                    false,
-                    .68f);
-                piece.transform.localRotation = Quaternion.Euler(12f, i * 71f, 28f);
+                Vector3 position = new(Mathf.Cos(angle) * .32f, .18f + i * .025f, Mathf.Sin(angle) * .32f);
+                GameObject piece = CreateCargoVisual(transform, kind, position, .95f);
+                piece.transform.localRotation = Quaternion.Euler(12f + i * 9f, i * 71f, 24f);
                 pieces.Add(piece);
             }
-            beacon = VisualFactory.Primitive(
-                PrimitiveType.Sphere,
-                "Resource glow marker",
-                transform,
-                new Vector3(0, 1.05f, 0),
-                Vector3.one * .09f,
-                Color.Lerp(color, Color.white, .35f),
-                false,
-                .8f);
+            BuildNaturalMarker(kind);
         }
 
-        public void Interact(PlayerAnt player) => CollectOne();
-
-        public bool CollectOne()
+        void BuildNaturalMarker(ResourceKind kind)
         {
+            Color glow = kind switch
+            {
+                ResourceKind.Seed => new Color(.93f, .69f, .18f),
+                ResourceKind.Resin => new Color(1f, .31f, .035f),
+                _ => new Color(.7f, .2f, .08f)
+            };
+            for (int i = 0; i < 3; i++)
+            {
+                Transform mote = VisualFactory.OrganicPart(
+                    "Pheromone firefly",
+                    transform,
+                    OrganicMeshFactory.BodyShape.Eye,
+                    new Vector3(Mathf.Cos(i * 2.1f) * .42f, .66f + i * .12f, Mathf.Sin(i * 2.1f) * .42f),
+                    Vector3.one * .09f,
+                    glow,
+                    .9f).transform;
+                mote.gameObject.AddComponent<HoverMote>().Initialize(i * 2.1f);
+            }
+        }
+
+        public void Interact(PlayerAnt player)
+        {
+            if (!TryTake(out ResourceKind cargo)) return;
+            WorldBootstrap.Instance.Colony.Add(cargo, 1);
+            WorldBootstrap.Instance.Mission.NotifyGather();
+            WorldBootstrap.Instance.ShowToast(CargoMessage(cargo));
+        }
+
+        public bool TryTake(out ResourceKind cargo)
+        {
+            cargo = Kind;
             if (Remaining <= 0) return false;
             Remaining--;
-            WorldBootstrap.Instance.Colony.Add(Kind, 1);
-            WorldBootstrap.Instance.Mission.NotifyGather();
             if (Remaining < pieces.Count && pieces[Remaining]) pieces[Remaining].SetActive(false);
-            if (Remaining == 0 && beacon) beacon.SetActive(false);
-            WorldBootstrap.Instance.ShowToast(Kind switch
-            {
-                ResourceKind.Seed => GameText.Pick("Moonseed secured", "Лунное семя собрано"),
-                ResourceKind.Resin => GameText.Pick("Amber resin secured", "Янтарная смола собрана"),
-                _ => GameText.Pick("Protein secured", "Белок собран")
-            });
             return true;
+        }
+
+        public static GameObject CreateCargoVisual(Transform parent, ResourceKind kind, Vector3 localPosition, float scale)
+        {
+            Color color = kind switch
+            {
+                ResourceKind.Seed => new Color(.6f, .31f, .055f),
+                ResourceKind.Resin => new Color(1f, .25f, .018f),
+                _ => new Color(.62f, .18f, .075f)
+            };
+            OrganicMeshFactory.BodyShape shape = kind == ResourceKind.Resin
+                ? OrganicMeshFactory.BodyShape.SpiderBody
+                : OrganicMeshFactory.BodyShape.Brood;
+            Vector3 dimensions = kind switch
+            {
+                ResourceKind.Seed => new Vector3(.32f, .25f, .52f),
+                ResourceKind.Resin => new Vector3(.31f, .22f, .3f),
+                _ => new Vector3(.34f, .24f, .42f)
+            };
+            return VisualFactory.OrganicPart(
+                $"{kind} cargo",
+                parent,
+                shape,
+                localPosition,
+                dimensions * scale,
+                color,
+                kind == ResourceKind.Resin ? .78f : .32f);
+        }
+
+        static string CargoMessage(ResourceKind kind) => kind switch
+        {
+            ResourceKind.Seed => GameText.Pick("Forest seed delivered", "Лесное семя доставлено"),
+            ResourceKind.Resin => GameText.Pick("Amber resin delivered", "Янтарная смола доставлена"),
+            _ => GameText.Pick("Protein delivered", "Белковая пища доставлена")
+        };
+    }
+
+    public sealed class HoverMote : MonoBehaviour
+    {
+        float phase;
+        Vector3 origin;
+        public void Initialize(float value)
+        {
+            phase = value;
+            origin = transform.localPosition;
+        }
+        void Update()
+        {
+            transform.localPosition = origin + new Vector3(
+                Mathf.Sin(Time.time * 1.2f + phase) * .08f,
+                Mathf.Sin(Time.time * 2f + phase) * .07f,
+                Mathf.Cos(Time.time * 1.1f + phase) * .08f);
         }
     }
 
     public sealed class ColonyEntrance : MonoBehaviour, IInteractable
     {
         bool underground;
-
         public void Initialize(bool isUnderground) => underground = isUnderground;
+        public string Prompt => underground
+            ? GameText.Pick("Climb to the forest floor", "Подняться на лесную подстилку")
+            : GameText.Pick("Enter the Moonroot colony", "Войти в колонию Лунного Корня");
 
+        public void Interact(PlayerAnt player)
+        {
+            WorldBootstrap world = WorldBootstrap.Instance;
+            world.ToggleNest(player, underground);
+            if (underground) world.Mission.NotifyNestExit();
+            else world.Mission.NotifyReturnedToNest();
+        }
+    }
+
+    public sealed class UpgradeStation : MonoBehaviour, IInteractable
+    {
         public string Prompt
         {
             get
             {
-                WorldBootstrap world = WorldBootstrap.Instance;
-                if (underground) return GameText.Pick("Return to the forest floor", "Вернуться на поверхность");
-                if (world.Mission.Step == 4 && world.Colony.Level < 2)
-                    return GameText.Pick(
-                        $"Grow nursery ({ColonyState.UpgradeSeedCost} seed, {ColonyState.UpgradeResinCost} resin)",
-                        $"Расширить ясли ({ColonyState.UpgradeSeedCost} семени, {ColonyState.UpgradeResinCost} смолы)");
-                return GameText.Pick("Enter the Moonroot nursery", "Войти в ясли Лунного Корня");
+                ColonyState colony = WorldBootstrap.Instance.Colony;
+                if (colony.IsConstructing)
+                    return GameText.Pick($"Nursery growing — {colony.ConstructionProgress:P0}", $"Ясли растут — {colony.ConstructionProgress:P0}");
+                if (colony.Level >= 2)
+                    return GameText.Pick("Expanded nursery chamber", "Расширенная камера яслей");
+                return GameText.Pick(
+                    $"Expand nursery ({ColonyState.UpgradeSeedCost} seed, {ColonyState.UpgradeResinCost} resin, {ColonyState.UpgradeProteinCost} protein)",
+                    $"Расширить ясли ({ColonyState.UpgradeSeedCost} семян, {ColonyState.UpgradeResinCost} смолы, {ColonyState.UpgradeProteinCost} белка)");
             }
+        }
+
+        public void Initialize()
+        {
+            var collider = gameObject.AddComponent<SphereCollider>();
+            collider.radius = 1.1f;
+            collider.isTrigger = true;
+            gameObject.AddComponent<IInteractableHost>().Target = this;
         }
 
         public void Interact(PlayerAnt player)
         {
             WorldBootstrap world = WorldBootstrap.Instance;
-            if (!underground && world.Mission.Step == 4 && world.Colony.Level < 2)
+            if (world.Mission.Step != 6)
             {
-                if (world.Colony.Upgrade())
-                {
-                    world.ApplyNestUpgrade();
-                    world.Mission.NotifyUpgrade();
-                    world.ShowToast(GameText.Pick("The nursery has grown", "Ясли расширены"));
-                }
-                else
-                {
-                    world.ShowToast(GameText.Pick("More seed and resin are needed", "Нужно больше семян и смолы"));
-                }
+                world.ShowToast(GameText.Pick("The nursery does not need work yet", "Пока ясли не требуют работ"));
+                return;
+            }
+            if (world.Colony.BeginUpgrade(world))
+            {
+                world.ShowToast(GameText.Pick("Workers begin shaping the new chamber", "Рабочие начали расширять камеру"));
+                AudioDirector.Instance?.PlayOrder(transform.position);
             }
             else
             {
-                world.ToggleNest(player, underground);
+                world.ShowToast(GameText.Pick("The colony lacks construction resources", "Колонии не хватает строительных ресурсов"));
             }
+        }
+    }
+
+    public sealed class ScoutGuide : MonoBehaviour, IInteractable
+    {
+        bool met;
+        public string Prompt => met
+            ? GameText.Pick("Scout: the seed trail lies beyond the mushrooms", "Разведчик: тропа семян лежит за грибами")
+            : GameText.Pick("Meet the Moonroot scout", "Поговорить с разведчиком Лунного Корня");
+
+        public void Initialize()
+        {
+            var collider = gameObject.AddComponent<SphereCollider>();
+            collider.radius = .8f;
+            collider.isTrigger = true;
+            gameObject.AddComponent<IInteractableHost>().Target = this;
+        }
+
+        public void Interact(PlayerAnt player)
+        {
+            if (!met)
+            {
+                met = true;
+                WorldBootstrap.Instance.Mission.NotifyScoutReached();
+                WorldBootstrap.Instance.ShowToast(GameText.Pick("Scout: workers answer pheromone order 1", "Разведчик: рабочие подчиняются феромонному приказу 1"));
+                AudioDirector.Instance?.PlayOrder(transform.position);
+            }
+        }
+    }
+
+    public sealed class CapturePoint : MonoBehaviour
+    {
+        float progress;
+        float pulse;
+        Transform marker;
+
+        public void Initialize()
+        {
+            marker = transform.Find("Capture marker");
+        }
+
+        void Update()
+        {
+            WorldBootstrap world = WorldBootstrap.Instance;
+            if (!world || world.Mission.Step != 4 || world.IsPaused) return;
+            int friendly = 0;
+            if (Vector3.Distance(world.Player.transform.position, transform.position) < 3.2f) friendly++;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                if (unit.IsAvailable && Vector3.Distance(unit.transform.position, transform.position) < 3.2f) friendly++;
+            float rate = friendly > 0 ? Mathf.Lerp(.022f, .065f, Mathf.InverseLerp(1, 7, friendly)) : -.018f;
+            progress = Mathf.Clamp01(progress + rate * Time.deltaTime);
+            world.Mission.SetCaptureProgress(progress);
+            pulse += Time.deltaTime;
+            if (marker)
+            {
+                marker.localScale = Vector3.one * (1f + Mathf.Sin(pulse * 3f) * .08f + progress * .35f);
+                marker.localRotation = Quaternion.Euler(0, pulse * 15f, 0);
+            }
+        }
+    }
+
+    public sealed class ThreatRevealTrigger : MonoBehaviour
+    {
+        void OnTriggerEnter(Collider other)
+        {
+            if (!other.GetComponentInParent<PlayerAnt>()) return;
+            WorldBootstrap world = WorldBootstrap.Instance;
+            if (world.Mission.Step != 9) return;
+            world.BeginThreatReveal();
+        }
+    }
+
+    public sealed class SquadUnit : MonoBehaviour
+    {
+        public UnitRole Role { get; private set; }
+        public float Health { get; private set; }
+        public float MaxHealth { get; private set; }
+        public bool Selected { get; private set; }
+        public bool IsAvailable => Health > 0 && !recovering && gameObject.activeSelf;
+        public bool HasCargo { get; private set; }
+        public ResourceKind Cargo { get; private set; }
+        public AntVisual Visual { get; private set; }
+
+        GameObject selectionMarker;
+        GameObject injuryMarker;
+        GameObject cargoVisual;
+        bool recovering;
+
+        public void Initialize(UnitRole role)
+        {
+            Role = role;
+            AntDefinition definition = GameDefinitions.Ant(role);
+            MaxHealth = definition.maxHealth;
+            Health = MaxHealth;
+            Visual = AntVisual.Create(transform, definition.shell, definition.visualScale, definition.caste);
+            BuildStateMarkers();
+        }
+
+        void BuildStateMarkers()
+        {
+            selectionMarker = BuildRing("Selected pheromone ring", new Color(.35f, .9f, .38f), .5f);
+            injuryMarker = BuildRing("Injured pheromone ring", new Color(1f, .18f, .045f), .38f);
+            selectionMarker.SetActive(false);
+            injuryMarker.SetActive(false);
+        }
+
+        GameObject BuildRing(string name, Color color, float radius)
+        {
+            var points = new List<Vector3>();
+            var radii = new List<float>();
+            for (int i = 0; i <= 18; i++)
+            {
+                float angle = i / 18f * Mathf.PI * 2f;
+                points.Add(new Vector3(Mathf.Cos(angle) * radius, .025f, Mathf.Sin(angle) * radius));
+                radii.Add(.012f);
+            }
+            return VisualFactory.MeshObject(name, transform, OrganicMeshFactory.Tube(points, radii, 5), Vector3.zero, Vector3.one, VisualFactory.Material(color, .8f));
+        }
+
+        public void SetSelected(bool selected)
+        {
+            Selected = selected;
+            if (selectionMarker) selectionMarker.SetActive(selected);
+        }
+
+        public void TakeCargo(ResourceKind kind)
+        {
+            DropCargoVisual();
+            HasCargo = true;
+            Cargo = kind;
+            cargoVisual = ResourceNode.CreateCargoVisual(transform, kind, new Vector3(0, .78f, -.08f), .78f);
+            Visual?.SetCarrying(true);
+        }
+
+        public ResourceKind DeliverCargo()
+        {
+            ResourceKind kind = Cargo;
+            HasCargo = false;
+            DropCargoVisual();
+            Visual?.SetCarrying(false);
+            return kind;
+        }
+
+        void DropCargoVisual()
+        {
+            if (cargoVisual) Destroy(cargoVisual);
+            cargoVisual = null;
+        }
+
+        public void Damage(float amount)
+        {
+            if (Health <= 0) return;
+            Health = Mathf.Max(0, Health - amount);
+            Visual?.PlayStagger();
+            if (injuryMarker) injuryMarker.SetActive(Health > 0 && Health < MaxHealth * .38f);
+            if (Health <= 0) StartCoroutine(Recover());
+        }
+
+        IEnumerator Recover()
+        {
+            recovering = true;
+            Visual?.PlayDeath();
+            yield return new WaitForSeconds(1.1f);
+            foreach (Renderer renderer in GetComponentsInChildren<Renderer>()) renderer.enabled = false;
+            yield return new WaitForSeconds(7f);
+            Health = MaxHealth;
+            transform.position = WorldBootstrap.Instance.NestPosition + Vector3.up * .05f;
+            foreach (Renderer renderer in GetComponentsInChildren<Renderer>()) renderer.enabled = true;
+            if (injuryMarker) injuryMarker.SetActive(false);
+            recovering = false;
         }
     }
 
     public sealed class Creature : MonoBehaviour
     {
         public enum Species { Beetle, Spider, RivalAnt }
+        enum BrainState { Dormant, Wander, Chase, Telegraph, Recover, Retreat, Dead }
 
         public Species Kind { get; private set; }
         public float Health { get; private set; }
-        public bool IsActive => WorldBootstrap.Instance &&
+        public float MaxHealth { get; private set; }
+        public bool IsActive => state != BrainState.Dead &&
+                                WorldBootstrap.Instance &&
                                 WorldBootstrap.Instance.IsPlaying &&
                                 WorldBootstrap.Instance.Mission.Step >= requiredMissionStep &&
-                                Health > 0;
+                                gameObject.activeSelf;
 
-        float speed;
-        float aggro;
-        float attackDamage;
-        float attackCooldown;
+        EnemyDefinition definition;
+        BrainState state;
         int requiredMissionStep;
         Vector3 home;
         Vector3 wanderTarget;
+        Vector3 attackTarget;
+        float stateTimer;
         float wanderTimer;
+        float stuckTimer;
+        Vector3 lastPosition;
+        Collider bodyCollider;
         Renderer[] renderers;
+        AntVisual rivalVisual;
 
         public void Initialize(Species species, int missionStep)
         {
             Kind = species;
             requiredMissionStep = missionStep;
-            Health = species switch
-            {
-                Species.Spider => 150,
-                Species.RivalAnt => 72,
-                _ => 78
-            };
-            speed = species switch
-            {
-                Species.Spider => 1.7f,
-                Species.RivalAnt => 2.25f,
-                _ => 1.45f
-            };
-            aggro = species == Species.Spider ? 11f : 7.5f;
-            attackDamage = species == Species.Spider ? 17f : 9f;
-
+            definition = GameDefinitions.Enemy(species);
+            MaxHealth = definition.maxHealth;
+            Health = MaxHealth;
             var collider = gameObject.AddComponent<SphereCollider>();
             collider.center = new Vector3(0, .42f, 0);
-            collider.radius = species == Species.Spider ? .72f : .52f;
-            if (species == Species.RivalAnt) AntVisual.Create(transform, new Color(.42f, .055f, .025f), 1.2f);
-            else if (species == Species.Beetle) CreatureVisuals.BuildBeetle(transform);
-            else CreatureVisuals.BuildSpider(transform);
+            collider.radius = species == Species.Spider ? .88f : species == Species.Beetle ? .66f : .42f;
+            bodyCollider = collider;
+            if (species == Species.RivalAnt)
+                rivalVisual = AntVisual.Create(transform, new Color(.43f, .035f, .012f), 1.16f, AntCaste.Rival);
+            else if (species == Species.Beetle)
+                CreatureVisuals.BuildBeetle(transform);
+            else
+                CreatureVisuals.BuildSpider(transform);
             renderers = GetComponentsInChildren<Renderer>();
             home = transform.position;
             wanderTarget = home;
+            lastPosition = transform.position;
+            state = BrainState.Dormant;
         }
 
         void Update()
         {
             WorldBootstrap world = WorldBootstrap.Instance;
-            if (!world || !world.IsPlaying || world.IsPaused || Health <= 0) return;
-
-            PlayerAnt player = world.Player;
-            float distance = Vector3.Distance(transform.position, player.transform.position);
-            Vector3 target;
+            if (!world || !world.IsPlaying || world.IsPaused || state == BrainState.Dead) return;
             if (world.Mission.Step < requiredMissionStep)
             {
-                target = home;
+                state = BrainState.Dormant;
+                return;
             }
-            else if (distance < aggro)
-            {
-                target = player.transform.position;
-            }
-            else
-            {
-                wanderTimer -= Time.deltaTime;
-                if (wanderTimer <= 0)
-                {
-                    wanderTimer = Random.Range(2.5f, 5f);
-                    Vector2 circle = Random.insideUnitCircle * 2.4f;
-                    wanderTarget = home + new Vector3(circle.x, 0, circle.y);
-                }
-                target = wanderTarget;
-            }
+            if (state == BrainState.Dormant) state = BrainState.Wander;
 
-            target.y = WorldBootstrap.GroundHeight(target.x, target.z) + .03f;
-            Vector3 flat = target - transform.position;
-            flat.y = 0;
-            if (flat.sqrMagnitude > .16f)
+            stateTimer -= Time.deltaTime;
+            Transform target = ChooseTarget();
+            float distance = target ? Vector3.Distance(transform.position, target.position) : float.MaxValue;
+            switch (state)
             {
-                Vector3 next = Vector3.MoveTowards(transform.position, target, speed * Time.deltaTime);
-                next.y = WorldBootstrap.GroundHeight(next.x, next.z) + .03f;
-                transform.position = next;
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(flat), 6f * Time.deltaTime);
+                case BrainState.Wander:
+                    if (distance < definition.aggroRadius) state = BrainState.Chase;
+                    Wander();
+                    break;
+                case BrainState.Chase:
+                    if (!target) { state = BrainState.Wander; break; }
+                    if (distance <= definition.attackRange)
+                    {
+                        state = BrainState.Telegraph;
+                        stateTimer = Kind == Species.Spider ? .62f : .42f;
+                        attackTarget = target.position;
+                        rivalVisual?.PlayAttack();
+                    }
+                    else
+                        MoveTowards(target.position, definition.speed);
+                    break;
+                case BrainState.Telegraph:
+                    TelegraphPose();
+                    if (stateTimer <= 0)
+                    {
+                        ResolveAttack(target);
+                        state = BrainState.Recover;
+                        stateTimer = definition.attackInterval;
+                    }
+                    break;
+                case BrainState.Recover:
+                    if (stateTimer <= 0) state = BrainState.Chase;
+                    break;
+                case BrainState.Retreat:
+                    MoveTowards(home, definition.speed * 1.2f);
+                    if (Vector3.Distance(transform.position, home) < 1f) state = BrainState.Wander;
+                    break;
             }
+            DetectStuck();
+        }
 
-            attackCooldown -= Time.deltaTime;
-            if (IsActive && distance < (Kind == Species.Spider ? 1.45f : 1.05f) && attackCooldown <= 0)
+        Transform ChooseTarget()
+        {
+            WorldBootstrap world = WorldBootstrap.Instance;
+            Transform best = world.Player ? world.Player.transform : null;
+            float distance = best ? (best.position - transform.position).sqrMagnitude : float.MaxValue;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
             {
-                player.Damage(attackDamage);
-                attackCooldown = Kind == Species.Spider ? 1.15f : 1.35f;
+                if (!unit.IsAvailable) continue;
+                float candidate = (unit.transform.position - transform.position).sqrMagnitude;
+                if (candidate >= distance) continue;
+                distance = candidate;
+                best = unit.transform;
+            }
+            return best;
+        }
+
+        void Wander()
+        {
+            wanderTimer -= Time.deltaTime;
+            if (wanderTimer <= 0)
+            {
+                wanderTimer = Random.Range(2.4f, 4.8f);
+                Vector2 circle = Random.insideUnitCircle * 2.7f;
+                wanderTarget = home + new Vector3(circle.x, 0, circle.y);
+            }
+            MoveTowards(wanderTarget, definition.speed * .52f);
+        }
+
+        void MoveTowards(Vector3 target, float speed)
+        {
+            target.y = WorldBootstrap.GroundHeight(target.x, target.z) + .035f;
+            Vector3 direction = target - transform.position;
+            direction.y = 0;
+            if (direction.sqrMagnitude < .06f) return;
+            direction.Normalize();
+            Vector3 origin = transform.position + Vector3.up * .3f;
+            if (Physics.SphereCast(origin, .14f, direction, out RaycastHit hit, .62f, ~0, QueryTriggerInteraction.Ignore) &&
+                hit.collider != bodyCollider)
+            {
+                Vector3 side = Vector3.Cross(Vector3.up, hit.normal).normalized;
+                if (Vector3.Dot(side, direction) < 0) side = -side;
+                direction = Vector3.Slerp(direction, side, .72f);
+            }
+            Vector3 next = transform.position + direction * speed * Time.deltaTime;
+            next.y = WorldBootstrap.GroundHeight(next.x, next.z) + .035f;
+            transform.position = next;
+            transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), 6.5f * Time.deltaTime);
+        }
+
+        void TelegraphPose()
+        {
+            float pulse = 1f + Mathf.Sin(Time.time * 24f) * .035f;
+            transform.localScale = Vector3.Lerp(transform.localScale, Vector3.one * pulse, Time.deltaTime * 12f);
+            Vector3 facing = attackTarget - transform.position;
+            facing.y = 0;
+            if (facing.sqrMagnitude > .1f)
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(facing), Time.deltaTime * 9f);
+        }
+
+        void ResolveAttack(Transform target)
+        {
+            transform.localScale = Vector3.one;
+            if (!target || Vector3.Distance(transform.position, target.position) > definition.attackRange * 1.28f) return;
+            if (target.TryGetComponent(out PlayerAnt player)) player.Damage(definition.damage);
+            else target.GetComponent<SquadUnit>()?.Damage(definition.damage);
+            AudioDirector.Instance?.PlayHit(target.position);
+            FxPool.Instance?.Burst(target.position + Vector3.up * .3f, new Color(.48f, .13f, .04f), 9);
+        }
+
+        void DetectStuck()
+        {
+            if ((transform.position - lastPosition).sqrMagnitude < .0001f) stuckTimer += Time.deltaTime;
+            else stuckTimer = 0;
+            lastPosition = transform.position;
+            if (stuckTimer > 1.1f)
+            {
+                transform.position += transform.right * (Random.value > .5f ? .35f : -.35f);
+                stuckTimer = 0;
             }
         }
 
-        public void Damage(float amount)
+        public void Damage(float amount) => Damage(amount, WorldBootstrap.Instance.Player.transform.position);
+
+        public void Damage(float amount, Vector3 sourcePosition)
         {
             if (!IsActive) return;
-            Health -= amount;
-            StopAllCoroutines();
+            Vector3 incoming = (sourcePosition - transform.position).normalized;
+            float front = Vector3.Dot(transform.forward, incoming);
+            float weakPointMultiplier = Kind switch
+            {
+                Species.Beetle => front < .15f ? 1.65f : .68f,
+                Species.Spider => front < -.25f ? 1.45f : 1f,
+                _ => 1f
+            };
+            Health -= amount * weakPointMultiplier;
+            AudioDirector.Instance?.PlayHit(transform.position);
+            FxPool.Instance?.Burst(transform.position + Vector3.up * .42f, new Color(.65f, .24f, .06f), 10);
+            rivalVisual?.PlayStagger();
             StartCoroutine(HitFlash());
             if (Health > 0)
             {
-                WorldBootstrap.Instance.ShowToast(GameText.Pick(
-                    $"{DisplayName}: {Health:0} health",
-                    $"{DisplayName}: {Health:0} здоровья"));
+                state = Health < MaxHealth * .18f && Kind != Species.RivalAnt ? BrainState.Retreat : BrainState.Chase;
+                WorldBootstrap.Instance.ShowCreatureStatus(DisplayName, Health, MaxHealth, weakPointMultiplier > 1.1f);
                 return;
             }
+            StartCoroutine(Die());
+        }
 
+        IEnumerator HitFlash()
+        {
+            foreach (Renderer item in renderers)
+            {
+                if (!item) continue;
+                item.enabled = false;
+            }
+            yield return new WaitForSeconds(.045f);
+            foreach (Renderer item in renderers)
+            {
+                if (!item) continue;
+                item.enabled = true;
+            }
+        }
+
+        IEnumerator Die()
+        {
+            state = BrainState.Dead;
+            bodyCollider.enabled = false;
+            rivalVisual?.PlayDeath();
             WorldBootstrap.Instance.Colony.Add(ResourceKind.Protein, Kind == Species.Spider ? 3 : 1);
             WorldBootstrap.Instance.Mission.NotifyKill(Kind);
             WorldBootstrap.Instance.ShowToast(GameText.Pick($"{DisplayName} defeated", $"{DisplayName} повержен"));
+            float elapsed = 0;
+            Quaternion start = transform.rotation;
+            while (elapsed < .8f)
+            {
+                elapsed += Time.deltaTime;
+                transform.rotation = Quaternion.Slerp(start, start * Quaternion.Euler(0, 0, 82f), elapsed / .8f);
+                yield return null;
+            }
+            yield return new WaitForSeconds(1.8f);
             gameObject.SetActive(false);
-        }
-
-        System.Collections.IEnumerator HitFlash()
-        {
-            foreach (Renderer item in renderers) item.enabled = false;
-            yield return new WaitForSeconds(.06f);
-            foreach (Renderer item in renderers) item.enabled = true;
         }
 
         public string DisplayName => Kind switch
         {
-            Species.Beetle => GameText.Pick("Bark beetle", "Жук-короед"),
-            Species.RivalAnt => GameText.Pick("Emberjaw scout", "Разведчик Огненных Жвал"),
+            Species.Beetle => GameText.Pick("Barkshield beetle", "Жук Кора-Щит"),
+            Species.RivalAnt => GameText.Pick("Emberjaw raider", "Налётчик Огненных Жвал"),
             _ => GameText.Pick("Ashback spider", "Паук Пепельноспин")
         };
     }
@@ -263,83 +624,268 @@ namespace CanopyKin
     {
         sealed class Unit
         {
-            public Transform Transform;
+            public SquadUnit Actor;
             public float Cooldown;
+            public float Stuck;
+            public Vector3 Last;
         }
 
         public SquadOrder Order { get; private set; } = SquadOrder.Follow;
+        public Vector3 CommandPosition { get; private set; }
+        public string SelectedGroup { get; private set; }
+        public string StatusText => GameText.Pick(
+            $"{SelectedGroup} · {Order}",
+            $"{SelectedGroup} · {OrderName(Order)}");
         readonly List<Unit> units = new();
+        ResourceNode targetResource;
+        Creature targetCreature;
+        Vector3 patrolA;
+        Vector3 patrolB;
+        bool patrolToggle;
 
-        public void Add(Transform unit) => units.Add(new Unit { Transform = unit });
+        public void Add(Transform unitTransform, UnitRole role)
+        {
+            SquadUnit actor = unitTransform.gameObject.AddComponent<SquadUnit>();
+            actor.Initialize(role);
+            units.Add(new Unit { Actor = actor, Last = actor.transform.position });
+            SelectAll();
+        }
+
+        public void SelectAll()
+        {
+            foreach (Unit unit in units) unit.Actor.SetSelected(true);
+            SelectedGroup = GameText.Pick("All squads", "Все отряды");
+        }
+
+        public void SelectWorkers()
+        {
+            foreach (Unit unit in units) unit.Actor.SetSelected(unit.Actor.Role == UnitRole.Worker);
+            SelectedGroup = GameText.Pick("Workers", "Рабочие");
+        }
+
+        public void SelectSoldiers()
+        {
+            foreach (Unit unit in units) unit.Actor.SetSelected(unit.Actor.Role != UnitRole.Worker);
+            SelectedGroup = GameText.Pick("Soldiers", "Солдаты");
+        }
+
+        public void Command(SquadOrder order, Vector3 position, ResourceNode resource = null, Creature creature = null)
+        {
+            Order = order;
+            CommandPosition = position;
+            targetResource = resource;
+            targetCreature = creature;
+            if (order == SquadOrder.Patrol)
+            {
+                patrolA = WorldBootstrap.Instance.NestPosition;
+                patrolB = position;
+            }
+            AudioDirector.Instance?.PlayOrder(WorldBootstrap.Instance.Player.transform.position);
+            WorldBootstrap.Instance.ShowToast(OrderMessage(order));
+        }
 
         public void Set(SquadOrder order)
         {
-            Order = order;
-            WorldBootstrap.Instance.ShowToast(order switch
+            Vector3 position = order switch
             {
-                SquadOrder.Gather => GameText.Pick("Workers: gather", "Рабочие: сбор ресурсов"),
-                SquadOrder.Attack => GameText.Pick("Soldiers: attack", "Солдаты: атаковать"),
-                SquadOrder.Defend => GameText.Pick("Squad: defend Moonroot", "Отряд: защищать Лунный Корень"),
-                SquadOrder.Retreat => GameText.Pick("Squad: retreat", "Отряд: отступить"),
-                _ => GameText.Pick("Squad: follow", "Отряд: следовать")
-            });
+                SquadOrder.Defend or SquadOrder.ReturnToNest or SquadOrder.Retreat => WorldBootstrap.Instance.NestPosition,
+                _ => WorldBootstrap.Instance.Player.transform.position
+            };
+            Command(order, position);
+        }
+
+        public void Teleport(Vector3 center)
+        {
+            for (int i = 0; i < units.Count; i++)
+            {
+                Unit unit = units[i];
+                if (!unit.Actor) continue;
+                Vector3 position = center + FormationOffset(i, unit.Actor.Role) * .55f;
+                if (position.y > -2f)
+                    position.y = WorldBootstrap.GroundHeight(position.x, position.z) + .025f;
+                unit.Actor.transform.position = position;
+                unit.Last = position;
+                unit.Stuck = 0;
+            }
         }
 
         void Update()
         {
             WorldBootstrap world = WorldBootstrap.Instance;
             if (!world || !world.IsPlaying || world.IsPaused || !world.Player) return;
+            if (Order == SquadOrder.Patrol && Vector3.Distance(units[0].Actor.transform.position, patrolToggle ? patrolA : patrolB) < 1.2f)
+                patrolToggle = !patrolToggle;
+
             for (int i = 0; i < units.Count; i++)
             {
                 Unit unit = units[i];
-                if (!unit.Transform) continue;
+                if (!unit.Actor || !unit.Actor.IsAvailable) continue;
                 unit.Cooldown -= Time.deltaTime;
-                Vector3[] formation =
-                {
-                    new(-1.0f, 0, -.15f), new(1.0f, 0, -.15f),
-                    new(-1.25f, 0, .62f), new(1.25f, 0, .62f),
-                    new(-.72f, 0, 1.28f), new(.72f, 0, 1.28f)
-                };
-                Vector3 offset = formation[i % formation.Length];
-                Vector3 goal = world.Player.transform.TransformPoint(offset);
-
-                if (Order == SquadOrder.Defend || Order == SquadOrder.Retreat)
-                    goal = world.NestPosition + offset;
-                else if (Order == SquadOrder.Gather)
-                {
-                    ResourceNode resource = world.FindNearestResource(unit.Transform.position);
-                    if (resource)
-                    {
-                        goal = resource.transform.position;
-                        if (Vector3.Distance(unit.Transform.position, goal) < .75f && unit.Cooldown <= 0)
-                        {
-                            resource.CollectOne();
-                            unit.Cooldown = 1.3f;
-                        }
-                    }
-                }
-                else if (Order == SquadOrder.Attack)
-                {
-                    Creature creature = world.FindNearestActiveCreature(unit.Transform.position);
-                    if (creature)
-                    {
-                        goal = creature.transform.position;
-                        if (Vector3.Distance(unit.Transform.position, goal) < .9f && unit.Cooldown <= 0)
-                        {
-                            creature.Damage(8f);
-                            unit.Cooldown = .85f;
-                        }
-                    }
-                }
-
-                goal.y = WorldBootstrap.GroundHeight(goal.x, goal.z) + .02f;
-                Vector3 previous = unit.Transform.position;
-                unit.Transform.position = Vector3.MoveTowards(previous, goal, 2.7f * Time.deltaTime);
-                Vector3 movement = unit.Transform.position - previous;
-                movement.y = 0;
-                if (movement.sqrMagnitude > .0001f)
-                    unit.Transform.rotation = Quaternion.Slerp(unit.Transform.rotation, Quaternion.LookRotation(movement), 9f * Time.deltaTime);
+                Vector3 goal = DetermineGoal(unit, i);
+                MoveUnit(unit, goal, i);
             }
         }
+
+        Vector3 DetermineGoal(Unit unit, int index)
+        {
+            WorldBootstrap world = WorldBootstrap.Instance;
+            SquadUnit actor = unit.Actor;
+            Vector3 offset = FormationOffset(index, actor.Role);
+            if (actor.HasCargo)
+            {
+                if (Vector3.Distance(actor.transform.position, world.NestPosition) < 1.45f)
+                {
+                    ResourceKind delivered = actor.DeliverCargo();
+                    world.Colony.Add(delivered, 1);
+                    world.Mission.NotifyGather();
+                    world.ShowToast(GameText.Pick($"{delivered} delivered by worker", $"Рабочий доставил: {delivered}"));
+                }
+                return world.NestPosition + offset * .45f;
+            }
+            if (!actor.Selected)
+                return world.Player.transform.TransformPoint(offset);
+
+            switch (Order)
+            {
+                case SquadOrder.Gather:
+                    if (actor.Role != UnitRole.Worker)
+                        return targetResource ? targetResource.transform.position + offset * .6f : world.Player.transform.TransformPoint(offset);
+                    ResourceNode resource = targetResource && targetResource.Available
+                        ? targetResource
+                        : world.FindNearestResource(actor.transform.position);
+                    if (resource)
+                    {
+                        if (Vector3.Distance(actor.transform.position, resource.transform.position) < .72f && unit.Cooldown <= 0 &&
+                            resource.TryTake(out ResourceKind cargo))
+                        {
+                            actor.TakeCargo(cargo);
+                            unit.Cooldown = 1.15f;
+                        }
+                        return resource.transform.position;
+                    }
+                    return world.NestPosition + offset;
+
+                case SquadOrder.Attack:
+                    if (actor.Role == UnitRole.Worker)
+                        return world.Player.transform.TransformPoint(offset * 1.25f);
+                    Creature creature = targetCreature && targetCreature.IsActive
+                        ? targetCreature
+                        : world.FindNearestActiveCreature(actor.transform.position);
+                    if (creature)
+                    {
+                        float range = GameDefinitions.Ant(actor.Role).attackRange;
+                        if (Vector3.Distance(actor.transform.position, creature.transform.position) < range && unit.Cooldown <= 0)
+                        {
+                            actor.Visual?.PlayAttack();
+                            creature.Damage(GameDefinitions.Ant(actor.Role).damage, actor.transform.position);
+                            unit.Cooldown = actor.Role == UnitRole.HeavySoldier ? 1.15f : .78f;
+                        }
+                        return creature.transform.position + offset.normalized * .55f;
+                    }
+                    return world.Player.transform.TransformPoint(offset);
+
+                case SquadOrder.Defend:
+                    Creature threat = world.FindNearestActiveCreature(world.NestPosition);
+                    if (threat && Vector3.Distance(threat.transform.position, world.NestPosition) < 8f && actor.Role != UnitRole.Worker)
+                    {
+                        targetCreature = threat;
+                        return threat.transform.position + offset.normalized * .55f;
+                    }
+                    return CommandPosition + offset;
+                case SquadOrder.Move:
+                    return CommandPosition + offset;
+                case SquadOrder.Patrol:
+                    return (patrolToggle ? patrolA : patrolB) + offset;
+                case SquadOrder.Retreat:
+                case SquadOrder.ReturnToNest:
+                    return world.NestPosition + offset;
+                default:
+                    return world.Player.transform.TransformPoint(offset);
+            }
+        }
+
+        void MoveUnit(Unit unit, Vector3 goal, int index)
+        {
+            SquadUnit actor = unit.Actor;
+            goal.y = WorldBootstrap.GroundHeight(goal.x, goal.z) + .025f;
+            Vector3 direction = goal - actor.transform.position;
+            direction.y = 0;
+            if (direction.sqrMagnitude < .045f) return;
+            direction.Normalize();
+
+            Vector3 separation = Vector3.zero;
+            foreach (Unit other in units)
+            {
+                if (other == unit || !other.Actor || !other.Actor.IsAvailable) continue;
+                Vector3 away = actor.transform.position - other.Actor.transform.position;
+                away.y = 0;
+                float distance = away.magnitude;
+                if (distance > .01f && distance < .52f)
+                    separation += away.normalized * (1f - distance / .52f);
+            }
+            direction = (direction + separation * .85f).normalized;
+            Vector3 origin = actor.transform.position + Vector3.up * .26f;
+            if (Physics.SphereCast(origin, .1f, direction, out RaycastHit hit, .42f, ~0, QueryTriggerInteraction.Ignore) &&
+                !hit.collider.GetComponentInParent<SquadUnit>())
+            {
+                Vector3 left = Vector3.Cross(Vector3.up, hit.normal).normalized;
+                if (Vector3.Dot(left, direction) < 0) left = -left;
+                direction = Vector3.Slerp(direction, left, .75f);
+            }
+
+            float speed = GameDefinitions.Ant(actor.Role).speed;
+            Vector3 before = actor.transform.position;
+            Vector3 next = before + direction * speed * Time.deltaTime;
+            next.y = WorldBootstrap.GroundHeight(next.x, next.z) + .025f;
+            actor.transform.position = next;
+            actor.transform.rotation = Quaternion.Slerp(actor.transform.rotation, Quaternion.LookRotation(direction), Time.deltaTime * 9f);
+
+            if ((actor.transform.position - unit.Last).sqrMagnitude < .00008f) unit.Stuck += Time.deltaTime;
+            else unit.Stuck = 0;
+            unit.Last = actor.transform.position;
+            if (unit.Stuck > 1f)
+            {
+                actor.transform.position += actor.transform.right * ((index & 1) == 0 ? .38f : -.38f);
+                unit.Stuck = 0;
+            }
+        }
+
+        static Vector3 FormationOffset(int index, UnitRole role)
+        {
+            Vector3[] formation =
+            {
+                new(-.95f, 0, -.25f), new(.95f, 0, -.25f),
+                new(-1.3f, 0, .55f), new(1.3f, 0, .55f),
+                new(-.78f, 0, 1.25f), new(.78f, 0, 1.25f),
+                new(0, 0, 1.75f), new(0, 0, -.92f)
+            };
+            Vector3 result = formation[index % formation.Length];
+            if (role == UnitRole.HeavySoldier) result *= .82f;
+            return result;
+        }
+
+        static string OrderMessage(SquadOrder order) => order switch
+        {
+            SquadOrder.Gather => GameText.Pick("Workers gather and carry; soldiers escort", "Рабочие собирают и несут; солдаты прикрывают"),
+            SquadOrder.Attack => GameText.Pick("Soldiers surround the marked threat", "Солдаты окружают отмеченную угрозу"),
+            SquadOrder.Move => GameText.Pick("Squad moving to the marked position", "Отряд движется к отмеченной позиции"),
+            SquadOrder.Defend => GameText.Pick("Squad defending Moonroot", "Отряд защищает Лунный Корень"),
+            SquadOrder.Patrol => GameText.Pick("Squad patrolling the route", "Отряд патрулирует маршрут"),
+            SquadOrder.Retreat => GameText.Pick("Squad breaks contact and retreats", "Отряд выходит из боя и отступает"),
+            SquadOrder.ReturnToNest => GameText.Pick("Squad returning to the colony", "Отряд возвращается в колонию"),
+            _ => GameText.Pick("Squad following the scout", "Отряд следует за разведчиком")
+        };
+
+        static string OrderName(SquadOrder order) => order switch
+        {
+            SquadOrder.Follow => "следовать",
+            SquadOrder.Move => "перемещение",
+            SquadOrder.Attack => "атака",
+            SquadOrder.Gather => "сбор",
+            SquadOrder.Defend => "оборона",
+            SquadOrder.Patrol => "патруль",
+            SquadOrder.Retreat => "отступление",
+            _ => "домой"
+        };
     }
 }

@@ -12,8 +12,8 @@
 const canvas=document.querySelector('#unity-canvas'),shell=document.querySelector('#shell'),fill=document.querySelector('#fill'),status=document.querySelector('#status'),errorBox=document.querySelector('#error');
 const diagnostics=[];window.webglDiagnostics=diagnostics;
 const record=(level,message)=>{const line=level+': '+String(message);diagnostics.push(line);if(diagnostics.length>200)diagnostics.shift();(level==='error'?console.error:console.log)(message)};
-const root='Build',loader=root+'/e05a3a9ebbf972db8be4267aa8bc930b.loader.js';
-const config={dataUrl:root+'/eb88d5922e530fef57a2e3bd052ce3d8.data',frameworkUrl:root+'/db896f60ed22502ecc0cb71bf4ce1e37.framework.js',codeUrl:root+'/c326d7b35f160a8b7c34cb52bc6e0062.wasm',streamingAssetsUrl:'StreamingAssets',companyName:'Moonroot Studio',productName:'Canopy Kin Moonroot',productVersion:'1.0',print:message=>record('log',message),printErr:message=>record('error',message)};
+const root='Build',loader=root+'/6fa096a13772d004cc14c752cf44abf8.loader.js';
+const config={dataUrl:root+'/8a6f595be0caf642a4f01a8f926d0efd.data',frameworkUrl:root+'/c3d76aec034afc509fd1b041e29f355b.framework.js',codeUrl:root+'/5ed8376c24fdd307f4b789827514436c.wasm',streamingAssetsUrl:'StreamingAssets',companyName:'Moonroot Studio',productName:'Canopy Kin Moonroot',productVersion:'0.3.0',print:message=>record('log',message),printErr:message=>record('error',message)};
 function fail(message){status.style.display='none';document.querySelector('.bar').style.display='none';errorBox.style.display='block';errorBox.textContent='The colony could not load. '+message+' Refresh the page or try a current desktop browser with WebGL enabled.'}
 const watchdog=setTimeout(()=>fail('Startup took longer than 90 seconds.'),90000);
 window.addEventListener('error',e=>fail(e.message||'Unexpected browser error.'));
