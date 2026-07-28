@@ -24,6 +24,8 @@ namespace CanopyKin.Editor
         const string ForestFloorPath = "Assets/Resources/HighQuality/PolyHaven/ForestFloor/forest_floor_diff_8k.jpg";
         const string DeadTreePath =
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
+        const string RootNetworkPath =
+            "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
         const string ProductVersion = "0.4.0";
 
         [MenuItem("Canopy Kin/Build Windows")]
@@ -150,6 +152,9 @@ namespace CanopyKin.Editor
             // mesh even though the source importer requests Read/Write.
             AssetDatabase.ImportAsset(
                 DeadTreePath,
+                ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+            AssetDatabase.ImportAsset(
+                RootNetworkPath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
             AssetDatabase.ImportAsset(
                 ProductionSpiderPath,
@@ -322,6 +327,23 @@ namespace CanopyKin.Editor
             if (!largestDeadTreeMesh)
                 throw new InvalidOperationException("Dead-tree landmark contains no usable mesh.");
 
+            GameObject rootNetwork = AssetDatabase.LoadAssetAtPath<GameObject>(RootNetworkPath);
+            if (!rootNetwork)
+                throw new FileNotFoundException("Production root-network landmark is missing", RootNetworkPath);
+            MeshFilter[] rootMeshes = rootNetwork.GetComponentsInChildren<MeshFilter>(true);
+            MeshFilter rootHigh = rootMeshes.FirstOrDefault(filter =>
+                filter.sharedMesh && filter.name.Contains("LOD0"));
+            MeshFilter rootLow = rootMeshes.FirstOrDefault(filter =>
+                filter.sharedMesh && filter.name.Contains("LOD1"));
+            if (!rootHigh || !rootLow)
+                throw new InvalidOperationException(
+                    "Production root network requires named close and distant LOD meshes.");
+            int rootHighTriangles = rootHigh.sharedMesh.triangles.Length / 3;
+            int rootLowTriangles = rootLow.sharedMesh.triangles.Length / 3;
+            if (rootHighTriangles < 15000 || rootLowTriangles < 2000)
+                throw new InvalidOperationException(
+                    $"Production root network lost authored detail: high={rootHighTriangles}, low={rootLowTriangles}.");
+
             Debug.Log(
                 $"CANOPY_KIN_PRODUCTION_ASSETS_OK antVertices={skin.sharedMesh.vertexCount} " +
                 $"antTriangles={skin.sharedMesh.triangles.Length / 3} clips={clips.Length} " +
@@ -333,7 +355,8 @@ namespace CanopyKin.Editor
                 $"beetleClips={beetleClips.Length} beetleWindowsTexture={beetleStandalone.maxTextureSize} " +
                 $"beetleWebTexture={beetleWeb.maxTextureSize} " +
                 $"deadTreeMeshes={deadTreeMeshes.Length} deadTreeTriangles={deadTreeTriangles} " +
-                $"deadTreeBounds={largestDeadTreeMesh.bounds.size}");
+                $"deadTreeBounds={largestDeadTreeMesh.bounds.size} " +
+                $"rootLods={rootMeshes.Length} rootTriangles={rootHighTriangles + rootLowTriangles}");
         }
     }
 }

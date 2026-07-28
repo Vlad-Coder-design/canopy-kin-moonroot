@@ -138,6 +138,38 @@ namespace CanopyKin
             texture.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
         }
 
+        static Material ProductionBarkMaterial()
+        {
+            const string materialKey = "polyhaven-dead-tree-trunk";
+            if (Materials.TryGetValue(materialKey, out Material cached)) return cached;
+
+            Shader shader = Resources.Load<Shader>("CanopyKinLit") ?? Shader.Find("Standard");
+            var material = new Material(shader)
+            {
+                name = "Dead Tree Trunk 4K PBR",
+                color = Color.white,
+                enableInstancing = true
+            };
+            Texture2D diffuse = Resources.Load<Texture2D>(
+                "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_diff_4k");
+            Texture2D normal = Resources.Load<Texture2D>(
+                "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_nor_dx_4k");
+            Texture2D arm = Resources.Load<Texture2D>(
+                "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_arm_4k");
+            ConfigureTexture(diffuse);
+            ConfigureTexture(normal);
+            ConfigureTexture(arm);
+            if (diffuse) material.SetTexture("_MainTex", diffuse);
+            if (normal) material.SetTexture("_BumpMap", normal);
+            if (arm) material.SetTexture("_PackedArm", arm);
+            if (material.HasProperty("_UsePackedArm")) material.SetFloat("_UsePackedArm", 1f);
+            if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", 1.08f);
+            if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", .08f);
+            if (material.HasProperty("_Occlusion")) material.SetFloat("_Occlusion", .95f);
+            Materials[materialKey] = material;
+            return material;
+        }
+
         public static GameObject ProductionDeadTree(
             Transform parent,
             Vector3 position,
@@ -154,34 +186,7 @@ namespace CanopyKin
             root.transform.rotation = rotation;
             root.transform.localScale = scale;
 
-            const string materialKey = "polyhaven-dead-tree-trunk";
-            if (!Materials.TryGetValue(materialKey, out Material material))
-            {
-                Shader shader = Resources.Load<Shader>("CanopyKinLit") ?? Shader.Find("Standard");
-                material = new Material(shader)
-                {
-                    name = "Dead Tree Trunk 4K PBR",
-                    color = Color.white,
-                    enableInstancing = true
-                };
-                Texture2D diffuse = Resources.Load<Texture2D>(
-                    "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_diff_4k");
-                Texture2D normal = Resources.Load<Texture2D>(
-                    "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_nor_dx_4k");
-                Texture2D arm = Resources.Load<Texture2D>(
-                    "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_arm_4k");
-                ConfigureTexture(diffuse);
-                ConfigureTexture(normal);
-                ConfigureTexture(arm);
-                if (diffuse) material.SetTexture("_MainTex", diffuse);
-                if (normal) material.SetTexture("_BumpMap", normal);
-                if (arm) material.SetTexture("_PackedArm", arm);
-                if (material.HasProperty("_UsePackedArm")) material.SetFloat("_UsePackedArm", 1f);
-                if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", 1.08f);
-                if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", .08f);
-                if (material.HasProperty("_Occlusion")) material.SetFloat("_Occlusion", .95f);
-                Materials[materialKey] = material;
-            }
+            Material material = ProductionBarkMaterial();
 
             foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
             {
@@ -201,6 +206,61 @@ namespace CanopyKin
             {
                 MeshCollider collider = collisionSource.gameObject.AddComponent<MeshCollider>();
                 collider.sharedMesh = collisionSource.sharedMesh;
+            }
+            return root;
+        }
+
+        public static GameObject ProductionRootNetwork(
+            Transform parent,
+            Vector3 position,
+            Quaternion rotation,
+            Vector3 scale,
+            bool collider = true)
+        {
+            GameObject prefab = Resources.Load<GameObject>(
+                "Models/Environment/CanopyKinRootNetwork");
+            if (!prefab) return null;
+
+            GameObject root = UnityEngine.Object.Instantiate(prefab, parent, false);
+            root.name = "Authored branching root network";
+            root.transform.position = position;
+            root.transform.rotation = rotation;
+            root.transform.localScale = scale;
+
+            Material material = ProductionBarkMaterial();
+            MeshRenderer high = null;
+            MeshRenderer low = null;
+            foreach (MeshRenderer renderer in root.GetComponentsInChildren<MeshRenderer>(true))
+            {
+                renderer.sharedMaterial = material;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                renderer.receiveShadows = true;
+                if (renderer.name.Contains("LOD0")) high = renderer;
+                else if (renderer.name.Contains("LOD1")) low = renderer;
+            }
+
+            if (high && low)
+            {
+                LODGroup group = root.GetComponent<LODGroup>();
+                if (!group) group = root.AddComponent<LODGroup>();
+                group.fadeMode = LODFadeMode.CrossFade;
+                group.animateCrossFading = true;
+                group.SetLODs(new[]
+                {
+                    new LOD(.32f, new Renderer[] { high }),
+                    new LOD(.055f, new Renderer[] { low })
+                });
+                group.RecalculateBounds();
+
+                if (collider)
+                {
+                    MeshFilter lowFilter = low.GetComponent<MeshFilter>();
+                    if (lowFilter && lowFilter.sharedMesh)
+                    {
+                        MeshCollider meshCollider = low.gameObject.AddComponent<MeshCollider>();
+                        meshCollider.sharedMesh = lowFilter.sharedMesh;
+                    }
+                }
             }
             return root;
         }

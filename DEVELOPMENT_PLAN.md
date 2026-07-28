@@ -17,6 +17,11 @@
   principal fallen-log landmark, barrier and traversal route. Its real mesh is
   used for collision; the build forces a synchronous readable import so an old
   Library cache cannot silently replace it with invalid collision.
+- Three major surface-route silhouettes now use a project-authored branching
+  root network instead of swept runtime tubes. Each instance has an irregular,
+  UV-mapped 16,320-triangle close LOD, 2,780-triangle distant LOD, shared 4K
+  Poly Haven bark PBR material and a low-detail static mesh collider. The long
+  ridge, elevated shortcut and storm-branch fork use separate transforms.
 - Dense grass retains 706 placed tufts but is grouped into 124 spatial high/low
   LOD chunks (56,480 close and 8,472 distant triangles), with shared materials,
   wind and shadow policy. This removes per-tuft Renderer overhead without
@@ -68,7 +73,7 @@
 
 - Unity: `6000.0.78f1`.
 - Production asset contract: passed.
-- Windows x64 build: passed, `666,414,219` bytes in Unity's build report.
+- Windows x64 build: passed, `667,058,663` bytes in Unity's build report.
 - Windows player: ordinary nursery start and optimized surface smoke both
   launched; queen objective, worker-only opening squad, production ant, licensed
   trunk, restored vegetation and corrected location materials were visually
@@ -91,6 +96,10 @@
   executable: mission stage 5 advanced to 6 in 6.4 seconds after 11 real bite
   damage events; Barkshield completed 10 telegraphed attacks, 10 successful
   hits and its production death sequence.
+- Production-root QA passed in the built executable: three actual mission
+  instances, 57,300 combined LOD triangles and three imported mesh colliders.
+  The unobstructed evidence frame is
+  `QA/Screenshots/root-network-windows-20260728.jpg`.
 - Measured High profile at 1920x1080 on RTX 3050 Laptop, 20-second warm samples:
   - underground opening: 59.00 FPS, 16.95 ms frame, 10.89 ms GPU,
     358 batches, 254 SetPass calls, 1.76M triangles, 160.4 MB allocated,
@@ -101,11 +110,14 @@
   - isolated production-spider arena view: 56.35 FPS, 17.75 ms frame,
     16.77 ms GPU, 314 batches, 190 SetPass calls, 2.36M triangles,
     171.0 MB allocated, 0 B/frame GC.
+  - isolated production-root route: 58.14 FPS, 17.20 ms frame,
+    5.40 ms GPU, 511 batches, 178 SetPass calls, 1.35M triangles,
+    169.7 MB allocated, 0 B/frame GC.
 
 ## Remaining production work
 
-- Replace coarse root silhouettes with authored production meshes and expand
-  the licensed high-resolution material set.
+- Replace the remaining distant-enclosure and underground procedural root
+  tubes, and expand the licensed high-resolution material set.
 - Refine close camera composition, foot contact, slope posing, animation
   blending, combat alignment and creature audio.
 - Time a complete manual start-to-finish playthrough and tune travel/combat

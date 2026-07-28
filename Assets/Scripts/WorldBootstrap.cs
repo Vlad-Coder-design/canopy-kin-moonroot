@@ -131,6 +131,13 @@ namespace CanopyKin
                          arguments,
                          argument => string.Equals(
                              argument,
+                             "-root-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginRootQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
                              "-spider-combat-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginSpiderCombatSmoke());
@@ -190,6 +197,44 @@ namespace CanopyKin
             Debug.Log(
                 $"MOONROOT_BEETLE_QA_READY triangles={triangles} " +
                 $"lods={skins.Length} bounds={bounds}");
+        }
+
+        IEnumerator BeginRootQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            // CaptureStep broadcasts StepChanged every frame while its progress
+            // fills, which deliberately restores surface renderers. Use the
+            // stable preceding predator stage for an unobstructed environment QA.
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            Vector3 playerPosition = At(9.1f, 16.1f, .05f);
+            Player.Teleport(playerPosition);
+            Player.Face(At(9.1f, 19.35f, .6f));
+            ApplyLocationLighting();
+            BeginPlay();
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            foreach (Creature creature in creatures)
+                if (creature) creature.gameObject.SetActive(false);
+            foreach (AntVisual ant in FindObjectsByType<AntVisual>(FindObjectsSortMode.None))
+                foreach (Renderer renderer in ant.GetComponentsInChildren<Renderer>(true))
+                    renderer.enabled = false;
+
+            GameObject[] networks = FindObjectsByType<LODGroup>(FindObjectsSortMode.None)
+                .Where(group => group.name.Contains("Authored branching root network"))
+                .Select(group => group.gameObject)
+                .ToArray();
+            int triangles = networks
+                .SelectMany(network => network.GetComponentsInChildren<MeshFilter>(true))
+                .Where(filter => filter.sharedMesh)
+                .Sum(filter => (int)filter.sharedMesh.GetIndexCount(0) / 3);
+            int colliders = networks.Sum(network =>
+                network.GetComponentsInChildren<MeshCollider>(true).Length);
+            Debug.Log(
+                $"MOONROOT_ROOT_QA_READY instances={networks.Length} " +
+                $"triangles={triangles} colliders={colliders}");
         }
 
         IEnumerator BeginBeetleCombatSmoke()
@@ -854,12 +899,18 @@ namespace CanopyKin
                     new[] { .9f, .78f, .62f, .26f },
                     true);
             }
-            VisualFactory.TexturedRoot(
-                "Broken branch fork",
+            GameObject branchFork = VisualFactory.ProductionRootNetwork(
                 environment,
-                new[] { At(11.2f, 11.1f, .72f), At(13.2f, 8.3f, 1.45f), At(14.1f, 6.9f, 1.75f) },
-                new[] { .42f, .28f, .12f },
-                true);
+                At(12.35f, 9.25f, .08f),
+                Quaternion.Euler(2f, 26f, -5f),
+                new Vector3(.92f, .88f, .76f));
+            if (!branchFork)
+                VisualFactory.TexturedRoot(
+                    "Broken branch fork import fallback",
+                    environment,
+                    new[] { At(11.2f, 11.1f, .72f), At(13.2f, 8.3f, 1.45f), At(14.1f, 6.9f, 1.75f) },
+                    new[] { .42f, .28f, .12f },
+                    true);
 
             Vector3[] stones =
             {
@@ -883,18 +934,31 @@ namespace CanopyKin
                 VisualFactory.Stone("Wet pool stone", environment, p, new Vector3(.9f, .46f, .75f), 20 + i, true, i % 2 == 0);
             }
 
-            VisualFactory.TexturedRoot(
-                "Root ridge",
+            GameObject rootRidge = VisualFactory.ProductionRootNetwork(
                 environment,
-                new[] { At(-20f, -1f, .32f), At(-16f, 5f, .72f), At(-11f, 13f, 1.1f), At(-7f, 19f, .56f) },
-                new[] { 1.25f, 1.05f, .82f, .42f },
-                true);
-            VisualFactory.TexturedRoot(
-                "Climbable root bridge",
+                At(-13.65f, 8.8f, .03f),
+                Quaternion.Euler(-2f, -57f, 3f),
+                new Vector3(3.75f, 1.55f, 1.08f));
+            if (!rootRidge)
+                VisualFactory.TexturedRoot(
+                    "Root ridge import fallback",
+                    environment,
+                    new[] { At(-20f, -1f, .32f), At(-16f, 5f, .72f), At(-11f, 13f, 1.1f), At(-7f, 19f, .56f) },
+                    new[] { 1.25f, 1.05f, .82f, .42f },
+                    true);
+
+            GameObject rootBridge = VisualFactory.ProductionRootNetwork(
                 environment,
-                new[] { At(1.5f, 17f, .4f), At(6.2f, 18.4f, 1.1f), At(12.5f, 20.4f, 1.55f), At(17f, 21.6f, .65f) },
-                new[] { .82f, .72f, .58f, .3f },
-                true);
+                At(9.1f, 19.35f, .12f),
+                Quaternion.Euler(5f, -16.5f, -2f),
+                new Vector3(2.75f, 1.45f, .9f));
+            if (!rootBridge)
+                VisualFactory.TexturedRoot(
+                    "Climbable root bridge import fallback",
+                    environment,
+                    new[] { At(1.5f, 17f, .4f), At(6.2f, 18.4f, 1.1f), At(12.5f, 20.4f, 1.55f), At(17f, 21.6f, .65f) },
+                    new[] { .82f, .72f, .58f, .3f },
+                    true);
         }
 
         Vector3 At(float x, float z, float above = 0) => new(x, GroundHeight(x, z) + above, z);

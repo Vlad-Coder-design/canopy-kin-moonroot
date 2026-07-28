@@ -49,7 +49,8 @@ https://polyhaven.com/license
 - Modifications: Unity material reconstruction, mip streaming, BC compression,
   4K Standalone import and independent 2K WebGL texture override
 - Use: production fallen-log landmark, natural barrier and elevated traversal
-  route in the Moonroot forest region
+  route in the Moonroot forest region; its 4K bark maps are also applied to the
+  project-authored branching root-network landmarks
 
 ## Sketchfab — CC0 Fishing Spider (Dolomedes orion)
 

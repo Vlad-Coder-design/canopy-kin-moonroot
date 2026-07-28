@@ -18,6 +18,8 @@ namespace CanopyKin.Editor
             "Assets/Resources/Models/Creatures/CanopyKinRhinocerosBeetle.fbx";
         const string DeadTreeTrunk =
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
+        const string ProductionRootNetwork =
+            "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
 
         void OnPreprocessTexture()
         {
@@ -70,7 +72,8 @@ namespace CanopyKin.Editor
         void OnPreprocessModel()
         {
             var importer = (ModelImporter)assetImporter;
-            if (assetPath.Equals(DeadTreeTrunk, System.StringComparison.Ordinal))
+            if (assetPath.Equals(DeadTreeTrunk, System.StringComparison.Ordinal) ||
+                assetPath.Equals(ProductionRootNetwork, System.StringComparison.Ordinal))
             {
                 importer.globalScale = 1f;
                 importer.useFileScale = true;
