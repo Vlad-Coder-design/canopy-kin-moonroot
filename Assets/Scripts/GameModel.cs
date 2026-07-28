@@ -164,7 +164,7 @@ namespace CanopyKin
     [Serializable]
     public sealed class SaveData
     {
-        public int version = 3;
+        public int version = 4;
         public int seeds;
         public int protein;
         public int resin;

@@ -12,6 +12,8 @@ namespace CanopyKin.Editor
     {
         const string HighQualityRoot = "Assets/Resources/HighQuality/";
         const string ProductionAnt = "Assets/Resources/Models/Ant/CanopyKinProductionAnt.fbx";
+        const string DeadTreeTrunk =
+            "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
 
         void OnPreprocessTexture()
         {
@@ -19,14 +21,15 @@ namespace CanopyKin.Editor
 
             var importer = (TextureImporter)assetImporter;
             bool normal = assetPath.Contains("_nor_dx_");
-            bool mask = assetPath.Contains("_rough_") ||
-                        assetPath.Contains("_ao_") ||
-                        assetPath.Contains("_disp_");
+            bool packedMask = assetPath.Contains("_arm_");
+            bool singleChannelMask = assetPath.Contains("_rough_") ||
+                                     assetPath.Contains("_ao_") ||
+                                     assetPath.Contains("_disp_");
 
             importer.textureType = normal
                 ? TextureImporterType.NormalMap
-                : mask ? TextureImporterType.SingleChannel : TextureImporterType.Default;
-            importer.sRGBTexture = !normal && !mask;
+                : singleChannelMask ? TextureImporterType.SingleChannel : TextureImporterType.Default;
+            importer.sRGBTexture = !normal && !singleChannelMask && !packedMask;
             importer.mipmapEnabled = true;
             importer.streamingMipmaps = true;
             importer.streamingMipmapsPriority = assetPath.Contains("_diff_") ? 2 : 1;
@@ -45,7 +48,7 @@ namespace CanopyKin.Editor
             standalone.textureCompression = TextureImporterCompression.CompressedHQ;
             standalone.format = normal
                 ? TextureImporterFormat.BC5
-                : mask ? TextureImporterFormat.BC4 : TextureImporterFormat.BC7;
+                : singleChannelMask ? TextureImporterFormat.BC4 : TextureImporterFormat.BC7;
             importer.SetPlatformTextureSettings(standalone);
 
             var web = importer.GetPlatformTextureSettings("WebGL");
@@ -60,8 +63,28 @@ namespace CanopyKin.Editor
 
         void OnPreprocessModel()
         {
-            if (!assetPath.Equals(ProductionAnt, System.StringComparison.Ordinal)) return;
             var importer = (ModelImporter)assetImporter;
+            if (assetPath.Equals(DeadTreeTrunk, System.StringComparison.Ordinal))
+            {
+                importer.globalScale = 1f;
+                importer.useFileScale = true;
+                importer.importAnimation = false;
+                importer.animationType = ModelImporterAnimationType.None;
+                importer.importCameras = false;
+                importer.importLights = false;
+                importer.addCollider = false;
+                // Runtime traversal uses the high-detail scan as a MeshCollider.
+                // Keeping this one landmark readable avoids a fake box collider
+                // and is a deliberate Windows-quality memory tradeoff.
+                importer.isReadable = true;
+                importer.meshCompression = ModelImporterMeshCompression.Off;
+                importer.importNormals = ModelImporterNormals.Import;
+                importer.importTangents = ModelImporterTangents.CalculateMikk;
+                importer.materialImportMode = ModelImporterMaterialImportMode.None;
+                return;
+            }
+
+            if (!assetPath.Equals(ProductionAnt, System.StringComparison.Ordinal)) return;
             importer.globalScale = 1f;
             importer.useFileScale = true;
             importer.importAnimation = true;

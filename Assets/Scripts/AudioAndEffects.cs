@@ -66,8 +66,13 @@ namespace CanopyKin
             float forestTarget = world.IsUnderground ? .04f : .36f;
             underground.volume = Mathf.MoveTowards(underground.volume, undergroundTarget, Time.unscaledDeltaTime * .28f);
             forest.volume = Mathf.MoveTowards(forest.volume, forestTarget, Time.unscaledDeltaTime * .28f);
-            music.pitch = Mathf.MoveTowards(music.pitch, world.Mission != null && world.Mission.Step >= 7 ? 1.08f : 1f, Time.unscaledDeltaTime * .04f);
-            music.volume = Mathf.MoveTowards(music.volume, world.Mission != null && world.Mission.Step >= 7 ? .2f : .12f, Time.unscaledDeltaTime * .06f);
+            bool underAttack = world.Mission != null &&
+                               world.Mission.Step >= MissionDirector.RivalDefenseStep &&
+                               world.Mission.Step < MissionDirector.OverlookStep;
+            music.pitch = Mathf.MoveTowards(
+                music.pitch, underAttack ? 1.08f : 1f, Time.unscaledDeltaTime * .04f);
+            music.volume = Mathf.MoveTowards(
+                music.volume, underAttack ? .2f : .12f, Time.unscaledDeltaTime * .06f);
         }
 
         public void PlayBite(Vector3 position) => Play(bite, position, .72f, UnityEngine.Random.Range(.93f, 1.08f));

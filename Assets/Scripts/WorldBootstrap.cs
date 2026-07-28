@@ -21,8 +21,9 @@ namespace CanopyKin
         public bool IsPaused { get; private set; }
         public bool IsUnderground { get; private set; } = true;
         public bool IsCinematic { get; private set; }
+        public bool IsAutomationSmoke { get; private set; }
         public Vector3 NestPosition => new(NestPoint.x, GroundHeight(NestPoint.x, NestPoint.z), NestPoint.z);
-        public Vector3 SurfacePlayerSpawn => new(0, GroundHeight(0, -4.75f) + .05f, -4.75f);
+        public Vector3 SurfacePlayerSpawn => new(0, GroundHeight(0, -.4f) + .05f, -.4f);
         public Vector3 UndergroundPlayerSpawn => UndergroundCenter + new Vector3(0, .28f, .9f);
         public Vector3 PlayerRespawn => IsUnderground ? UndergroundPlayerSpawn : SurfacePlayerSpawn;
 
@@ -103,6 +104,131 @@ namespace CanopyKin
             autoStartAt = Time.realtimeSinceStartup + 8f;
             Random.InitState(241103);
             BuildWorld();
+            string[] arguments = System.Environment.GetCommandLineArgs();
+            if (System.Array.Exists(
+                    arguments,
+                    argument => string.Equals(
+                        argument,
+                        "-surface-smoke",
+                        System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginSurfaceSmokeTest());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-mission-flow-smoke",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginMissionFlowSmokeTest());
+        }
+
+        IEnumerator BeginSurfaceSmokeTest()
+        {
+            yield return null;
+            IsUnderground = false;
+            // The smoke test starts on the authored navigation corridor, so the
+            // frame evaluates the forest region rather than clipping through a
+            // deliberately macro-scale grass tuft.
+            Vector3 landmarkView = At(0f, 1.5f, .05f);
+            Player.Teleport(landmarkView);
+            squads.Teleport(landmarkView + Vector3.back * .7f);
+            ApplyLocationLighting();
+            BeginPlay();
+            Debug.Log("MOONROOT_SURFACE_SMOKE_READY");
+        }
+
+        IEnumerator BeginMissionFlowSmokeTest()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+
+            RequireMissionStep(MissionDirector.QueenBriefingStep, "queen briefing start");
+            int lockedSoldiers = CountActiveSoldiers();
+            if (lockedSoldiers != 0)
+                throw new System.InvalidOperationException(
+                    $"Soldiers must be locked at mission start; active={lockedSoldiers}.");
+
+            Mission.NotifyQueenBriefed();
+            RequireMissionStep(MissionDirector.LeaveNestStep, "queen briefing");
+            Mission.NotifyNestExit();
+            RequireMissionStep(MissionDirector.MeetScoutStep, "nest exit");
+            Mission.NotifyScoutReached();
+            RequireMissionStep(MissionDirector.RallyWorkersStep, "scout");
+
+            squads.SelectWorkers();
+            squads.Set(SquadOrder.Gather);
+            RequireMissionStep(MissionDirector.GatherStep, "worker command");
+            Colony.Add(ResourceKind.Seed, ColonyState.UpgradeSeedCost);
+            Colony.Add(ResourceKind.Resin, ColonyState.UpgradeResinCost);
+            Mission.NotifyGather();
+            RequireMissionStep(MissionDirector.BeetleStep, "physical delivery threshold");
+
+            Colony.Add(ResourceKind.Protein, 1);
+            Mission.NotifyKill(Creature.Species.Beetle);
+            RequireMissionStep(MissionDirector.UnlockSoldiersStep, "beetle defeat");
+            int unlockedSoldiers = CountActiveSoldiers();
+            if (unlockedSoldiers != 4)
+                throw new System.InvalidOperationException(
+                    $"Four soldiers must unlock after Barkshield; active={unlockedSoldiers}.");
+
+            squads.SelectSoldiers();
+            squads.Set(SquadOrder.Attack);
+            RequireMissionStep(MissionDirector.SpiderStep, "soldier command");
+            Colony.Add(ResourceKind.Protein, 3);
+            Mission.NotifyKill(Creature.Species.Spider);
+            RequireMissionStep(MissionDirector.CaptureStep, "spider defeat");
+            Mission.SetCaptureProgress(1);
+            RequireMissionStep(MissionDirector.ReturnHomeStep, "ridge capture");
+
+            IsUnderground = true;
+            Mission.NotifyReturnedToNest();
+            RequireMissionStep(MissionDirector.UpgradeStep, "colony return");
+            Mission.NotifyUpgrade();
+            RequireMissionStep(MissionDirector.SoundAlarmStep, "nursery upgrade");
+
+            IsUnderground = false;
+            ApplyLocationLighting();
+            squads.SelectSoldiers();
+            squads.Set(SquadOrder.Defend);
+            RequireMissionStep(MissionDirector.RivalDefenseStep, "defend command");
+            for (int i = 0; i < 5; i++)
+                Mission.NotifyKill(Creature.Species.RivalAnt);
+            RequireMissionStep(MissionDirector.OverlookStep, "rival defense");
+            Mission.NotifyOverlookReached();
+            RequireMissionStep(MissionDirector.RevealStep, "overlook arrival");
+            Mission.NotifyThreatReveal();
+            RequireMissionStep(MissionDirector.FinalStep, "threat reveal");
+
+            const int smokeSlot = 99;
+            bool saved = SaveSystem.Save(smokeSlot, this);
+            Mission.Restore(MissionDirector.QueenBriefingStep);
+            bool loaded = SaveSystem.Load(smokeSlot, this);
+            SaveSystem.Delete(smokeSlot);
+            RequireMissionStep(MissionDirector.FinalStep, "save/load restore");
+            if (!saved || !loaded)
+                throw new System.InvalidOperationException(
+                    $"Mission smoke save/load failed: saved={saved} loaded={loaded}.");
+
+            Debug.Log(
+                $"MOONROOT_MISSION_FLOW_SMOKE_OK finalStep={Mission.Step} " +
+                $"activeSoldiers={CountActiveSoldiers()} saveLoad={saved && loaded}");
+        }
+
+        void RequireMissionStep(int expected, string stage)
+        {
+            if (Mission.Step != expected)
+                throw new System.InvalidOperationException(
+                    $"Mission flow failed after {stage}: expected={expected} actual={Mission.Step}.");
+        }
+
+        static int CountActiveSoldiers()
+        {
+            int count = 0;
+            foreach (SquadUnit unit in
+                     FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                if (unit.gameObject.activeSelf && unit.Role != UnitRole.Worker)
+                    count++;
+            return count;
         }
 
         void BuildWorld()
@@ -243,18 +369,20 @@ namespace CanopyKin
                 float radius = 36f + Mathf.Sin(i * 3.2f) * 2.4f;
                 Vector3 basePoint = new(Mathf.Cos(angle) * radius, GroundHeight(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius) - .8f, Mathf.Sin(angle) * radius);
                 Vector3 top = basePoint + new Vector3(Mathf.Sin(angle) * 1.8f, Random.Range(11f, 18f), Mathf.Cos(angle) * 1.8f);
-                VisualFactory.TexturedRoot(
+                GameObject distantTree = VisualFactory.TexturedRoot(
                     "Distant bark pillar",
                     enclosure,
                     new[] { basePoint, Vector3.Lerp(basePoint, top, .45f) + Vector3.up * .7f, top },
                     new[] { Random.Range(2.2f, 3.5f), Random.Range(1.7f, 2.5f), Random.Range(1.2f, 1.8f) },
                     false);
+                distantTree.GetComponent<Renderer>().shadowCastingMode =
+                    UnityEngine.Rendering.ShadowCastingMode.Off;
             }
             for (int i = 0; i < 14; i++)
             {
                 float angle = i / 14f * Mathf.PI * 2f + .17f;
                 Vector3 position = new(Mathf.Cos(angle) * 31f, GroundHeight(Mathf.Cos(angle) * 31f, Mathf.Sin(angle) * 31f), Mathf.Sin(angle) * 31f);
-                VisualFactory.GrassTuft(enclosure, position, Random.Range(4.6f, 7.4f), Color.Lerp(new Color(.08f, .22f, .055f), new Color(.22f, .42f, .09f), Random.value), i);
+                VisualFactory.GrassTuft(enclosure, position, Random.Range(4.6f, 7.4f), Color.Lerp(new Color(.15f, .31f, .07f), new Color(.31f, .51f, .13f), Random.value), i);
             }
         }
 
@@ -431,7 +559,9 @@ namespace CanopyKin
                     new Color(.78f, .68f, .48f),
                     .34f);
             }
-            AntVisual.Create(queen, new Color(.23f, .045f, .012f), 1.55f, AntCaste.HeavySoldier).transform.localPosition = new Vector3(0, .28f, -.35f);
+            AntVisual.Create(queen, new Color(.23f, .045f, .012f), 1.55f, AntCaste.HeavySoldier)
+                .transform.localPosition = new Vector3(0, .28f, -.35f);
+            queen.gameObject.AddComponent<QueenBriefing>().Initialize();
         }
 
         void BuildStorageChambers()
@@ -495,18 +625,26 @@ namespace CanopyKin
 
         void BuildLandmarks()
         {
-            VisualFactory.TexturedRoot(
-                "Fallen storm branch",
+            GameObject productionTrunk = VisualFactory.ProductionDeadTree(
                 environment,
-                new[]
-                {
-                    At(5.2f, 7.5f, .58f),
-                    At(9.3f, 10.1f, .9f),
-                    At(14.8f, 12.9f, .72f),
-                    At(18.2f, 14.2f, .44f)
-                },
-                new[] { .9f, .78f, .62f, .26f },
-                true);
+                At(11.7f, 10.9f, .34f),
+                Quaternion.Euler(5f, -28f, 7f),
+                Vector3.one * 4.1f);
+            if (!productionTrunk)
+            {
+                VisualFactory.TexturedRoot(
+                    "Fallen storm branch import fallback",
+                    environment,
+                    new[]
+                    {
+                        At(5.2f, 7.5f, .58f),
+                        At(9.3f, 10.1f, .9f),
+                        At(14.8f, 12.9f, .72f),
+                        At(18.2f, 14.2f, .44f)
+                    },
+                    new[] { .9f, .78f, .62f, .26f },
+                    true);
+            }
             VisualFactory.TexturedRoot(
                 "Broken branch fork",
                 environment,
@@ -554,6 +692,8 @@ namespace CanopyKin
 
         void BuildVegetation()
         {
+            InstancedVegetation instancedGrass =
+                environment.gameObject.AddComponent<InstancedVegetation>();
             int grassCount = RuntimeQualityProfile.GrassCount(GameSettings.Quality);
             for (int i = 0; i < grassCount; i++)
             {
@@ -562,10 +702,19 @@ namespace CanopyKin
                 float z = circle.y + 5f;
                 if (KeepClear(x, z)) continue;
                 float height = Random.Range(1.05f, 3.45f);
-                Color grass = Color.Lerp(new Color(.11f, .28f, .055f), new Color(.38f, .56f, .15f), Random.value);
-                GameObject tuft = VisualFactory.GrassTuft(environment, At(x, z), height, grass, i);
-                tuft.transform.localRotation = Quaternion.Euler(0, Random.Range(0, 360f), Random.Range(-4f, 4f));
+                Color grass = Color.Lerp(new Color(.18f, .37f, .075f), new Color(.46f, .65f, .19f), Random.value);
+                Quaternion rotation = Quaternion.Euler(
+                    0, Random.Range(0, 360f), Random.Range(-4f, 4f));
+                Vector3 scale = new(.82f, height, .82f);
+                if (SystemInfo.supportsInstancing)
+                    instancedGrass.Add(i, At(x, z), rotation, scale, grass);
+                else
+                {
+                    GameObject tuft = VisualFactory.GrassTuft(environment, At(x, z), height, grass, i);
+                    tuft.transform.localRotation = rotation;
+                }
             }
+            instancedGrass.Complete();
 
             int leafCount = RuntimeQualityProfile.LeafCount(GameSettings.Quality);
             for (int i = 0; i < leafCount; i++)
@@ -597,9 +746,11 @@ namespace CanopyKin
                 Vector2 p = Random.insideUnitCircle * 30f;
                 float z = p.y + 5f;
                 if (KeepClear(p.x, z)) continue;
-                VisualFactory.Stone("Soil clod and pebble", environment, At(p.x, z, .06f),
+                GameObject debris = VisualFactory.Stone("Soil clod and pebble", environment, At(p.x, z, .06f),
                     new Vector3(Random.Range(.16f, .46f), Random.Range(.12f, .31f), Random.Range(.18f, .55f)),
                     40 + i, false, i % 5 == 0);
+                debris.GetComponent<Renderer>().shadowCastingMode =
+                    UnityEngine.Rendering.ShadowCastingMode.Off;
             }
         }
 
@@ -709,8 +860,14 @@ namespace CanopyKin
 
         void BuildCreatures()
         {
-            SpawnCreature(Creature.Species.Beetle, At(7.3f, 14.2f, .035f), 3);
-            SpawnCreature(Creature.Species.Spider, At(1.2f, -16.5f, .035f), 8);
+            SpawnCreature(
+                Creature.Species.Beetle,
+                At(7.3f, 14.2f, .035f),
+                MissionDirector.BeetleStep);
+            SpawnCreature(
+                Creature.Species.Spider,
+                At(1.2f, -16.5f, .035f),
+                MissionDirector.SpiderStep);
         }
 
         Creature SpawnCreature(Creature.Species species, Vector3 position, int missionStep)
@@ -733,7 +890,10 @@ namespace CanopyKin
                 Vector3 position = Vector3.Lerp(rivalColony.position, NestPosition, .35f + i * .07f);
                 position.x += (i - 2) * .72f;
                 position.y = GroundHeight(position.x, position.z) + .03f;
-                SpawnCreature(Creature.Species.RivalAnt, position, 7);
+                SpawnCreature(
+                    Creature.Species.RivalAnt,
+                    position,
+                    MissionDirector.RivalDefenseStep);
             }
         }
 
@@ -842,21 +1002,27 @@ namespace CanopyKin
         public void OnMissionAdvanced()
         {
             ShowToast(GameText.Pick($"New objective: {Mission.Title}", $"Новая цель: {Mission.Title}"));
-            SaveSystem.Save(1, this);
+            if (!IsAutomationSmoke) SaveSystem.Save(1, this);
             RefreshWorldForMission();
         }
 
         public void RefreshWorldForMission()
         {
             if (Colony != null && Colony.Level >= 2) ApplyNestUpgrade();
-            if (Mission.Step == 7) SpawnRivalWave();
+            squads?.SetSoldiersUnlocked(Mission.Step >= MissionDirector.UnlockSoldiersStep);
+            if (Mission.Step == MissionDirector.RivalDefenseStep) SpawnRivalWave();
+            if (largeThreat && Mission.Step >= MissionDirector.FinalStep)
+                largeThreat.SetActive(true);
             foreach (Creature creature in creatures)
             {
                 if (!creature) continue;
                 bool completedEarlier =
-                    (creature.Kind == Creature.Species.Beetle && Mission.Step > 3) ||
-                    (creature.Kind == Creature.Species.RivalAnt && Mission.Step > 7) ||
-                    (creature.Kind == Creature.Species.Spider && Mission.Step > 8);
+                    (creature.Kind == Creature.Species.Beetle &&
+                     Mission.Step > MissionDirector.BeetleStep) ||
+                    (creature.Kind == Creature.Species.Spider &&
+                     Mission.Step > MissionDirector.SpiderStep) ||
+                    (creature.Kind == Creature.Species.RivalAnt &&
+                     Mission.Step > MissionDirector.RivalDefenseStep);
                 if (completedEarlier) creature.gameObject.SetActive(false);
             }
         }
@@ -895,19 +1061,30 @@ namespace CanopyKin
         {
             if (IsUnderground)
             {
-                if (Mission.Step == 0) return environment.Find("Tunnel to forest floor");
-                if (Mission.Step == 6) return underground.Find("Nursery growth site");
+                if (Mission.Step == MissionDirector.QueenBriefingStep)
+                    return underground.Find("Queen chamber");
+                if (Mission.Step == MissionDirector.LeaveNestStep ||
+                    Mission.Step == MissionDirector.SoundAlarmStep)
+                    return environment.Find("Tunnel to forest floor");
+                if (Mission.Step == MissionDirector.UpgradeStep)
+                    return underground.Find("Nursery growth site");
             }
             return Mission.Step switch
             {
-                1 => environment.Find("Moonroot veteran scout"),
-                2 => FindNearestResource(Player.transform.position)?.transform,
-                3 => FindNearestActiveCreature(Player.transform.position, Creature.Species.Beetle)?.transform,
-                4 => environment.Find("Rainwatch Ridge capture point"),
-                5 => environment.Find("Moonroot surface entrance"),
-                7 => FindNearestActiveCreature(Player.transform.position, Creature.Species.RivalAnt)?.transform,
-                8 => FindNearestActiveCreature(Player.transform.position, Creature.Species.Spider)?.transform,
-                9 => environment.Find("Root overlook objective"),
+                MissionDirector.MeetScoutStep => environment.Find("Moonroot veteran scout"),
+                MissionDirector.RallyWorkersStep => environment.Find("Moonroot veteran scout"),
+                MissionDirector.GatherStep => FindNearestResource(Player.transform.position)?.transform,
+                MissionDirector.BeetleStep =>
+                    FindNearestActiveCreature(Player.transform.position, Creature.Species.Beetle)?.transform,
+                MissionDirector.UnlockSoldiersStep => Player.transform,
+                MissionDirector.SpiderStep =>
+                    FindNearestActiveCreature(Player.transform.position, Creature.Species.Spider)?.transform,
+                MissionDirector.CaptureStep => environment.Find("Rainwatch Ridge capture point"),
+                MissionDirector.ReturnHomeStep => environment.Find("Moonroot surface entrance"),
+                MissionDirector.SoundAlarmStep => environment.Find("Moonroot surface entrance"),
+                MissionDirector.RivalDefenseStep =>
+                    FindNearestActiveCreature(Player.transform.position, Creature.Species.RivalAnt)?.transform,
+                MissionDirector.OverlookStep => environment.Find("Root overlook objective"),
                 _ => null
             };
         }
@@ -1048,9 +1225,11 @@ namespace CanopyKin
                     $"Seeds {Colony.Seeds}   Resin {Colony.Resin}   Protein {Colony.Protein}   Colony {Colony.Population}/{Colony.Capacity}",
                     $"Семена {Colony.Seeds}   Смола {Colony.Resin}   Белок {Colony.Protein}   Колония {Colony.Population}/{Colony.Capacity}"),
                 small);
-            if (Mission.Step == 4 || Colony.IsConstructing)
+            if (Mission.Step == MissionDirector.CaptureStep || Colony.IsConstructing)
             {
-                float progress = Mission.Step == 4 ? Mission.Progress : Colony.ConstructionProgress;
+                float progress = Mission.Step == MissionDirector.CaptureStep
+                    ? Mission.Progress
+                    : Colony.ConstructionProgress;
                 DrawBar(new Rect(31, 140, 464, 8), progress, new Color(.42f, .78f, .24f));
             }
         }

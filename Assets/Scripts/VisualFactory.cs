@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace CanopyKin
@@ -94,11 +95,11 @@ namespace CanopyKin
             Color32 c = color;
             // Procedural placement used to create hundreds of almost-identical
             // materials, which prevented the shared blade meshes from instancing.
-            // A restrained 16-step palette preserves natural variation while
+            // A restrained shared palette preserves natural variation while
             // allowing the renderer to batch dense vegetation.
-            c.r = (byte)(Mathf.RoundToInt(c.r / 16f) * 16);
-            c.g = (byte)(Mathf.RoundToInt(c.g / 16f) * 16);
-            c.b = (byte)(Mathf.RoundToInt(c.b / 16f) * 16);
+            c.r = (byte)Mathf.Min(255, Mathf.RoundToInt(c.r / 64f) * 64);
+            c.g = (byte)Mathf.Min(255, Mathf.RoundToInt(c.g / 64f) * 64);
+            c.b = (byte)Mathf.Min(255, Mathf.RoundToInt(c.b / 64f) * 64);
             c.a = 255;
             color = c;
             string key = $"vegetation-{c.r:X2}{c.g:X2}{c.b:X2}";
@@ -135,6 +136,73 @@ namespace CanopyKin
             texture.wrapMode = TextureWrapMode.Repeat;
             texture.filterMode = FilterMode.Trilinear;
             texture.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
+        }
+
+        public static GameObject ProductionDeadTree(
+            Transform parent,
+            Vector3 position,
+            Quaternion rotation,
+            Vector3 scale)
+        {
+            GameObject prefab = Resources.Load<GameObject>(
+                "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k");
+            if (!prefab) return null;
+
+            GameObject root = UnityEngine.Object.Instantiate(prefab, parent, false);
+            root.name = "Poly Haven dead tree trunk landmark";
+            root.transform.position = position;
+            root.transform.rotation = rotation;
+            root.transform.localScale = scale;
+
+            const string materialKey = "polyhaven-dead-tree-trunk";
+            if (!Materials.TryGetValue(materialKey, out Material material))
+            {
+                Shader shader = Resources.Load<Shader>("CanopyKinLit") ?? Shader.Find("Standard");
+                material = new Material(shader)
+                {
+                    name = "Dead Tree Trunk 4K PBR",
+                    color = Color.white,
+                    enableInstancing = true
+                };
+                Texture2D diffuse = Resources.Load<Texture2D>(
+                    "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_diff_4k");
+                Texture2D normal = Resources.Load<Texture2D>(
+                    "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_nor_dx_4k");
+                Texture2D arm = Resources.Load<Texture2D>(
+                    "HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_arm_4k");
+                ConfigureTexture(diffuse);
+                ConfigureTexture(normal);
+                ConfigureTexture(arm);
+                if (diffuse) material.SetTexture("_MainTex", diffuse);
+                if (normal) material.SetTexture("_BumpMap", normal);
+                if (arm) material.SetTexture("_PackedArm", arm);
+                if (material.HasProperty("_UsePackedArm")) material.SetFloat("_UsePackedArm", 1f);
+                if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", 1.08f);
+                if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", .08f);
+                if (material.HasProperty("_Occlusion")) material.SetFloat("_Occlusion", .95f);
+                Materials[materialKey] = material;
+            }
+
+            foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+            {
+                Material[] slots = renderer.sharedMaterials;
+                if (slots.Length == 0) slots = new Material[1];
+                for (int i = 0; i < slots.Length; i++) slots[i] = material;
+                renderer.sharedMaterials = slots;
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                renderer.receiveShadows = true;
+            }
+
+            MeshFilter collisionSource = root.GetComponentsInChildren<MeshFilter>(true)
+                .OrderByDescending(filter =>
+                    filter.sharedMesh ? filter.sharedMesh.triangles.Length : 0)
+                .FirstOrDefault();
+            if (collisionSource && collisionSource.sharedMesh)
+            {
+                MeshCollider collider = collisionSource.gameObject.AddComponent<MeshCollider>();
+                collider.sharedMesh = collisionSource.sharedMesh;
+            }
+            return root;
         }
 
         public static GameObject MeshObject(
@@ -344,11 +412,13 @@ namespace CanopyKin
 
             var high = MeshObject("Detailed leaves", root.transform, OrganicMeshFactory.BladeCluster(variant % 8), Vector3.zero, Vector3.one, VegetationMaterial(color));
             var low = MeshObject("Distant leaves", root.transform, OrganicMeshFactory.BladeCluster(variant % 8, true), Vector3.zero, Vector3.one, VegetationMaterial(color));
+            low.GetComponent<Renderer>().shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
             var lod = root.AddComponent<LODGroup>();
             lod.SetLODs(new[]
             {
-                new LOD(.22f, new Renderer[] { high.GetComponent<Renderer>() }),
-                new LOD(.055f, new Renderer[] { low.GetComponent<Renderer>() })
+                new LOD(RuntimeQualityProfile.IsFullQuality ? .15f : .12f, new Renderer[] { high.GetComponent<Renderer>() }),
+                new LOD(RuntimeQualityProfile.IsFullQuality ? .03f : .022f, new Renderer[] { low.GetComponent<Renderer>() })
             });
             lod.RecalculateBounds();
             return root;
@@ -401,6 +471,8 @@ namespace CanopyKin
                 position,
                 scale,
                 PbrMaterial("LeafLitter", new Color(.82f, .73f, .58f), .08f, .65f, new Vector2(.8f, 1.2f)));
+            leaf.GetComponent<Renderer>().shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
             leaf.transform.localRotation = Quaternion.Euler(0, variant * 47f, (variant % 5 - 2) * 4f);
             return leaf;
         }

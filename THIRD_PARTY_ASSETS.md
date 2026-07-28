@@ -36,3 +36,17 @@ game content.
 Poly Haven confirms that all assets on the site are CC0 and may be used,
 redistributed and included in commercial products:
 https://polyhaven.com/license
+
+## Poly Haven — Dead Tree Trunk
+
+- Asset: `Dead Tree Trunk`
+- Creator: Rob Tuytel
+- Provider: Poly Haven
+- Source: https://polyhaven.com/a/dead_tree_trunk
+- License: CC0 1.0 / public domain dedication
+- Imported files: 4K FBX geometry, diffuse, DirectX normal and packed
+  AO/roughness/metallic maps
+- Modifications: Unity material reconstruction, mip streaming, BC compression,
+  4K Standalone import and independent 2K WebGL texture override
+- Use: production fallen-log landmark, natural barrier and elevated traversal
+  route in the Moonroot forest region

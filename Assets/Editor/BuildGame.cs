@@ -14,6 +14,8 @@ namespace CanopyKin.Editor
         const string ScenePath = "Assets/Scenes/Moonroot.unity";
         const string ProductionAntPath = "Assets/Resources/Models/Ant/CanopyKinProductionAnt.fbx";
         const string ForestFloorPath = "Assets/Resources/HighQuality/PolyHaven/ForestFloor/forest_floor_diff_8k.jpg";
+        const string DeadTreePath =
+            "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
         const string ProductVersion = "0.4.0";
 
         [MenuItem("Canopy Kin/Build Windows")]
@@ -135,6 +137,13 @@ namespace CanopyKin.Editor
 
         static void ValidateProductionAssets()
         {
+            // Importer policy changes must reach the Library cache before the
+            // player is built; otherwise Unity may keep an older non-readable
+            // mesh even though the source importer requests Read/Write.
+            AssetDatabase.ImportAsset(
+                DeadTreePath,
+                ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
+
             GameObject ant = AssetDatabase.LoadAssetAtPath<GameObject>(ProductionAntPath);
             if (!ant) throw new FileNotFoundException("Production ant FBX is missing", ProductionAntPath);
             SkinnedMeshRenderer skin = ant.GetComponentInChildren<SkinnedMeshRenderer>(true);
@@ -173,10 +182,29 @@ namespace CanopyKin.Editor
             if (!web.overridden || web.maxTextureSize > 2048)
                 throw new InvalidOperationException("WebGL forest-floor import must use its independent optimized override.");
 
+            GameObject deadTree = AssetDatabase.LoadAssetAtPath<GameObject>(DeadTreePath);
+            if (!deadTree) throw new FileNotFoundException("Production dead-tree landmark is missing", DeadTreePath);
+            MeshFilter[] deadTreeMeshes = deadTree.GetComponentsInChildren<MeshFilter>(true);
+            int deadTreeTriangles = deadTreeMeshes
+                .Where(filter => filter.sharedMesh)
+                .Sum(filter => filter.sharedMesh.triangles.Length / 3);
+            Mesh largestDeadTreeMesh = deadTreeMeshes
+                .Where(filter => filter.sharedMesh)
+                .Select(filter => filter.sharedMesh)
+                .OrderByDescending(mesh => mesh.triangles.Length)
+                .FirstOrDefault();
+            if (deadTreeTriangles < 90000)
+                throw new InvalidOperationException(
+                    $"Dead-tree landmark import is unexpectedly low detail: {deadTreeTriangles} triangles.");
+            if (!largestDeadTreeMesh)
+                throw new InvalidOperationException("Dead-tree landmark contains no usable mesh.");
+
             Debug.Log(
                 $"CANOPY_KIN_PRODUCTION_ASSETS_OK antVertices={skin.sharedMesh.vertexCount} " +
                 $"antTriangles={skin.sharedMesh.triangles.Length / 3} clips={clips.Length} " +
-                $"windowsTexture={standalone.maxTextureSize} webTexture={web.maxTextureSize}");
+                $"windowsTexture={standalone.maxTextureSize} webTexture={web.maxTextureSize} " +
+                $"deadTreeMeshes={deadTreeMeshes.Length} deadTreeTriangles={deadTreeTriangles} " +
+                $"deadTreeBounds={largestDeadTreeMesh.bounds.size}");
         }
     }
 }

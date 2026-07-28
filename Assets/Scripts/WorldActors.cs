@@ -178,7 +178,7 @@ namespace CanopyKin
         public void Interact(PlayerAnt player)
         {
             WorldBootstrap world = WorldBootstrap.Instance;
-            if (world.Mission.Step != 6)
+            if (world.Mission.Step != MissionDirector.UpgradeStep)
             {
                 world.ShowToast(GameText.Pick("The nursery does not need work yet", "Пока ясли не требуют работ"));
                 return;
@@ -222,6 +222,40 @@ namespace CanopyKin
         }
     }
 
+    public sealed class QueenBriefing : MonoBehaviour, IInteractable
+    {
+        bool heard;
+
+        public string Prompt => heard
+            ? GameText.Pick(
+                "Queen: bring food home before the Emberjaws find us",
+                "Королева: принесите пищу до того, как нас найдут Огненные Жвала")
+            : GameText.Pick(
+                "Listen to the Moonroot queen",
+                "Выслушать королеву Лунного Корня");
+
+        public void Initialize()
+        {
+            var collider = gameObject.AddComponent<SphereCollider>();
+            collider.center = new Vector3(0, .46f, -.35f);
+            collider.radius = 1.25f;
+            collider.isTrigger = true;
+            gameObject.AddComponent<IInteractableHost>().Target = this;
+        }
+
+        public void Interact(PlayerAnt player)
+        {
+            if (heard) return;
+            heard = true;
+            WorldBootstrap world = WorldBootstrap.Instance;
+            world.Mission.NotifyQueenBriefed();
+            world.ShowToast(GameText.Pick(
+                "Queen: the rain broke our stores. Find food, protect the workers, and return alive.",
+                "Королева: дождь уничтожил запасы. Найдите пищу, защитите рабочих и вернитесь живыми."));
+            AudioDirector.Instance?.PlayOrder(transform.position);
+        }
+    }
+
     public sealed class CapturePoint : MonoBehaviour
     {
         float progress;
@@ -236,7 +270,7 @@ namespace CanopyKin
         void Update()
         {
             WorldBootstrap world = WorldBootstrap.Instance;
-            if (!world || world.Mission.Step != 4 || world.IsPaused) return;
+            if (!world || world.Mission.Step != MissionDirector.CaptureStep || world.IsPaused) return;
             int friendly = 0;
             if (Vector3.Distance(world.Player.transform.position, transform.position) < 3.2f) friendly++;
             foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
@@ -259,7 +293,8 @@ namespace CanopyKin
         {
             if (!other.GetComponentInParent<PlayerAnt>()) return;
             WorldBootstrap world = WorldBootstrap.Instance;
-            if (world.Mission.Step != 9) return;
+            if (world.Mission.Step != MissionDirector.OverlookStep) return;
+            world.Mission.NotifyOverlookReached();
             world.BeginThreatReveal();
         }
     }
@@ -653,7 +688,8 @@ namespace CanopyKin
 
         public void SelectAll()
         {
-            foreach (Unit unit in units) unit.Actor.SetSelected(true);
+            foreach (Unit unit in units)
+                unit.Actor.SetSelected(unit.Actor.gameObject.activeSelf);
             SelectedGroup = GameText.Pick("All squads", "Все отряды");
         }
 
@@ -665,8 +701,32 @@ namespace CanopyKin
 
         public void SelectSoldiers()
         {
-            foreach (Unit unit in units) unit.Actor.SetSelected(unit.Actor.Role != UnitRole.Worker);
+            foreach (Unit unit in units)
+                unit.Actor.SetSelected(
+                    unit.Actor.gameObject.activeSelf &&
+                    unit.Actor.Role != UnitRole.Worker);
             SelectedGroup = GameText.Pick("Soldiers", "Солдаты");
+        }
+
+        public void SetSoldiersUnlocked(bool unlocked)
+        {
+            foreach (Unit unit in units)
+            {
+                if (!unit.Actor || unit.Actor.Role == UnitRole.Worker) continue;
+                bool wasActive = unit.Actor.gameObject.activeSelf;
+                unit.Actor.gameObject.SetActive(unlocked);
+                if (!unlocked)
+                    unit.Actor.SetSelected(false);
+                else
+                {
+                    WorldBootstrap world = WorldBootstrap.Instance;
+                    if (!wasActive && world && world.Player)
+                        unit.Actor.transform.position =
+                            world.Player.transform.position +
+                            FormationOffset(units.IndexOf(unit), unit.Actor.Role);
+                }
+            }
+            if (!unlocked) SelectWorkers();
         }
 
         public void Command(SquadOrder order, Vector3 position, ResourceNode resource = null, Creature creature = null)
@@ -682,6 +742,14 @@ namespace CanopyKin
             }
             AudioDirector.Instance?.PlayOrder(WorldBootstrap.Instance.Player.transform.position);
             WorldBootstrap.Instance.ShowToast(OrderMessage(order));
+            bool workersSelected = units.Exists(unit =>
+                unit.Actor && unit.Actor.gameObject.activeSelf &&
+                unit.Actor.Selected && unit.Actor.Role == UnitRole.Worker);
+            bool soldiersSelected = units.Exists(unit =>
+                unit.Actor && unit.Actor.gameObject.activeSelf &&
+                unit.Actor.Selected && unit.Actor.Role != UnitRole.Worker);
+            WorldBootstrap.Instance.Mission.NotifySquadCommand(
+                order, workersSelected, soldiersSelected);
         }
 
         public void Set(SquadOrder order)
@@ -700,7 +768,7 @@ namespace CanopyKin
             {
                 Unit unit = units[i];
                 if (!unit.Actor) continue;
-                Vector3 position = center + FormationOffset(i, unit.Actor.Role) * .55f;
+                Vector3 position = center + FormationOffset(i, unit.Actor.Role) * 1.15f;
                 if (position.y > -2f)
                     position.y = WorldBootstrap.GroundHeight(position.x, position.z) + .025f;
                 unit.Actor.transform.position = position;
