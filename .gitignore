@@ -3,6 +3,7 @@
 /Logs/
 /UserSettings/
 /Builds/Windows/
+/Releases/*.zip
 *.log
 crash.dmp
 /test-results.xml

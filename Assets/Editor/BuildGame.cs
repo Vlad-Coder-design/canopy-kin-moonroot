@@ -43,6 +43,12 @@ namespace CanopyKin.Editor
                 BuildOptions.None);
             RequireSuccess(report, "Windows");
             WriteManifest("Builds/Windows", "Windows Full Quality", report);
+            const string readmeSource = "Packaging/WINDOWS_README.txt";
+            if (File.Exists(readmeSource))
+                File.Copy(
+                    readmeSource,
+                    "Builds/Windows/README.txt",
+                    true);
         }
 
         [MenuItem("Canopy Kin/Build WebGL")]

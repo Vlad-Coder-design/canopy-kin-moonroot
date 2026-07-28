@@ -74,6 +74,14 @@
 - Unity: `6000.0.78f1`.
 - Production asset contract: passed.
 - Windows x64 build: passed, `667,058,663` bytes in Unity's build report.
+- Distributable archive:
+  `Releases/CanopyKin-Moonroot-Windows-x64-v0.4.0.zip`,
+  `568,664,862` bytes, SHA-256
+  `83C54C9A03C3EA72CD2FFDE4844496141476830303F731FADEE4697385EFBF76`.
+- The archive was extracted into a new temporary directory and the executable
+  was launched from that clean copy. Its mission-flow smoke reached final step
+  15, confirmed four unlocked soldiers and completed an isolated save/load
+  round trip.
 - Windows player: ordinary nursery start and optimized surface smoke both
   launched; queen objective, worker-only opening squad, production ant, licensed
   trunk, restored vegetation and corrected location materials were visually
@@ -123,6 +131,9 @@
 - Time a complete manual start-to-finish playthrough and tune travel/combat
   pacing into the requested 15-25 minute range; the automated state-flow test
   is not a substitute for that playthrough.
+- Run the packaged Windows build on a separate physical clean machine; the
+  current clean-extraction test verifies packaging and runtime dependencies on
+  this development machine, not an unrelated PC.
 - Profile the surface region and combat encounters separately; optimize
   invisible work while preserving the Windows High presentation.
 - Rebuild and smoke-test the independently optimized WebGL edition, deploy it,
