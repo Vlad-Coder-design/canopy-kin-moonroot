@@ -1,20 +1,26 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace CanopyKin.Editor
 {
     public static class BuildGame
     {
         const string ScenePath = "Assets/Scenes/Moonroot.unity";
+        const string ProductionAntPath = "Assets/Resources/Models/Ant/CanopyKinProductionAnt.fbx";
+        const string ForestFloorPath = "Assets/Resources/HighQuality/PolyHaven/ForestFloor/forest_floor_diff_8k.jpg";
+        const string ProductVersion = "0.4.0";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
         {
             ConfigureShared();
+            ConfigureWindows();
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Standalone, "com.moonroot.canopykin");
             Directory.CreateDirectory("Builds/Windows");
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Standalone, BuildTarget.StandaloneWindows64);
@@ -24,21 +30,15 @@ namespace CanopyKin.Editor
                 BuildTarget.StandaloneWindows64,
                 BuildOptions.None);
             RequireSuccess(report, "Windows");
+            WriteManifest("Builds/Windows", "Windows Full Quality", report);
         }
 
         [MenuItem("Canopy Kin/Build WebGL")]
         public static void BuildWebGL()
         {
             ConfigureShared();
+            ConfigureWebGL();
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.WebGL, "com.moonroot.canopykin");
-            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
-            PlayerSettings.WebGL.dataCaching = false;
-            PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.Off;
-            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
-            PlayerSettings.WebGL.memorySize = 512;
-            PlayerSettings.WebGL.emscriptenArgs = string.Empty;
-            PlayerSettings.WebGL.template = "PROJECT:CanopyKin";
-            PlayerSettings.SetScriptingBackend(NamedBuildTarget.WebGL, ScriptingImplementation.IL2CPP);
             Directory.CreateDirectory("Builds/WebGL");
             EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.WebGL, BuildTarget.WebGL);
             BuildReport report = BuildPipeline.BuildPlayer(
@@ -48,17 +48,53 @@ namespace CanopyKin.Editor
                 BuildOptions.None);
             RequireSuccess(report, "WebGL");
             File.WriteAllText("Builds/WebGL/.nojekyll", string.Empty);
+            WriteManifest("Builds/WebGL", "WebGL Optimized", report);
         }
 
         static void ConfigureShared()
         {
             if (!File.Exists(ScenePath)) throw new FileNotFoundException("Gameplay scene is missing", ScenePath);
+            ValidateProductionAssets();
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             PlayerSettings.productName = "Canopy Kin: Moonroot";
             PlayerSettings.companyName = "Moonroot Studio";
-            PlayerSettings.bundleVersion = "0.3.0";
+            PlayerSettings.bundleVersion = ProductVersion;
             PlayerSettings.colorSpace = ColorSpace.Linear;
+        }
+
+        static void ConfigureWindows()
+        {
+            PlayerSettings.stripEngineCode = false;
+            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.Standalone, ManagedStrippingLevel.Minimal);
+            PlayerSettings.defaultScreenWidth = 1920;
+            PlayerSettings.defaultScreenHeight = 1080;
+            PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
+            PlayerSettings.resizableWindow = true;
+            PlayerSettings.runInBackground = true;
+            PlayerSettings.forceSingleInstance = true;
+            PlayerSettings.useFlipModelSwapchain = true;
+            PlayerSettings.enableFrameTimingStats = true;
+            PlayerSettings.SetGraphicsAPIs(
+                BuildTarget.StandaloneWindows64,
+                new[] { GraphicsDeviceType.Direct3D11 });
+            QualitySettings.SetQualityLevel(5, true);
+            QualitySettings.vSyncCount = 1;
+        }
+
+        static void ConfigureWebGL()
+        {
             PlayerSettings.stripEngineCode = true;
+            PlayerSettings.SetManagedStrippingLevel(NamedBuildTarget.WebGL, ManagedStrippingLevel.High);
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Disabled;
+            PlayerSettings.WebGL.dataCaching = true;
+            PlayerSettings.WebGL.debugSymbolMode = WebGLDebugSymbolMode.Off;
+            PlayerSettings.WebGL.exceptionSupport = WebGLExceptionSupport.ExplicitlyThrownExceptionsOnly;
+            PlayerSettings.WebGL.memorySize = 512;
+            PlayerSettings.WebGL.emscriptenArgs = string.Empty;
+            PlayerSettings.WebGL.template = "PROJECT:CanopyKin";
+            PlayerSettings.enableFrameTimingStats = true;
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.WebGL, ScriptingImplementation.IL2CPP);
+            QualitySettings.SetQualityLevel(3, true);
             QualitySettings.vSyncCount = 0;
         }
 
@@ -77,10 +113,70 @@ namespace CanopyKin.Editor
             Debug.Log($"CANOPY_KIN_{platform.ToUpperInvariant()}_BUILD_OK size={report.summary.totalSize} time={report.summary.totalTime}");
         }
 
+        static void WriteManifest(string directory, string edition, BuildReport report)
+        {
+            string json =
+                "{\n" +
+                $"  \"product\": \"Canopy Kin: Moonroot\",\n" +
+                $"  \"version\": \"{ProductVersion}\",\n" +
+                $"  \"edition\": \"{edition}\",\n" +
+                $"  \"unity\": \"{Application.unityVersion}\",\n" +
+                $"  \"buildBytes\": {report.summary.totalSize},\n" +
+                $"  \"builtUtc\": \"{DateTime.UtcNow:O}\"\n" +
+                "}\n";
+            File.WriteAllText(Path.Combine(directory, "build-manifest.json"), json);
+        }
+
         public static void Validate()
         {
             ConfigureShared();
             Debug.Log("CANOPY_KIN_VALIDATION_OK");
+        }
+
+        static void ValidateProductionAssets()
+        {
+            GameObject ant = AssetDatabase.LoadAssetAtPath<GameObject>(ProductionAntPath);
+            if (!ant) throw new FileNotFoundException("Production ant FBX is missing", ProductionAntPath);
+            SkinnedMeshRenderer skin = ant.GetComponentInChildren<SkinnedMeshRenderer>(true);
+            if (!skin || !skin.sharedMesh)
+                throw new InvalidOperationException("Production ant must contain one imported skinned mesh.");
+            if (skin.sharedMesh.vertexCount < 20000)
+                throw new InvalidOperationException($"Production ant mesh is unexpectedly low detail: {skin.sharedMesh.vertexCount} vertices.");
+
+            string[] requiredBones =
+            {
+                "Root", "Thorax", "Abdomen", "Head", "Mandible_L", "Mandible_R",
+                "Antenna_L_1", "Antenna_R_1",
+                "Leg_L_Front_Coxa", "Leg_R_Front_Coxa",
+                "Leg_L_Middle_Coxa", "Leg_R_Middle_Coxa",
+                "Leg_L_Rear_Coxa", "Leg_R_Rear_Coxa"
+            };
+            var importedBones = skin.bones.Where(bone => bone).Select(bone => bone.name).ToHashSet();
+            string missingBone = requiredBones.FirstOrDefault(required => !importedBones.Contains(required));
+            if (missingBone != null)
+                throw new InvalidOperationException($"Production ant rig is missing bone: {missingBone}");
+
+            AnimationClip[] clips = AssetDatabase.LoadAllAssetsAtPath(ProductionAntPath)
+                .OfType<AnimationClip>()
+                .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
+                .ToArray();
+            if (clips.Length < 9)
+                throw new InvalidOperationException($"Production ant requires nine animation clips; imported {clips.Length}.");
+
+            var floorImporter = AssetImporter.GetAtPath(ForestFloorPath) as TextureImporter;
+            if (floorImporter == null)
+                throw new FileNotFoundException("Production forest-floor texture is missing", ForestFloorPath);
+            TextureImporterPlatformSettings standalone = floorImporter.GetPlatformTextureSettings("Standalone");
+            TextureImporterPlatformSettings web = floorImporter.GetPlatformTextureSettings("WebGL");
+            if (!standalone.overridden || standalone.maxTextureSize < 8192)
+                throw new InvalidOperationException("Windows forest-floor import must retain 8K source resolution.");
+            if (!web.overridden || web.maxTextureSize > 2048)
+                throw new InvalidOperationException("WebGL forest-floor import must use its independent optimized override.");
+
+            Debug.Log(
+                $"CANOPY_KIN_PRODUCTION_ASSETS_OK antVertices={skin.sharedMesh.vertexCount} " +
+                $"antTriangles={skin.sharedMesh.triangles.Length / 3} clips={clips.Length} " +
+                $"windowsTexture={standalone.maxTextureSize} webTexture={web.maxTextureSize}");
         }
     }
 }

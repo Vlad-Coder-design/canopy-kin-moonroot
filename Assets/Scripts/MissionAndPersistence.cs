@@ -11,7 +11,7 @@ namespace CanopyKin
         public static float MasterVolume { get; set; } = .78f;
         public static float Shake { get; set; } = .28f;
         public static bool Subtitles { get; set; } = true;
-        public static int Quality { get; set; } = 1;
+        public static int Quality { get; set; } = RuntimeQualityProfile.IsFullQuality ? 2 : 0;
 
         public static void Load()
         {
@@ -20,7 +20,8 @@ namespace CanopyKin
             MasterVolume = PlayerPrefs.GetFloat("settings_volume", .78f);
             Shake = PlayerPrefs.GetFloat("settings_shake", .28f);
             Subtitles = PlayerPrefs.GetInt("settings_subtitles", 1) != 0;
-            Quality = Mathf.Clamp(PlayerPrefs.GetInt("settings_quality", Application.platform == RuntimePlatform.WebGLPlayer ? 0 : 1), 0, 2);
+            int defaultQuality = RuntimeQualityProfile.IsFullQuality ? 2 : 0;
+            Quality = Mathf.Clamp(PlayerPrefs.GetInt("settings_quality", defaultQuality), 0, 2);
             Apply();
         }
 
@@ -39,9 +40,32 @@ namespace CanopyKin
         public static void Apply()
         {
             AudioListener.volume = MasterVolume;
-            QualitySettings.shadowDistance = Quality switch { 0 => 22f, 1 => 38f, _ => 55f };
-            QualitySettings.shadowResolution = Quality == 0 ? ShadowResolution.Low : ShadowResolution.Medium;
-            QualitySettings.lodBias = Quality switch { 0 => .7f, 1 => 1f, _ => 1.35f };
+            bool full = RuntimeQualityProfile.IsFullQuality;
+            int unityLevel = full
+                ? Quality switch { 0 => 3, 1 => 4, _ => 5 }
+                : Quality switch { 0 => 1, 1 => 2, _ => 3 };
+            QualitySettings.SetQualityLevel(unityLevel, true);
+            QualitySettings.shadows = Quality == 0 && !full ? ShadowQuality.HardOnly : ShadowQuality.All;
+            QualitySettings.shadowDistance = full
+                ? Quality switch { 0 => 55f, 1 => 90f, _ => 140f }
+                : Quality switch { 0 => 18f, 1 => 32f, _ => 46f };
+            QualitySettings.shadowResolution = full
+                ? Quality switch { 0 => ShadowResolution.Medium, 1 => ShadowResolution.High, _ => ShadowResolution.VeryHigh }
+                : Quality switch { 0 => ShadowResolution.Low, 1 => ShadowResolution.Medium, _ => ShadowResolution.High };
+            QualitySettings.shadowCascades = full && Quality == 2 ? 4 : Quality == 0 ? 1 : 2;
+            QualitySettings.lodBias = full
+                ? Quality switch { 0 => 1.2f, 1 => 1.75f, _ => 2.35f }
+                : Quality switch { 0 => .65f, 1 => .9f, _ => 1.15f };
+            QualitySettings.antiAliasing = full ? Quality switch { 0 => 2, 1 => 4, _ => 8 } : Quality == 2 ? 2 : 0;
+            QualitySettings.anisotropicFiltering = full ? AnisotropicFiltering.ForceEnable : AnisotropicFiltering.Enable;
+            QualitySettings.realtimeReflectionProbes = full && Quality > 0;
+            QualitySettings.softParticles = Quality > 0;
+            QualitySettings.streamingMipmapsActive = true;
+            QualitySettings.streamingMipmapsMemoryBudget = full
+                ? Quality switch { 0 => 768f, 1 => 1280f, _ => 2048f }
+                : Quality switch { 0 => 192f, 1 => 256f, _ => 384f };
+            QualitySettings.vSyncCount = full ? 1 : 0;
+            Application.targetFrameRate = 60;
             Camera camera = Camera.main;
             if (camera) camera.fieldOfView = FieldOfView;
         }

@@ -1,8 +1,9 @@
-"""Create compact Unity-ready albedo, normal, and roughness maps.
+"""Create production Unity-ready albedo, normal, and roughness maps.
 
 The source images are original project textures generated for Canopy Kin.  This
-script keeps the WebGL payload small, removes high-frequency colour noise that
-would shimmer at ant scale, and derives physically plausible companion maps.
+script preserves source detail for the Windows edition, removes only unstable
+high-frequency colour noise, and derives physically plausible companion maps.
+WebGL downscaling is handled separately by Unity platform import overrides.
 """
 
 from __future__ import annotations
@@ -55,7 +56,7 @@ def process(source: Path, output: Path, size: int, strength: float) -> None:
     image = make_seamless(image)
     image = ImageEnhance.Color(image).enhance(0.88)
     image = ImageEnhance.Contrast(image).enhance(0.94)
-    image.save(output / "albedo.jpg", quality=88, optimize=True, progressive=True)
+    image.save(output / "albedo.jpg", quality=95, optimize=True, progressive=True)
 
     gray = np.asarray(ImageOps.grayscale(image).filter(ImageFilter.GaussianBlur(1.1)))
     height = gray.astype(np.float32) / 255.0
@@ -74,7 +75,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("source", type=Path)
     parser.add_argument("output", type=Path)
-    parser.add_argument("--size", type=int, default=1024)
+    parser.add_argument("--size", type=int, default=4096)
     parser.add_argument("--strength", type=float, default=5.0)
     args = parser.parse_args()
     process(args.source, args.output, args.size, args.strength)

@@ -6,7 +6,10 @@ Shader "CanopyKin/ForestPBR"
         _MainTex("Albedo", 2D) = "white" {}
         _BumpMap("Normal", 2D) = "bump" {}
         _RoughnessMap("Roughness", 2D) = "white" {}
+        _OcclusionMap("Ambient Occlusion", 2D) = "white" {}
+        _HeightMap("Height", 2D) = "gray" {}
         _NormalStrength("Normal Strength", Range(0,2)) = 1
+        _Parallax("Parallax", Range(0,.08)) = 0
         _Smoothness("Smoothness", Range(0,1)) = .22
         _Metallic("Metallic", Range(0,1)) = 0
         _Occlusion("Occlusion", Range(.35,1)) = .92
@@ -21,12 +24,16 @@ Shader "CanopyKin/ForestPBR"
         #pragma target 3.0
         #pragma surface surf Standard fullforwardshadows addshadow
         #pragma multi_compile_instancing
+        #include "UnityStandardUtils.cginc"
 
         sampler2D _MainTex;
         sampler2D _BumpMap;
         sampler2D _RoughnessMap;
+        sampler2D _OcclusionMap;
+        sampler2D _HeightMap;
         fixed4 _Color;
         half _NormalStrength;
+        half _Parallax;
         half _Smoothness;
         half _Metallic;
         half _Occlusion;
@@ -34,20 +41,23 @@ Shader "CanopyKin/ForestPBR"
         struct Input
         {
             float2 uv_MainTex;
+            float3 viewDir;
         };
 
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
-            fixed4 albedo = tex2D(_MainTex, IN.uv_MainTex) * _Color;
-            half3 sampledNormal = tex2D(_BumpMap, IN.uv_MainTex).rgb * 2.0h - 1.0h;
-            sampledNormal.xy *= _NormalStrength;
-            sampledNormal.z = sqrt(saturate(1.0h - dot(sampledNormal.xy, sampledNormal.xy)));
-            half roughness = tex2D(_RoughnessMap, IN.uv_MainTex).r;
+            float2 uv = IN.uv_MainTex;
+            half height = tex2D(_HeightMap, uv).r - .5h;
+            half3 view = normalize(IN.viewDir);
+            uv += view.xy * height * _Parallax;
+            fixed4 albedo = tex2D(_MainTex, uv) * _Color;
+            half3 sampledNormal = UnpackScaleNormal(tex2D(_BumpMap, uv), _NormalStrength);
+            half roughness = tex2D(_RoughnessMap, uv).r;
             o.Albedo = albedo.rgb;
-            o.Normal = normalize(sampledNormal);
+            o.Normal = sampledNormal;
             o.Metallic = _Metallic;
             o.Smoothness = saturate((1.0h - roughness) * .72h + _Smoothness * .28h);
-            o.Occlusion = _Occlusion;
+            o.Occlusion = tex2D(_OcclusionMap, uv).r * _Occlusion;
             o.Alpha = 1;
         }
         ENDCG

@@ -28,6 +28,8 @@ namespace CanopyKin
 
         readonly List<ResourceNode> resources = new();
         readonly List<Creature> creatures = new();
+        readonly List<Renderer> surfaceRenderers = new();
+        readonly List<Renderer> undergroundRenderers = new();
         SquadController squads;
         Transform environment;
         Transform underground;
@@ -35,6 +37,11 @@ namespace CanopyKin
         GameObject nestUpgrade;
         GameObject undergroundUpgrade;
         GameObject largeThreat;
+        Light sunLight;
+        Light skyFillLight;
+        Light amberNestLight;
+        Light tunnelFillLight;
+        Light nurseryFillLight;
         bool rivalWaveSpawned;
         bool threatRevealStarted;
         float toastUntil;
@@ -110,7 +117,13 @@ namespace CanopyKin
             Mission.StepChanged += _ => RefreshWorldForMission();
 
             ConfigureLighting();
-            VisualFactory.Terrain("Layered loam terrain", environment, 82f, GameSettings.Quality == 0 ? 64 : 82, GroundHeight, new Color(.82f, .76f, .65f));
+            VisualFactory.Terrain(
+                "Layered loam terrain",
+                environment,
+                82f,
+                RuntimeQualityProfile.TerrainResolution(GameSettings.Quality),
+                GroundHeight,
+                new Color(.82f, .76f, .65f));
             BuildDistantEnclosure();
             BuildNest();
             BuildLandmarks();
@@ -119,10 +132,15 @@ namespace CanopyKin
             BuildMissionLocations();
             BuildCreatures();
             BuildPlayerAndSquad();
+            CacheLocationRenderers();
             RefreshWorldForMission();
+            ApplyLocationLighting();
+            gameObject.AddComponent<PerformanceTelemetry>();
             timer.Stop();
             int renderers = FindObjectsByType<Renderer>(FindObjectsSortMode.None).Length;
-            Debug.Log($"MOONROOT_SLICE_READY buildMs={timer.ElapsedMilliseconds} renderers={renderers} quality={GameSettings.Quality}");
+            Debug.Log(
+                $"MOONROOT_SLICE_READY buildMs={timer.ElapsedMilliseconds} renderers={renderers} " +
+                $"quality={GameSettings.Quality} edition={RuntimeQualityProfile.Edition}");
         }
 
         void ConfigureLighting()
@@ -137,34 +155,91 @@ namespace CanopyKin
             RenderSettings.fogColor = new Color(.48f, .59f, .55f);
             RenderSettings.fogDensity = .009f;
 
-            Light sun = new GameObject("Canopy-break sunlight").AddComponent<Light>();
-            sun.transform.SetParent(transform);
-            sun.type = LightType.Directional;
-            sun.color = new Color(1f, .9f, .71f);
-            sun.intensity = 1.24f;
-            sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = .78f;
-            sun.shadowBias = .035f;
-            sun.shadowNormalBias = .32f;
-            sun.transform.rotation = Quaternion.Euler(42f, -28f, 0);
+            sunLight = new GameObject("Canopy-break sunlight").AddComponent<Light>();
+            sunLight.transform.SetParent(transform);
+            sunLight.type = LightType.Directional;
+            sunLight.color = new Color(1f, .9f, .71f);
+            sunLight.intensity = 1.08f;
+            sunLight.shadows = LightShadows.Soft;
+            sunLight.shadowStrength = .78f;
+            sunLight.shadowBias = .035f;
+            sunLight.shadowNormalBias = .32f;
+            sunLight.transform.rotation = Quaternion.Euler(42f, -28f, 0);
 
-            Light skyFill = new GameObject("Cool canopy fill").AddComponent<Light>();
-            skyFill.transform.SetParent(transform);
-            skyFill.type = LightType.Directional;
-            skyFill.color = new Color(.36f, .49f, .55f);
-            skyFill.intensity = .34f;
-            skyFill.shadows = LightShadows.None;
-            skyFill.transform.rotation = Quaternion.Euler(62f, 142f, 18f);
+            skyFillLight = new GameObject("Cool canopy fill").AddComponent<Light>();
+            skyFillLight.transform.SetParent(transform);
+            skyFillLight.type = LightType.Directional;
+            skyFillLight.color = new Color(.36f, .49f, .55f);
+            skyFillLight.intensity = .3f;
+            skyFillLight.shadows = LightShadows.None;
+            skyFillLight.transform.rotation = Quaternion.Euler(62f, 142f, 18f);
             GameSettings.Apply();
+        }
+
+        void ApplyLocationLighting()
+        {
+            SetLocationRenderers();
+            if (IsUnderground)
+            {
+                RenderSettings.ambientSkyColor = new Color(.27f, .29f, .25f);
+                RenderSettings.ambientEquatorColor = new Color(.2f, .19f, .155f);
+                RenderSettings.ambientGroundColor = new Color(.095f, .078f, .056f);
+                RenderSettings.fogColor = new Color(.13f, .155f, .14f);
+                RenderSettings.fogDensity = .0065f;
+                if (sunLight) sunLight.intensity = .13f;
+                if (skyFillLight) skyFillLight.intensity = .12f;
+                if (amberNestLight) amberNestLight.intensity = 1.72f;
+                if (tunnelFillLight) tunnelFillLight.intensity = 1.28f;
+                if (nurseryFillLight) nurseryFillLight.intensity = .76f;
+                return;
+            }
+
+            RenderSettings.ambientSkyColor = new Color(.52f, .59f, .55f);
+            RenderSettings.ambientEquatorColor = new Color(.28f, .32f, .26f);
+            RenderSettings.ambientGroundColor = new Color(.11f, .075f, .045f);
+            RenderSettings.fogColor = new Color(.48f, .59f, .55f);
+            RenderSettings.fogDensity = .009f;
+            if (sunLight) sunLight.intensity = 1.08f;
+            if (skyFillLight) skyFillLight.intensity = .3f;
+            if (amberNestLight) amberNestLight.intensity = .16f;
+            if (tunnelFillLight) tunnelFillLight.intensity = .12f;
+            if (nurseryFillLight) nurseryFillLight.intensity = .08f;
+        }
+
+        void CacheLocationRenderers()
+        {
+            surfaceRenderers.Clear();
+            undergroundRenderers.Clear();
+            foreach (Renderer renderer in environment.GetComponentsInChildren<Renderer>(true))
+            {
+                // The player and squad cross the boundary and must never be baked
+                // into either visibility partition.
+                if (renderer.GetComponentInParent<PlayerAnt>() ||
+                    renderer.GetComponentInParent<SquadUnit>())
+                    continue;
+
+                bool belowGround = renderer.transform.IsChildOf(underground) ||
+                    renderer.bounds.center.y < -2.25f;
+                (belowGround ? undergroundRenderers : surfaceRenderers).Add(renderer);
+            }
+        }
+
+        void SetLocationRenderers()
+        {
+            foreach (Renderer renderer in surfaceRenderers)
+                if (renderer) renderer.enabled = !IsUnderground;
+            foreach (Renderer renderer in undergroundRenderers)
+                if (renderer) renderer.enabled = IsUnderground;
         }
 
         void BuildDistantEnclosure()
         {
             var enclosure = new GameObject("Forest horizon enclosure").transform;
             enclosure.SetParent(environment, false);
-            for (int i = 0; i < 20; i++)
+            int treeCount = RuntimeQualityProfile.DistantTreeCount(GameSettings.Quality);
+            for (int i = 0; i < treeCount; i++)
             {
-                float angle = i / 20f * Mathf.PI * 2f;
+                float angle = i / (float)treeCount * Mathf.PI * 2f;
                 float radius = 36f + Mathf.Sin(i * 3.2f) * 2.4f;
                 Vector3 basePoint = new(Mathf.Cos(angle) * radius, GroundHeight(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius) - .8f, Mathf.Sin(angle) * radius);
                 Vector3 top = basePoint + new Vector3(Mathf.Sin(angle) * 1.8f, Random.Range(11f, 18f), Mathf.Cos(angle) * 1.8f);
@@ -303,30 +378,31 @@ namespace CanopyKin
             BuildStorageChambers();
             CreateNestDoor("Tunnel to forest floor", UndergroundCenter + new Vector3(0, .3f, 3.45f), true);
 
-            Light amber = new GameObject("Amber chamber bounce").AddComponent<Light>();
-            amber.transform.SetParent(underground, false);
-            amber.transform.localPosition = new Vector3(-1.2f, 2.45f, -.85f);
-            amber.type = LightType.Point;
-            amber.range = 14f;
-            amber.intensity = 3.4f;
-            amber.color = new Color(.9f, .57f, .36f);
-            amber.shadows = LightShadows.None;
+            amberNestLight = new GameObject("Amber chamber bounce").AddComponent<Light>();
+            amberNestLight.transform.SetParent(underground, false);
+            amberNestLight.transform.localPosition = new Vector3(-1.2f, 2.45f, -.85f);
+            amberNestLight.type = LightType.Point;
+            amberNestLight.range = 12f;
+            amberNestLight.intensity = 1.18f;
+            amberNestLight.color = new Color(.72f, .49f, .34f);
+            amberNestLight.shadows = LightShadows.Soft;
+            amberNestLight.shadowStrength = .32f;
 
-            Light blue = new GameObject("Cool tunnel fill").AddComponent<Light>();
-            blue.transform.SetParent(underground, false);
-            blue.transform.localPosition = new Vector3(0, 1.1f, 3.3f);
-            blue.type = LightType.Point;
-            blue.range = 9f;
-            blue.intensity = 2.3f;
-            blue.color = new Color(.36f, .66f, .58f);
+            tunnelFillLight = new GameObject("Cool tunnel fill").AddComponent<Light>();
+            tunnelFillLight.transform.SetParent(underground, false);
+            tunnelFillLight.transform.localPosition = new Vector3(0, 1.1f, 3.3f);
+            tunnelFillLight.type = LightType.Point;
+            tunnelFillLight.range = 8f;
+            tunnelFillLight.intensity = .92f;
+            tunnelFillLight.color = new Color(.31f, .52f, .46f);
 
-            Light nurseryFill = new GameObject("Nursery soft fill").AddComponent<Light>();
-            nurseryFill.transform.SetParent(underground, false);
-            nurseryFill.transform.localPosition = new Vector3(2f, 1.45f, -1.2f);
-            nurseryFill.type = LightType.Point;
-            nurseryFill.range = 8f;
-            nurseryFill.intensity = 1.55f;
-            nurseryFill.color = new Color(.72f, .38f, .2f);
+            nurseryFillLight = new GameObject("Nursery soft fill").AddComponent<Light>();
+            nurseryFillLight.transform.SetParent(underground, false);
+            nurseryFillLight.transform.localPosition = new Vector3(2f, 1.45f, -1.2f);
+            nurseryFillLight.type = LightType.Point;
+            nurseryFillLight.range = 7f;
+            nurseryFillLight.intensity = .48f;
+            nurseryFillLight.color = new Color(.67f, .43f, .29f);
         }
 
         void BuildQueenChamber()
@@ -478,7 +554,7 @@ namespace CanopyKin
 
         void BuildVegetation()
         {
-            int grassCount = GameSettings.Quality switch { 0 => 105, 1 => 145, _ => 190 };
+            int grassCount = RuntimeQualityProfile.GrassCount(GameSettings.Quality);
             for (int i = 0; i < grassCount; i++)
             {
                 Vector2 circle = Random.insideUnitCircle * 33f;
@@ -491,7 +567,8 @@ namespace CanopyKin
                 tuft.transform.localRotation = Quaternion.Euler(0, Random.Range(0, 360f), Random.Range(-4f, 4f));
             }
 
-            for (int i = 0; i < 34; i++)
+            int leafCount = RuntimeQualityProfile.LeafCount(GameSettings.Quality);
+            for (int i = 0; i < leafCount; i++)
             {
                 Vector2 p = Random.insideUnitCircle * 29f;
                 float z = p.y + 5f;
@@ -514,7 +591,8 @@ namespace CanopyKin
                 VisualFactory.Mushroom(environment, At(x, z), Random.Range(.42f, .92f), Color.Lerp(new Color(.27f, .08f, .24f), new Color(.55f, .19f, .28f), Random.value));
             }
 
-            for (int i = 0; i < 70; i++)
+            int debrisCount = RuntimeQualityProfile.DebrisCount(GameSettings.Quality);
+            for (int i = 0; i < debrisCount; i++)
             {
                 Vector2 p = Random.insideUnitCircle * 30f;
                 float z = p.y + 5f;
@@ -666,8 +744,8 @@ namespace CanopyKin
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.fieldOfView = GameSettings.FieldOfView;
             camera.nearClipPlane = .025f;
-            camera.farClipPlane = 125f;
-            camera.allowHDR = false;
+            camera.farClipPlane = RuntimeQualityProfile.IsFullQuality ? 180f : 125f;
+            camera.allowHDR = RuntimeQualityProfile.IsFullQuality;
             camera.allowMSAA = GameSettings.Quality > 0;
             cameraObject.AddComponent<AudioListener>();
 
@@ -749,6 +827,7 @@ namespace CanopyKin
                 squads.Teleport(UndergroundPlayerSpawn + Vector3.forward * .8f);
                 ShowToast(GameText.Pick("Moonroot underground colony", "Подземная колония Лунного Корня"));
             }
+            ApplyLocationLighting();
         }
 
         public void CommandSquad(SquadOrder order, Vector3 position, ResourceNode resource, Creature creature)

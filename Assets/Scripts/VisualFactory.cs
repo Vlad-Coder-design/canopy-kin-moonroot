@@ -41,18 +41,49 @@ namespace CanopyKin
             if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", normalStrength);
             if (!string.IsNullOrEmpty(textureFolder))
             {
-                Texture2D albedo = Resources.Load<Texture2D>($"Textures/{textureFolder}/albedo");
-                Texture2D normal = Resources.Load<Texture2D>($"Textures/{textureFolder}/normal");
-                Texture2D roughness = Resources.Load<Texture2D>($"Textures/{textureFolder}/roughness");
+                // Forest-floor scans belong on the outdoor terrain only. Reusing
+                // leaf-litter albedo inside the nest made the chamber orange and
+                // visually destroyed the distinction between packed earth and the
+                // surface biome.
+                bool highQualityGround = textureFolder == "ForestFloor";
+                string highQualityRoot = "HighQuality/PolyHaven/ForestFloor/forest_floor";
+                Texture2D albedo = highQualityGround
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_diff_8k")
+                    : null;
+                Texture2D normal = highQualityGround
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_nor_dx_8k")
+                    : null;
+                Texture2D roughness = highQualityGround
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_rough_8k")
+                    : null;
+                Texture2D occlusion = highQualityGround
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_ao_8k")
+                    : null;
+                Texture2D height = highQualityGround
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_disp_8k")
+                    : null;
+                albedo = albedo ? albedo : Resources.Load<Texture2D>($"Textures/{textureFolder}/albedo");
+                normal = normal ? normal : Resources.Load<Texture2D>($"Textures/{textureFolder}/normal");
+                roughness = roughness ? roughness : Resources.Load<Texture2D>($"Textures/{textureFolder}/roughness");
                 ConfigureTexture(albedo);
                 ConfigureTexture(normal);
                 ConfigureTexture(roughness);
+                ConfigureTexture(occlusion);
+                ConfigureTexture(height);
                 if (albedo) material.SetTexture("_MainTex", albedo);
                 if (normal) material.SetTexture("_BumpMap", normal);
                 if (roughness) material.SetTexture("_RoughnessMap", roughness);
+                if (occlusion) material.SetTexture("_OcclusionMap", occlusion);
+                if (height) material.SetTexture("_HeightMap", height);
+                if (material.HasProperty("_Parallax"))
+                    material.SetFloat("_Parallax", highQualityGround
+                        ? RuntimeQualityProfile.IsFullQuality ? .035f : .012f
+                        : 0f);
                 material.SetTextureScale("_MainTex", tile);
                 material.SetTextureScale("_BumpMap", tile);
                 material.SetTextureScale("_RoughnessMap", tile);
+                material.SetTextureScale("_OcclusionMap", tile);
+                material.SetTextureScale("_HeightMap", tile);
             }
             Materials[key] = material;
             return material;
@@ -61,6 +92,15 @@ namespace CanopyKin
         public static Material VegetationMaterial(Color color)
         {
             Color32 c = color;
+            // Procedural placement used to create hundreds of almost-identical
+            // materials, which prevented the shared blade meshes from instancing.
+            // A restrained 16-step palette preserves natural variation while
+            // allowing the renderer to batch dense vegetation.
+            c.r = (byte)(Mathf.RoundToInt(c.r / 16f) * 16);
+            c.g = (byte)(Mathf.RoundToInt(c.g / 16f) * 16);
+            c.b = (byte)(Mathf.RoundToInt(c.b / 16f) * 16);
+            c.a = 255;
+            color = c;
             string key = $"vegetation-{c.r:X2}{c.g:X2}{c.b:X2}";
             if (Materials.TryGetValue(key, out Material cached)) return cached;
             Shader shader = Resources.Load<Shader>("CanopyKinVegetation") ?? Shader.Find("Diffuse");
@@ -94,7 +134,7 @@ namespace CanopyKin
             if (!texture) return;
             texture.wrapMode = TextureWrapMode.Repeat;
             texture.filterMode = FilterMode.Trilinear;
-            texture.anisoLevel = 4;
+            texture.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
         }
 
         public static GameObject MeshObject(
@@ -289,7 +329,7 @@ namespace CanopyKin
             mesh.RecalculateBounds();
             root.AddComponent<MeshFilter>().sharedMesh = mesh;
             MeshRenderer renderer = root.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = PbrMaterial("Soil", color, .05f, 1.15f, Vector2.one);
+            renderer.sharedMaterial = PbrMaterial("ForestFloor", color, .05f, 1.15f, Vector2.one);
             renderer.receiveShadows = true;
             root.AddComponent<MeshCollider>().sharedMesh = mesh;
             return root;
