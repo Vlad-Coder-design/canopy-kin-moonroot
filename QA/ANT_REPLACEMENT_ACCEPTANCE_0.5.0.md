@@ -110,6 +110,28 @@ squad commands, save identifiers and mission logic.
   84 batches, 51 SetPass calls, approximately 101K triangles, 156.0 MB
   allocated / 166.7 MB reserved and 0 B/frame GC.
 
+### Public GitHub Pages
+
+- Commit `c50143b` deployed successfully through GitHub Actions run
+  `30441042200`.
+- A new browser tab opened the real cache-busted URL
+  `https://vlad-coder-design.github.io/canopy-kin-moonroot/?build=c50143b`.
+- A no-cache request to the public manifest returned version 0.5.0, WebGL
+  Optimized, 89,732,654 build bytes and Unity 6000.0.78f1.
+- The public 83,282,967-byte data payload returned HTTP 200 and
+  `application/vnd.unity`. GitHub Pages does not add `Content-Encoding`, so
+  the verified Unity JavaScript decompression fallback is required and worked.
+- The live page reached the nursery, rendered the production player and opening
+  castes, accepted forward/vault input, opened pause, and resumed gameplay.
+- There were no Unity exceptions, null references, missing resources or shader
+  errors. The browser automation layer emitted two generic Chromium
+  `UnknownError` messages while synthesizing canvas input; rendering and input
+  continued, and those messages contain no Unity stack.
+- Public 20-second browser profile: 39.35 FPS, 25.41 ms average, 43.0 ms p95,
+  83 batches, 50 SetPass calls, approximately 100K triangles, 156.0 MB
+  allocated / 166.7 MB reserved and 0 B/frame GC. This is materially below the
+  local 60 FPS sample and is reported as measured, not normalized away.
+
 ## Evidence images
 
 - Neutral Blender reference: `QA/Screenshots/ant-050-player-front.png`,
@@ -125,6 +147,9 @@ squad commands, save identifiers and mission logic.
   `ant-050-windows-queen-chamber.png` and
   `ant-050-windows-player-bite.png`.
 - Actual WebGL scene: `ant-050-webgl-local-gameplay.png`.
+- Public WebGL scene: `ant-050-webgl-public-c50143b.png`,
+  `ant-050-webgl-public-c50143b-pause.png` and
+  `ant-050-webgl-public-c50143b-resumed.png`.
 
 The before state is documented in `ANT_REPLACEMENT_AUDIT_0.5.0.md` and in the
 0.4.1 movement screenshots. That build used one 36,713-triangle analytic
