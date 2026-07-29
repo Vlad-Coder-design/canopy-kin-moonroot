@@ -71,6 +71,33 @@ Evidence:
 - `QA/Screenshots/movement-webgl-v041-clean-local-resume-move.png`
 - `QA/Screenshots/movement-webgl-v041-clean-local-fullscreen-move.png`
 
+## Public GitHub Pages result
+
+GitHub Pages workflow run
+[`30401757477`](https://github.com/Vlad-Coder-design/canopy-kin-moonroot/actions/runs/30401757477)
+completed successfully for commit `6b99e28`. A cache-busted fresh tab opened the
+real public URL and downloaded the new hash-named 0.4.1 payload.
+
+Manual public-canvas verification:
+
+1. The scene loaded at `(0.00, -5.37, -6.10)` with no console warning/error.
+2. Eighteen short `W` inputs reached `(-0.01, -5.35, -3.05)`.
+3. `E` exited the real nest mouth; sixteen `W` inputs reached the route at
+   `(0.00, 0.33, 0.11)`.
+4. Pause opened and closed correctly; input resumed.
+5. Fullscreen was entered, the canvas was refocused and movement continued to
+   the first seed prompt at `(0.05, 0.30, 5.37)`.
+6. Focused console searches returned no `NullReferenceException` and no Unity
+   exception after the complete sequence.
+
+Public evidence:
+
+- `QA/Screenshots/movement-webgl-v041-public-loaded.png`
+- `QA/Screenshots/movement-webgl-v041-public-after-w.png`
+- `QA/Screenshots/movement-webgl-v041-public-route.png`
+- `QA/Screenshots/movement-webgl-v041-public-pause.png`
+- `QA/Screenshots/movement-webgl-v041-public-fullscreen-move.png`
+
 ## Windows result
 
 The clean Windows x64 player launched in a 1280x720 window, displayed the start
