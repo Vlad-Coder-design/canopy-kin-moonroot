@@ -1,5 +1,36 @@
 # Vertical Slice Progress
 
+## 0.5.0 ant-family replacement
+
+- Replaced the former shared 0.4.1 ant presentation with eight separately
+  authored production variants: player, scout, worker, nurse, light soldier,
+  heavy soldier, queen and rival.
+- Selected OpenGameArt's CC0 *Ant 3D Model + Rigging + Animated
+  (Low-poly-ish)* by mujtaba-io only as a legal anatomical and rigging base
+  after inspecting the original Blender file. The shipped family rebuilds the
+  geometry, weights, castes, materials, LODs and animation set.
+- Every caste has a close skinned LOD of approximately 105K triangles and a
+  6.6K-triangle distant LOD. Unity's production contract verifies two LODs,
+  required bones and 13 clips for all eight variants.
+- Added a project-owned 4K ant-cuticle PBR set (albedo, DirectX normal,
+  roughness and AO). Windows retains the 4K imports; WebGL uses independent 2K
+  platform overrides.
+- Added idle, walk, run, start, stop, left/right turn, attack, carry,
+  interaction, climb, stagger and death clips. Runtime movement drives a
+  velocity-scaled alternating tripod gait, independent antenna motion,
+  mandibles, carrying pose and slope-aligned body.
+- Preserved gameplay colliders, navigation, health, commands, physical cargo,
+  mission state and save data because the production family replaces only the
+  visual rig on each existing actor.
+- Queen and nurses now have dedicated silhouettes, soldiers have distinct
+  heads/mandibles/pronotum, workers and scouts differ in proportion, and rival
+  ants use a separate morphology and material treatment rather than a flat
+  recolour.
+- Production-asset validation, Windows mission/save-load flow, beetle bite
+  alignment, soldier-versus-spider combat and WebGL startup/input tests pass.
+  Exact evidence and honest limitations are recorded in
+  `QA/ANT_REPLACEMENT_ACCEPTANCE_0.5.0.md`.
+
 ## 0.4.0 production checkpoint
 
 - Two independent runtime/build profiles now exist. Windows Full Quality retains

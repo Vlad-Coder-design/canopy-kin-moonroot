@@ -12,7 +12,19 @@ namespace CanopyKin.Editor
     public static class BuildGame
     {
         const string ScenePath = "Assets/Scenes/Moonroot.unity";
-        const string ProductionAntPath = "Assets/Resources/Models/Ant/CanopyKinProductionAnt.fbx";
+        static readonly string[] ProductionAntPaths =
+        {
+            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Player.fbx",
+            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Scout.fbx",
+            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Worker.fbx",
+            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Nurse.fbx",
+            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_LightSoldier.fbx",
+            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_HeavySoldier.fbx",
+            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Queen.fbx",
+            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Rival.fbx"
+        };
+        const string AntAlbedoPath =
+            "Assets/Resources/HighQuality/Original/Ant/ant_exoskeleton_diff_4k.jpg";
         const string ProductionSpiderPath =
             "Assets/Resources/Models/Creatures/CanopyKinFishingSpider.fbx";
         const string SpiderAlbedoPath =
@@ -26,7 +38,7 @@ namespace CanopyKin.Editor
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
         const string RootNetworkPath =
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
-        const string ProductVersion = "0.4.1";
+        const string ProductVersion = "0.5.0";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
@@ -192,34 +204,87 @@ namespace CanopyKin.Editor
             AssetDatabase.ImportAsset(
                 ProductionBeetlePath,
                 ImportAssetOptions.ForceUpdate | ImportAssetOptions.ForceSynchronousImport);
-
-            GameObject ant = AssetDatabase.LoadAssetAtPath<GameObject>(ProductionAntPath);
-            if (!ant) throw new FileNotFoundException("Production ant FBX is missing", ProductionAntPath);
-            SkinnedMeshRenderer skin = ant.GetComponentInChildren<SkinnedMeshRenderer>(true);
-            if (!skin || !skin.sharedMesh)
-                throw new InvalidOperationException("Production ant must contain one imported skinned mesh.");
-            if (skin.sharedMesh.vertexCount < 20000)
-                throw new InvalidOperationException($"Production ant mesh is unexpectedly low detail: {skin.sharedMesh.vertexCount} vertices.");
+            int antCloseTriangles = 0;
+            int antDistantTriangles = 0;
+            int antClipCount = 0;
+            foreach (string antPath in ProductionAntPaths)
+                AssetDatabase.ImportAsset(
+                    antPath,
+                    ImportAssetOptions.ForceUpdate |
+                    ImportAssetOptions.ForceSynchronousImport);
 
             string[] requiredBones =
             {
                 "Root", "Thorax", "Abdomen", "Head", "Mandible_L", "Mandible_R",
-                "Antenna_L_1", "Antenna_R_1",
+                "Antenna_L_1", "Antenna_L_2", "Antenna_L_3",
+                "Antenna_R_1", "Antenna_R_2", "Antenna_R_3",
                 "Leg_L_Front_Coxa", "Leg_R_Front_Coxa",
                 "Leg_L_Middle_Coxa", "Leg_R_Middle_Coxa",
-                "Leg_L_Rear_Coxa", "Leg_R_Rear_Coxa"
+                "Leg_L_Rear_Coxa", "Leg_R_Rear_Coxa",
+                "Leg_L_Front_Tarsus", "Leg_R_Front_Tarsus"
             };
-            var importedBones = skin.bones.Where(bone => bone).Select(bone => bone.name).ToHashSet();
-            string missingBone = requiredBones.FirstOrDefault(required => !importedBones.Contains(required));
-            if (missingBone != null)
-                throw new InvalidOperationException($"Production ant rig is missing bone: {missingBone}");
+            foreach (string antPath in ProductionAntPaths)
+            {
+                GameObject ant = AssetDatabase.LoadAssetAtPath<GameObject>(antPath);
+                if (!ant)
+                    throw new FileNotFoundException(
+                        "Production ant family FBX is missing",
+                        antPath);
+                SkinnedMeshRenderer[] skins =
+                    ant.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+                if (skins.Length != 2 || skins.Any(item => !item.sharedMesh))
+                    throw new InvalidOperationException(
+                        $"{antPath} must contain exactly two useful skinned LOD meshes.");
+                SkinnedMeshRenderer close = skins
+                    .OrderByDescending(item => item.sharedMesh.triangles.Length)
+                    .First();
+                int closeTriangles = close.sharedMesh.triangles.Length / 3;
+                int distantTriangles = skins
+                    .OrderBy(item => item.sharedMesh.triangles.Length)
+                    .First().sharedMesh.triangles.Length / 3;
+                antCloseTriangles += closeTriangles;
+                antDistantTriangles += distantTriangles;
+                if (closeTriangles < 100000 || distantTriangles > 8000)
+                    throw new InvalidOperationException(
+                        $"{antPath} has invalid LOD topology: " +
+                        $"close={closeTriangles} distant={distantTriangles}.");
 
-            AnimationClip[] clips = AssetDatabase.LoadAllAssetsAtPath(ProductionAntPath)
-                .OfType<AnimationClip>()
-                .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
-                .ToArray();
-            if (clips.Length < 9)
-                throw new InvalidOperationException($"Production ant requires nine animation clips; imported {clips.Length}.");
+                var importedBones = close.bones
+                    .Where(bone => bone)
+                    .Select(bone => bone.name)
+                    .ToHashSet();
+                string missingBone = requiredBones.FirstOrDefault(
+                    required => !importedBones.Contains(required));
+                if (missingBone != null)
+                    throw new InvalidOperationException(
+                        $"{antPath} is missing production bone: {missingBone}");
+
+                AnimationClip[] clips = AssetDatabase.LoadAllAssetsAtPath(antPath)
+                    .OfType<AnimationClip>()
+                    .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
+                    .ToArray();
+                antClipCount += clips.Length;
+                if (clips.Length < 13)
+                    throw new InvalidOperationException(
+                        $"{antPath} requires thirteen animation clips; " +
+                        $"imported {clips.Length}.");
+            }
+            var antTextureImporter =
+                AssetImporter.GetAtPath(AntAlbedoPath) as TextureImporter;
+            if (antTextureImporter == null)
+                throw new FileNotFoundException(
+                    "Production ant 4K cuticle texture is missing",
+                    AntAlbedoPath);
+            TextureImporterPlatformSettings antStandalone =
+                antTextureImporter.GetPlatformTextureSettings("Standalone");
+            TextureImporterPlatformSettings antWeb =
+                antTextureImporter.GetPlatformTextureSettings("WebGL");
+            if (!antStandalone.overridden || antStandalone.maxTextureSize < 4096)
+                throw new InvalidOperationException(
+                    "Windows ant import must retain the 4K cuticle texture.");
+            if (!antWeb.overridden || antWeb.maxTextureSize > 2048)
+                throw new InvalidOperationException(
+                    "WebGL ant import must use the independent 2K override.");
 
             GameObject spider = AssetDatabase.LoadAssetAtPath<GameObject>(ProductionSpiderPath);
             if (!spider)
@@ -375,8 +440,9 @@ namespace CanopyKin.Editor
                     $"Production root network lost authored detail: high={rootHighTriangles}, low={rootLowTriangles}.");
 
             Debug.Log(
-                $"CANOPY_KIN_PRODUCTION_ASSETS_OK antVertices={skin.sharedMesh.vertexCount} " +
-                $"antTriangles={skin.sharedMesh.triangles.Length / 3} clips={clips.Length} " +
+                $"CANOPY_KIN_PRODUCTION_ASSETS_OK antCastes={ProductionAntPaths.Length} " +
+                $"antCloseTriangles={antCloseTriangles} antDistantTriangles={antDistantTriangles} " +
+                $"antClips={antClipCount} " +
                 $"windowsTexture={standalone.maxTextureSize} webTexture={web.maxTextureSize} " +
                 $"spiderLods={spiderSkins.Length} spiderTriangles={spiderTriangles} " +
                 $"spiderClips={spiderClips.Length} spiderWindowsTexture={spiderStandalone.maxTextureSize} " +

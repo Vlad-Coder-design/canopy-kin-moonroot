@@ -4,6 +4,9 @@
 /UserSettings/
 /Builds/Windows/
 /Releases/*.zip
+ArtSource/AntFamily/*.fbx
+*.blend1
+QA/Screenshots/*.tga
 *.log
 crash.dmp
 /test-results.xml

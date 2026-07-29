@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -110,6 +111,13 @@ namespace CanopyKin
                     arguments,
                     argument => string.Equals(
                         argument,
+                        "-ant-visual-qa",
+                        System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginAntVisualQa());
+            else if (System.Array.Exists(
+                    arguments,
+                    argument => string.Equals(
+                        argument,
                         "-surface-smoke",
                         System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginSurfaceSmokeTest());
@@ -155,6 +163,239 @@ namespace CanopyKin
                              "-mission-flow-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginMissionFlowSmokeTest());
+        }
+
+        IEnumerator BeginAntVisualQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+
+            // Use the real mission surface, player, camera and production
+            // AntVisual component. This QA mode does not create a mock scene.
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            Vector3 playerPosition = At(9.1f, 16.1f, .06f);
+            Player.Teleport(playerPosition);
+            Player.Face(playerPosition + Vector3.forward);
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            foreach (Creature creature in creatures)
+                if (creature) creature.gameObject.SetActive(false);
+
+            AntVisual playerVisual = Player.GetComponentInChildren<AntVisual>(true);
+            Vector3 normal = QaGroundNormal(playerPosition.x, playerPosition.z);
+            playerVisual.SetPlayerMotion(2.2f, .58f, true, normal);
+            IsCinematic = true;
+            yield return new WaitForSecondsRealtime(.35f);
+
+            Vector3 playerFocus = Player.transform.position + Vector3.up * .42f;
+            SetQaCamera(playerFocus, new Vector3(0, .34f, 2.65f), 43f);
+            yield return CaptureQaScreenshot("ant-050-windows-player-front.tga");
+            SetQaCamera(playerFocus, new Vector3(2.8f, .45f, .12f), 43f);
+            yield return CaptureQaScreenshot("ant-050-windows-player-side-close.tga");
+            SetQaCamera(playerFocus, new Vector3(0, .45f, -2.7f), 43f);
+            yield return CaptureQaScreenshot("ant-050-windows-player-rear.tga");
+            SetQaCamera(playerFocus, new Vector3(2.9f, 1.35f, -3.25f), 47f);
+            yield return CaptureQaScreenshot("ant-050-windows-player-uneven-ground.tga");
+
+            // Arrange the real worker and unlocked soldier SquadUnit actors.
+            IsCinematic = false;
+            squads.enabled = true;
+            squads.SetSoldiersUnlocked(true);
+            IsCinematic = true;
+            squads.enabled = false;
+            SquadUnit[] units = FindObjectsByType<SquadUnit>(
+                FindObjectsInactive.Include,
+                FindObjectsSortMode.None);
+            foreach (SquadUnit unit in units)
+                if (unit) unit.gameObject.SetActive(false);
+            UnitRole[] roles =
+            {
+                UnitRole.Worker,
+                UnitRole.LightSoldier,
+                UnitRole.HeavySoldier
+            };
+            // The beetle arena is deliberately kept clear of dense vegetation,
+            // which makes caste silhouettes readable without hiding the real
+            // forest-floor material or replacing the gameplay environment.
+            Vector3 lineup = At(7.3f, 14.2f, .04f);
+            for (int i = 0; i < roles.Length; i++)
+            {
+                SquadUnit unit = units.FirstOrDefault(candidate =>
+                    candidate && candidate.Role == roles[i]);
+                if (!unit) continue;
+                unit.gameObject.SetActive(true);
+                unit.SetSelected(false);
+                Vector3 position = lineup + Vector3.right * ((i - 1) * 1.35f);
+                position.y = GroundHeight(position.x, position.z) + .03f;
+                unit.transform.position = position;
+                unit.transform.rotation = Quaternion.Euler(0, 180f, 0);
+                unit.GetComponentInChildren<AntVisual>(true)?.SetPlayerMotion(
+                    i == 0 ? 1.4f : .7f,
+                    i == 0 ? .35f : .18f,
+                    true,
+                    QaGroundNormal(position.x, position.z));
+            }
+            SetRenderers(Player.transform, false);
+            Vector3 lineupFocus = lineup + Vector3.up * .44f;
+            SetQaCamera(lineupFocus, new Vector3(0, 1.02f, -4.45f), 38f);
+            yield return CaptureQaScreenshot("ant-050-windows-worker-soldiers.tga");
+
+            // Exercise the real cargo attachment and carrying pose on workers.
+            foreach (SquadUnit unit in units)
+                if (unit) unit.gameObject.SetActive(false);
+            SquadUnit[] workers = units
+                .Where(candidate => candidate && candidate.Role == UnitRole.Worker)
+                .Take(3)
+                .ToArray();
+            Vector3 carryCenter = At(7.3f, 14.2f, .04f);
+            for (int i = 0; i < workers.Length; i++)
+            {
+                SquadUnit worker = workers[i];
+                worker.gameObject.SetActive(true);
+                worker.SetSelected(false);
+                if (!worker.HasCargo)
+                    worker.TakeCargo((ResourceKind)(i % 3));
+                Vector3 position = carryCenter +
+                                   new Vector3((i - 1) * 1.15f, 0, i * .38f);
+                position.y = GroundHeight(position.x, position.z) + .03f;
+                worker.transform.position = position;
+                worker.transform.rotation = Quaternion.Euler(0, 180f, 0);
+                worker.GetComponentInChildren<AntVisual>(true)?.SetPlayerMotion(
+                    1.35f,
+                    .34f,
+                    true,
+                    QaGroundNormal(position.x, position.z));
+            }
+            SetQaCamera(
+                carryCenter + Vector3.up * .56f,
+                new Vector3(2.75f, 1.02f, -4.25f),
+                41f);
+            yield return CaptureQaScreenshot("ant-050-windows-workers-carrying.tga");
+
+            // Inspect the actual queen actor in the authored underground chamber.
+            IsUnderground = true;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            AntVisual queen = FindObjectsByType<AntVisual>(
+                    FindObjectsInactive.Include,
+                    FindObjectsSortMode.None)
+                .FirstOrDefault(ant => ant && ant.Caste == AntCaste.Queen);
+            if (!queen)
+                throw new System.InvalidOperationException(
+                    "Ant visual QA could not locate the production queen.");
+            SetRenderers(queen.transform, true);
+            Vector3 queenFocus = queen.transform.position + Vector3.up * .5f;
+            SetQaCamera(queenFocus, new Vector3(2.6f, 1.08f, 2.6f), 42f);
+            yield return CaptureQaScreenshot("ant-050-windows-queen-chamber.tga");
+
+            // Return to the real beetle mission actor and capture the player bite
+            // while the production mandibles are inside their damage window.
+            Mission.Restore(MissionDirector.BeetleStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            Creature beetle = creatures.FirstOrDefault(creature =>
+                creature && creature.Kind == Creature.Species.Beetle);
+            if (!beetle)
+                throw new System.InvalidOperationException(
+                    "Ant visual QA requires the production beetle encounter.");
+            beetle.gameObject.SetActive(true);
+            beetle.FreezeForQa();
+            Vector3 bitePosition = beetle.transform.position +
+                                   beetle.transform.forward * 1.05f;
+            bitePosition.y = GroundHeight(bitePosition.x, bitePosition.z) + .05f;
+            Player.Teleport(bitePosition);
+            Player.Face(beetle.transform.position + Vector3.up * .3f);
+            SetRenderers(Player.transform, true);
+            playerVisual.SetPlayerMotion(0, 0, true, QaGroundNormal(
+                bitePosition.x,
+                bitePosition.z));
+            Player.BiteForQa();
+            Vector3 biteFocus = Vector3.Lerp(
+                                    Player.transform.position,
+                                    beetle.transform.position,
+                                    .43f) +
+                                Vector3.up * .48f;
+            SetQaCamera(biteFocus, new Vector3(3.4f, 1.05f, -3.35f), 43f);
+            yield return new WaitForSecondsRealtime(.18f);
+            yield return CaptureQaScreenshot("ant-050-windows-player-bite.tga");
+
+            Debug.Log(
+                "MOONROOT_ANT_VISUAL_QA_OK screenshots=8 " +
+                $"playerState={playerVisual.AnimationState} queen={queen.Caste} " +
+                $"workers={workers.Length}");
+        }
+
+        static Vector3 QaGroundNormal(float x, float z)
+        {
+            const float sample = .18f;
+            float left = GroundHeight(x - sample, z);
+            float right = GroundHeight(x + sample, z);
+            float back = GroundHeight(x, z - sample);
+            float front = GroundHeight(x, z + sample);
+            return new Vector3(left - right, sample * 2f, back - front).normalized;
+        }
+
+        static void SetRenderers(Transform root, bool visible)
+        {
+            foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(true))
+                renderer.enabled = visible;
+        }
+
+        static void SetQaCamera(Vector3 focus, Vector3 offset, float fieldOfView)
+        {
+            Camera camera = Camera.main;
+            if (!camera) return;
+            camera.transform.position = focus + offset;
+            camera.transform.rotation = Quaternion.LookRotation(
+                focus - camera.transform.position,
+                Vector3.up);
+            camera.fieldOfView = fieldOfView;
+        }
+
+        static IEnumerator CaptureQaScreenshot(string fileName)
+        {
+            yield return new WaitForEndOfFrame();
+            string projectRoot = Path.GetFullPath(
+                Path.Combine(Application.dataPath, "..", "..", ".."));
+            string directory = Path.Combine(projectRoot, "QA", "Screenshots");
+            Directory.CreateDirectory(directory);
+            string path = Path.Combine(directory, fileName);
+            var texture = new Texture2D(
+                Screen.width,
+                Screen.height,
+                TextureFormat.RGB24,
+                false);
+            texture.ReadPixels(
+                new Rect(0, 0, Screen.width, Screen.height),
+                0,
+                0,
+                false);
+            texture.Apply(false, false);
+            Color32[] pixels = texture.GetPixels32();
+            byte[] tga = new byte[18 + pixels.Length * 3];
+            tga[2] = 2;
+            tga[12] = (byte)(Screen.width & 0xff);
+            tga[13] = (byte)((Screen.width >> 8) & 0xff);
+            tga[14] = (byte)(Screen.height & 0xff);
+            tga[15] = (byte)((Screen.height >> 8) & 0xff);
+            tga[16] = 24;
+            int write = 18;
+            foreach (Color32 pixel in pixels)
+            {
+                tga[write++] = pixel.b;
+                tga[write++] = pixel.g;
+                tga[write++] = pixel.r;
+            }
+            File.WriteAllBytes(path, tga);
+            Object.Destroy(texture);
+            Debug.Log($"MOONROOT_ANT_QA_SCREENSHOT path={path}");
+            yield return new WaitForSecondsRealtime(.5f);
         }
 
         IEnumerator BeginBeetleQa()
@@ -259,14 +500,31 @@ namespace CanopyKin
 
             float elapsed = 0;
             float biteTimer = .85f;
+            bool weakPointLocked = false;
             while (elapsed < 24f && Mission.Step == MissionDirector.BeetleStep)
             {
                 elapsed += Time.deltaTime;
                 biteTimer -= Time.deltaTime;
+                // First let the real AI complete a telegraphed attack. Then hold
+                // the predator still and move the player to its authored rear
+                // weak point so this smoke test cannot degrade into repeatedly
+                // biting the armored horn until the player dies.
+                if (!weakPointLocked && beetle.AttackEvents >= 1)
+                {
+                    weakPointLocked = true;
+                    beetle.FreezeForQa();
+                }
+                if (weakPointLocked)
+                {
+                    Vector3 weakPoint =
+                        beetle.transform.position - beetle.transform.forward * .9f;
+                    weakPoint.y = GroundHeight(weakPoint.x, weakPoint.z) + .05f;
+                    Player.Teleport(weakPoint);
+                }
                 Player.Face(beetle.transform.position + Vector3.up * .35f);
                 if (biteTimer <= 0)
                 {
-                    biteTimer = .55f;
+                    biteTimer = weakPointLocked ? .42f : .55f;
                     Player.BiteForQa();
                 }
                 yield return null;
@@ -309,10 +567,24 @@ namespace CanopyKin
             squads.Teleport(spider.transform.position + new Vector3(0, 0, 3.2f));
             ApplyLocationLighting();
             BeginPlay();
+
+            float telegraphElapsed = 0;
+            while (telegraphElapsed < 8f &&
+                   spider.AttackEvents < 1 &&
+                   Mission.Step == MissionDirector.SpiderStep)
+            {
+                telegraphElapsed += Time.deltaTime;
+                Player.Face(spider.transform.position + Vector3.up * .45f);
+                yield return null;
+            }
+            if (spider.AttackEvents < 1)
+                throw new System.InvalidOperationException(
+                    "Spider combat smoke did not observe a completed telegraphed attack.");
+
             squads.SelectSoldiers();
             squads.Set(SquadOrder.Attack);
 
-            float elapsed = 0;
+            float elapsed = telegraphElapsed;
             while (elapsed < 32f && Mission.Step == MissionDirector.SpiderStep)
             {
                 elapsed += Time.deltaTime;
@@ -820,8 +1092,26 @@ namespace CanopyKin
                     new Color(.78f, .68f, .48f),
                     .34f);
             }
-            AntVisual.Create(queen, new Color(.23f, .045f, .012f), 1.55f, AntCaste.HeavySoldier)
+            AntVisual.Create(queen, new Color(.23f, .045f, .012f), 1.28f, AntCaste.Queen)
                 .transform.localPosition = new Vector3(0, .28f, -.35f);
+            for (int nurseIndex = 0; nurseIndex < 2; nurseIndex++)
+            {
+                var nurse = new GameObject($"Brood nurse {nurseIndex + 1}").transform;
+                nurse.SetParent(queen, false);
+                nurse.localPosition = new Vector3(
+                    nurseIndex == 0 ? -1.05f : 1.08f,
+                    .25f,
+                    .28f + nurseIndex * .22f);
+                nurse.localRotation = Quaternion.Euler(
+                    0,
+                    nurseIndex == 0 ? 36f : -148f,
+                    0);
+                AntVisual.Create(
+                    nurse,
+                    new Color(.28f, .075f, .022f),
+                    .64f,
+                    AntCaste.Nurse);
+            }
             queen.gameObject.AddComponent<QueenBriefing>().Initialize();
         }
 

@@ -3,7 +3,17 @@ using UnityEngine;
 
 namespace CanopyKin
 {
-    public enum AntCaste { Scout, Worker, LightSoldier, HeavySoldier, Rival }
+    public enum AntCaste
+    {
+        Player,
+        Scout,
+        Worker,
+        Nurse,
+        LightSoldier,
+        HeavySoldier,
+        Queen,
+        Rival
+    }
 
     /// <summary>
     /// Drives the original Blender-authored skinned ant and its anatomical armature.
@@ -16,17 +26,19 @@ namespace CanopyKin
             public Transform Hip;
             public Transform Knee;
             public Transform Ankle;
+            public Transform Foot;
             public Quaternion HipRest;
             public Quaternion KneeRest;
             public Quaternion AnkleRest;
+            public Quaternion FootRest;
             public float Phase;
             public float Side;
             public float Pair;
         }
 
         readonly List<LegRig> legs = new();
-        readonly Transform[] antennae = new Transform[2];
-        readonly Quaternion[] antennaRest = new Quaternion[2];
+        readonly Transform[,] antennae = new Transform[2, 3];
+        readonly Quaternion[,] antennaRest = new Quaternion[2, 3];
         Transform leftMandible;
         Transform rightMandible;
         Transform abdomen;
@@ -48,6 +60,10 @@ namespace CanopyKin
         float carrying;
         float climb;
         float turnLean;
+        float startMoving;
+        float stopMoving;
+        float interaction;
+        float previousLocomotion;
         float suppliedSpeed;
         float suppliedSpeed01;
         Vector3 suppliedGroundNormal = Vector3.up;
@@ -84,81 +100,23 @@ namespace CanopyKin
                 previousParentRotation = transform.parent ? transform.parent.rotation : transform.rotation;
                 return;
             }
-
-            Color joint = Color.Lerp(shell, new Color(.025f, .014f, .008f), .58f);
-            Color armor = Color.Lerp(shell, new Color(.65f, .24f, .045f), Caste == AntCaste.Rival ? .25f : .08f);
-            Color textureTint = Color.Lerp(new Color(.92f, .84f, .76f), shell, .28f);
-            Material shellMaterial = VisualFactory.PbrMaterial(
-                "Exoskeleton",
-                textureTint,
-                .62f,
-                .72f,
-                new Vector2(3.2f, 3.2f));
-            float headSize = Caste switch
-            {
-                AntCaste.LightSoldier => 1.16f,
-                AntCaste.HeavySoldier => 1.34f,
-                AntCaste.Rival => 1.15f,
-                _ => 1f
-            };
-            float abdomenSize = Caste == AntCaste.Worker ? 1.08f : 1f;
-
-            GameObject abdomenObject = VisualFactory.OrganicPart(
-                "Tapered segmented abdomen",
-                transform,
-                OrganicMeshFactory.BodyShape.Abdomen,
-                new Vector3(0, .36f, -.42f),
-                new Vector3(.62f, .54f, .82f * abdomenSize),
-                shell,
-                .58f);
-            abdomenObject.GetComponent<Renderer>().sharedMaterial = shellMaterial;
-            abdomen = abdomenObject.transform;
-            abdomen.localRotation = Quaternion.Euler(-4f, 0, 0);
-
-            GameObject thoraxObject = VisualFactory.OrganicPart(
-                "Armoured thorax",
-                transform,
-                OrganicMeshFactory.BodyShape.Thorax,
-                new Vector3(0, .36f, .08f),
-                new Vector3(.51f, .54f, .63f),
-                armor,
-                .5f);
-            thoraxObject.GetComponent<Renderer>().sharedMaterial = shellMaterial;
-            thorax = thoraxObject.transform;
-
-            GameObject headObject = VisualFactory.OrganicPart(
-                "Anatomical head",
-                transform,
-                OrganicMeshFactory.BodyShape.Head,
-                new Vector3(0, .37f, .48f),
-                new Vector3(.58f * headSize, .48f * headSize, .55f * headSize),
-                Color.Lerp(shell, joint, .18f),
-                .48f);
-            headObject.GetComponent<Renderer>().sharedMaterial = shellMaterial;
-            Transform head = headObject.transform;
-            headBone = head;
-
-            BuildNeckAndWaist(joint);
-            BuildEyes(head, headSize);
-            BuildMandibles(head, joint, headSize);
-            BuildAntennae(head, joint, headSize);
-            BuildLegs(joint);
-            AddArmorDetail(armor);
-            CacheRestPose();
-            previousPosition = transform.position;
-            previousParentRotation = transform.parent ? transform.parent.rotation : transform.rotation;
+            Debug.LogError($"MOONROOT_ANT_MODEL_MISSING caste={Caste}; no prototype fallback is permitted.");
+            enabled = false;
         }
 
         bool TryBuildProductionModel(Color shell)
         {
-            GameObject prefab = Resources.Load<GameObject>("Models/Ant/CanopyKinProductionAnt");
+            string resourcePath = $"Models/Ant/Family/CanopyKinAnt_{Caste}";
+            GameObject prefab = Resources.Load<GameObject>(resourcePath);
             if (!prefab) return false;
 
             GameObject model = Instantiate(prefab, transform, false);
-            model.name = $"Production {Caste} ant rig";
+            model.name = $"0.5 production {Caste} ant family rig";
             model.transform.localPosition = Vector3.zero;
-            model.transform.localRotation = Quaternion.identity;
-            model.transform.localScale = Vector3.one * .72f;
+            // The CC0 anatomical base faces Blender +Y, which becomes Unity -Z
+            // through the standard -Z/Y FBX export. Face gameplay +Z.
+            model.transform.localRotation = Quaternion.Euler(0, 180f, 0);
+            model.transform.localScale = Vector3.one * 1.62f;
             foreach (Animator animator in model.GetComponentsInChildren<Animator>(true))
                 animator.enabled = false;
 
@@ -167,8 +125,13 @@ namespace CanopyKin
             headBone = Find(model.transform, "Head");
             leftMandible = Find(model.transform, "Mandible_L");
             rightMandible = Find(model.transform, "Mandible_R");
-            antennae[0] = Find(model.transform, "Antenna_L_1");
-            antennae[1] = Find(model.transform, "Antenna_R_1");
+            for (int sideIndex = 0; sideIndex < 2; sideIndex++)
+            for (int segment = 0; segment < 3; segment++)
+            {
+                string sideName = sideIndex == 0 ? "L" : "R";
+                antennae[sideIndex, segment] =
+                    Find(model.transform, $"Antenna_{sideName}_{segment + 1}");
+            }
 
             string[] pairs = { "Front", "Middle", "Rear" };
             for (int pair = 0; pair < pairs.Length; pair++)
@@ -179,29 +142,46 @@ namespace CanopyKin
                 Transform hip = Find(model.transform, $"Leg_{sideName}_{pairs[pair]}_Coxa");
                 Transform knee = Find(model.transform, $"Leg_{sideName}_{pairs[pair]}_Femur");
                 Transform ankle = Find(model.transform, $"Leg_{sideName}_{pairs[pair]}_Tibia");
+                Transform foot = Find(model.transform, $"Leg_{sideName}_{pairs[pair]}_Tarsus");
                 if (!hip || !knee || !ankle) continue;
                 legs.Add(new LegRig
                 {
                     Hip = hip,
                     Knee = knee,
                     Ankle = ankle,
+                    Foot = foot,
                     HipRest = hip.localRotation,
                     KneeRest = knee.localRotation,
                     AnkleRest = ankle.localRotation,
+                    FootRest = foot ? foot.localRotation : Quaternion.identity,
                     Side = side,
                     Pair = pair,
                     Phase = (pair + sideIndex) % 2 == 0 ? 0 : Mathf.PI
                 });
             }
 
-            Color textureTint = Color.Lerp(new Color(.78f, .68f, .58f), shell, .48f);
+            // Preserve the authored cuticle albedo. The previous low tint value
+            // multiplied the already dark macro texture almost to black and hid
+            // the surface normals, eyes and caste silhouettes in daylight.
+            float albedoPreservation = Caste switch
+            {
+                AntCaste.Nurse => .82f,
+                AntCaste.Rival => .64f,
+                _ => .75f
+            };
+            Color textureTint = Color.Lerp(shell, Color.white, albedoPreservation);
             Material shellMaterial = VisualFactory.PbrMaterial(
-                "Exoskeleton",
+                "AntExoskeleton",
                 textureTint,
-                .68f,
-                1.05f,
-                new Vector2(4.5f, 4.5f));
-            Material jointMaterial = VisualFactory.Material(Color.Lerp(shell, Color.black, .72f), .42f);
+                .34f,
+                1.12f,
+                new Vector2(2.8f, 2.8f));
+            Material jointMaterial = VisualFactory.PbrMaterial(
+                "AntExoskeleton",
+                Color.Lerp(shell, Color.white, .48f),
+                .18f,
+                .62f,
+                new Vector2(3.6f, 3.6f));
             Material eyeMaterial = VisualFactory.Material(new Color(.006f, .018f, .012f), .88f);
             foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>(true))
             {
@@ -216,22 +196,36 @@ namespace CanopyKin
                 renderer.sharedMaterials = materials;
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 renderer.receiveShadows = true;
+                if (renderer is SkinnedMeshRenderer skin)
+                    skin.updateWhenOffscreen = false;
             }
 
-            float headSize = Caste switch
+            Renderer[] lod0 = model.GetComponentsInChildren<Renderer>(true);
+            Renderer[] close = System.Array.FindAll(lod0, item => item.name.Contains("LOD0"));
+            Renderer[] distant = System.Array.FindAll(lod0, item => item.name.Contains("LOD1"));
+            if (close.Length > 0 && distant.Length > 0)
             {
-                AntCaste.LightSoldier => 1.10f,
-                AntCaste.HeavySoldier => 1.22f,
-                AntCaste.Rival => 1.08f,
-                _ => 1f
-            };
-            if (headBone) headBone.localScale *= headSize;
-            if (abdomen && Caste == AntCaste.Worker)
-                abdomen.localScale = Vector3.Scale(abdomen.localScale, new Vector3(1.05f, 1.08f, 1.05f));
+                // Unity's FBX importer automatically creates a group when it
+                // recognises the authored LOD0/LOD1 names. Reuse it instead of
+                // attempting to add a duplicate component at runtime.
+                LODGroup group = model.GetComponent<LODGroup>();
+                if (!group) group = model.AddComponent<LODGroup>();
+                group.fadeMode = LODFadeMode.CrossFade;
+                group.animateCrossFading = true;
+                group.SetLODs(new[]
+                {
+                    new LOD(.46f, close),
+                    new LOD(.075f, distant)
+                });
+                group.RecalculateBounds();
+            }
 
             CacheRestPose();
-            Debug.Log($"MOONROOT_PRODUCTION_ANT_READY caste={Caste} bones={legs.Count * 3 + 9}");
-            return abdomen && thorax && headBone && legs.Count == 6;
+            Debug.Log(
+                $"MOONROOT_ANT_FAMILY_READY caste={Caste} path={resourcePath} " +
+                $"legs={legs.Count} lod0={close.Length} lod1={distant.Length}");
+            return abdomen && thorax && headBone && legs.Count == 6 &&
+                   leftMandible && rightMandible;
         }
 
         void CacheRestPose()
@@ -241,8 +235,11 @@ namespace CanopyKin
             if (abdomen) abdomenRest = abdomen.localRotation;
             if (headBone) headRest = headBone.localRotation;
             if (thorax) thoraxRestPosition = thorax.localPosition;
-            for (int i = 0; i < antennae.Length; i++)
-                if (antennae[i]) antennaRest[i] = antennae[i].localRotation;
+            for (int side = 0; side < 2; side++)
+            for (int segment = 0; segment < 3; segment++)
+                if (antennae[side, segment])
+                    antennaRest[side, segment] =
+                        antennae[side, segment].localRotation;
         }
 
         static Transform Find(Transform root, string name)
@@ -370,8 +367,8 @@ namespace CanopyKin
                     color,
                     false,
                     .36f);
-                antennae[i] = root;
-                antennaRest[i] = root.localRotation;
+                antennae[i, 0] = root;
+                antennaRest[i, 0] = root.localRotation;
             }
         }
 
@@ -444,6 +441,7 @@ namespace CanopyKin
         public void SetCarrying(bool value) => carrying = value ? 1f : 0f;
         public void PlayAttack() => attack = 1f;
         public void PlayStagger() => stagger = 1f;
+        public void PlayInteract() => interaction = 1f;
         public void SetPlayerMotion(
             float speed,
             float speed01,
@@ -483,6 +481,11 @@ namespace CanopyKin
             float targetLocomotion = playerMotionSupplied
                 ? suppliedSpeed01
                 : Mathf.InverseLerp(.05f, 3.8f, speed);
+            if (previousLocomotion < .035f && targetLocomotion > .12f)
+                startMoving = 1f;
+            else if (previousLocomotion > .12f && targetLocomotion < .035f)
+                stopMoving = 1f;
+            previousLocomotion = targetLocomotion;
             locomotion = Mathf.MoveTowards(locomotion, targetLocomotion, dt * 7.5f);
             float targetClimb = playerMotionSupplied && !suppliedGrounded
                 ? Mathf.Clamp01(verticalSpeed)
@@ -494,20 +497,22 @@ namespace CanopyKin
                 stride += travelled * Mathf.Lerp(6.6f, 8.8f, locomotion);
             attack = Mathf.MoveTowards(attack, 0, dt * 3.8f);
             stagger = Mathf.MoveTowards(stagger, 0, dt * 3.2f);
+            interaction = Mathf.MoveTowards(interaction, 0, dt * 2.3f);
+            startMoving = Mathf.MoveTowards(startMoving, 0, dt * 4.8f);
+            stopMoving = Mathf.MoveTowards(stopMoving, 0, dt * 4.2f);
             death = Mathf.MoveTowards(death, dead ? 1f : 0f, dt * 1.2f);
-            AnimationState = dead || death > .05f
-                ? "Death"
-                : stagger > .05f
-                    ? "Stagger"
-                    : attack > .05f
-                        ? "Attack"
-                        : carrying > .5f
-                            ? "Carry"
-                            : climb > .2f
-                                ? "Climb"
-                                : speed > 3.05f
-                                    ? "Run"
-                                    : speed > .06f ? "Walk" : "Idle";
+            if (dead || death > .05f) AnimationState = "Death";
+            else if (stagger > .05f) AnimationState = "Stagger";
+            else if (interaction > .05f) AnimationState = "Interact";
+            else if (attack > .05f) AnimationState = "Attack";
+            else if (carrying > .5f) AnimationState = "Carry";
+            else if (climb > .2f) AnimationState = "Climb";
+            else if (startMoving > .05f) AnimationState = "StartMove";
+            else if (stopMoving > .05f) AnimationState = "StopMove";
+            else if (Mathf.Abs(turnLean) > .18f && speed < .12f)
+                AnimationState = turnLean < 0 ? "TurnLeft" : "TurnRight";
+            else if (speed > 3.05f) AnimationState = "Run";
+            else AnimationState = speed > .06f ? "Walk" : "Idle";
 
             for (int i = 0; i < legs.Count; i++)
             {
@@ -519,19 +524,39 @@ namespace CanopyKin
                 leg.Hip.localRotation = leg.HipRest * Quaternion.Euler(-lift * 18f + climbReach, sweep * leg.Side, turnLean * leg.Side * 8f);
                 leg.Knee.localRotation = leg.KneeRest * Quaternion.Euler(lift * 32f - Mathf.Abs(cycle) * 5f - climbReach * .42f, 0, -sweep * .14f);
                 leg.Ankle.localRotation = leg.AnkleRest * Quaternion.Euler(-lift * 24f + Mathf.Abs(cycle) * 7f + climbReach * .3f, 0, sweep * .08f);
+                if (leg.Foot)
+                    leg.Foot.localRotation = leg.FootRest *
+                        Quaternion.Euler(
+                            lift * 13f - climbReach * .12f,
+                            0,
+                            -turnLean * leg.Side * 5f);
             }
 
             float mandibleClose = Mathf.Sin(attack * Mathf.PI) * 34f;
             if (leftMandible) leftMandible.localRotation = leftMandibleRest * Quaternion.Euler(0, 0, mandibleClose);
             if (rightMandible) rightMandible.localRotation = rightMandibleRest * Quaternion.Euler(0, 0, -mandibleClose);
 
-            for (int i = 0; i < antennae.Length; i++)
+            for (int i = 0; i < 2; i++)
             {
-                if (!antennae[i]) continue;
                 float side = i == 0 ? -1f : 1f;
                 float search = Mathf.Sin(Time.time * 2.7f + i * 1.8f) * 9f;
                 float response = locomotion * Mathf.Sin(stride * .5f + i) * 7f;
-                antennae[i].localRotation = antennaRest[i] * Quaternion.Euler(search * .5f, side * (search + response), -locomotion * 7f);
+                for (int segment = 0; segment < 3; segment++)
+                {
+                    Transform antenna = antennae[i, segment];
+                    if (!antenna) continue;
+                    float tipInfluence = 1f + segment * .38f;
+                    float phase = segment * .48f;
+                    float exploration =
+                        Mathf.Sin(Time.time * (2.7f + segment * .18f) +
+                                  i * 1.8f + phase) *
+                        9f * tipInfluence;
+                    antenna.localRotation = antennaRest[i, segment] *
+                        Quaternion.Euler(
+                            exploration * .42f + interaction * -9f,
+                            side * (search + response + exploration * .42f),
+                            -locomotion * (7f + segment * 2f));
+                }
             }
 
             float bob = Mathf.Abs(Mathf.Sin(stride)) * .018f * locomotion;
@@ -542,7 +567,12 @@ namespace CanopyKin
                 abdomen.localRotation = abdomenRest *
                     Quaternion.Euler(-carrying * 10f + locomotion * Mathf.Sin(stride * .5f) * 2f, 0, -turnLean * 5f);
             if (headBone)
-                headBone.localRotation = headRest * Quaternion.Euler(climb * -8f, turnLean * 8f, 0);
+                headBone.localRotation = headRest *
+                    Quaternion.Euler(
+                        climb * -8f + interaction * -12f +
+                        startMoving * -5f + stopMoving * 4f,
+                        turnLean * 8f,
+                        0);
             if (thorax)
                 thorax.localPosition = thoraxRestPosition + Vector3.up * bob * .35f;
         }

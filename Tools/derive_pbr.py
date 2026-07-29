@@ -49,25 +49,68 @@ def derive_normal(height: np.ndarray, strength: float) -> Image.Image:
     return Image.fromarray(np.clip(packed, 0, 255).astype(np.uint8), "RGB")
 
 
-def process(source: Path, output: Path, size: int, strength: float) -> None:
+def process(
+    source: Path,
+    output: Path,
+    size: int,
+    strength: float,
+    unity_prefix: str | None = None,
+) -> None:
     output.mkdir(parents=True, exist_ok=True)
+    size_label = f"{size // 1024}k" if size >= 1024 and size % 1024 == 0 else str(size)
+
+    def output_name(channel: str, extension: str) -> Path:
+        if not unity_prefix:
+            return output / f"{channel}.{extension}"
+        unity_channel = {
+            "albedo": "diff",
+            "normal": "nor_dx",
+            "roughness": "rough",
+            "ao": "ao",
+        }[channel]
+        return output / f"{unity_prefix}_{unity_channel}_{size_label}.{extension}"
+
     image = Image.open(source).convert("RGB")
     image = ImageOps.fit(image, (size, size), method=Image.Resampling.LANCZOS)
     image = make_seamless(image)
     image = ImageEnhance.Color(image).enhance(0.88)
     image = ImageEnhance.Contrast(image).enhance(0.94)
-    image.save(output / "albedo.jpg", quality=95, optimize=True, progressive=True)
+    image.save(
+        output_name("albedo", "jpg"),
+        quality=95,
+        optimize=True,
+        progressive=True,
+    )
 
     gray = np.asarray(ImageOps.grayscale(image).filter(ImageFilter.GaussianBlur(1.1)))
     height = gray.astype(np.float32) / 255.0
-    derive_normal(height, strength).save(output / "normal.png", optimize=True)
+    derive_normal(height, strength).save(
+        output_name("normal", "png"),
+        optimize=True,
+    )
 
     roughness = Image.fromarray(
         np.clip(220 - (gray.astype(np.int16) - 128) * 0.22, 150, 238).astype(np.uint8),
         "L",
     )
     roughness.filter(ImageFilter.GaussianBlur(1.5)).save(
-        output / "roughness.png", optimize=True
+        output_name("roughness", "png"),
+        optimize=True,
+    )
+
+    # Only small recessed pores darken the AO map. Broad albedo colour variation
+    # remains in base colour and cannot incorrectly turn into baked lighting.
+    broad = np.asarray(
+        ImageOps.grayscale(image).filter(ImageFilter.GaussianBlur(max(3.0, size / 900)))
+    ).astype(np.int16)
+    recess = np.clip(broad - gray.astype(np.int16), 0, 54)
+    occlusion = Image.fromarray(
+        np.clip(253 - recess * 2.4, 124, 253).astype(np.uint8),
+        "L",
+    )
+    occlusion.filter(ImageFilter.GaussianBlur(0.7)).save(
+        output_name("ao", "png"),
+        optimize=True,
     )
 
 
@@ -77,5 +120,9 @@ if __name__ == "__main__":
     parser.add_argument("output", type=Path)
     parser.add_argument("--size", type=int, default=4096)
     parser.add_argument("--strength", type=float, default=5.0)
+    parser.add_argument(
+        "--unity-prefix",
+        help="Write Unity channel names such as <prefix>_diff_4k.jpg.",
+    )
     args = parser.parse_args()
-    process(args.source, args.output, args.size, args.strength)
+    process(args.source, args.output, args.size, args.strength, args.unity_prefix)

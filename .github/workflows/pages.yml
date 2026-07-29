@@ -23,7 +23,7 @@ jobs:
         run: |
           test -f Builds/WebGL/index.html
           test -f Builds/WebGL/build-manifest.json
-          grep -q '"version": "0.4.1"' Builds/WebGL/build-manifest.json
+          grep -q '"version": "0.5.0"' Builds/WebGL/build-manifest.json
           test "$(find Builds/WebGL/Build -maxdepth 1 -type f | wc -l)" -eq 4
           if find Builds/WebGL/Build -type f -size +99M | grep -q .; then
             echo "A WebGL payload exceeds GitHub's 100 MB file limit."

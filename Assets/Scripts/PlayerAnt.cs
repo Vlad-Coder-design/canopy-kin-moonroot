@@ -70,7 +70,7 @@ namespace CanopyKin
             body.slopeLimit = 54f;
             body.skinWidth = .025f;
             body.minMoveDistance = 0;
-            visual = AntVisual.Create(transform, new Color(.16f, .035f, .012f), .92f, AntCaste.Scout);
+            visual = AntVisual.Create(transform, new Color(.16f, .035f, .012f), .92f, AntCaste.Player);
         }
 
         void Start()
@@ -581,6 +581,7 @@ namespace CanopyKin
 
         void Interact()
         {
+            if (nearbyInteraction != null) visual?.PlayInteract();
             nearbyInteraction?.Interact(this);
             FindInteraction();
         }

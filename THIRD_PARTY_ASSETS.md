@@ -20,6 +20,43 @@ specifically for this project and converted locally into albedo, normal, and
 roughness maps. They are project-owned source assets and do not import third-party
 game content.
 
+The 0.5.0 ant cuticle source is retained at
+`ArtSource/Textures/Ant/ant_cuticle_base_generated_20260729.png`. It was
+generated specifically for this project, corrected into a seamless continuous
+insect-cuticle surface, and locally derived into 4K albedo, DirectX normal,
+roughness and ambient-occlusion maps. Windows imports the 4K source maps while
+WebGL receives independent 2K platform copies.
+
+## OpenGameArt — Ant 3D Model + Rigging + Animated (Low-poly-ish)
+
+- Asset: `Ant 3D Model + Rigging + Animated (Low-poly-ish)`
+- Creator: mujtaba-io
+- Provider: OpenGameArt
+- Source:
+  https://opengameart.org/content/ant-3d-model-rigging-animated-low-poly-ish
+- Direct original file:
+  https://opengameart.org/sites/default/files/ant.blend
+- License: CC0 1.0 / public-domain dedication
+- License URL: https://creativecommons.org/publicdomain/zero/1.0/
+- Download date: 2026-07-29
+- Original format: Blender `.blend`
+- Original file: `ArtSource/ThirdParty/OpenGameArt/Ant/Raw/ant.blend`
+- Original SHA-256:
+  `6F4DE1451333964F8FFFFE6CA9D15AAF6EF01FD089A8185B0268BD0D032FB662`
+- Inspected original: 542 vertices, 1,080 triangles, one UV layer, 38-bone
+  armature, two actions, no available packed texture
+- Modifications: repaired and named bone hierarchy; four-influence skin-weight
+  limit; Catmull-Clark close-camera topology; separate 6.6K distant LOD;
+  integrated compound-eye geometry; new thick serrated mandibles; separate
+  worker, nurse, scout, player, light-soldier, heavy-soldier, queen and rival
+  morphologies; queen wing-scar plates; soldier pronotum plates; 13 authored
+  animation clips; new project-owned 4K PBR material set
+- Use: anatomical and skinning base for every 0.5.0 ant-family model. The
+  1,080-triangle source mesh is not shipped as a visible final model.
+
+The source is explicitly published as CC0. Credit is retained here for
+provenance even though attribution is not required.
+
 ## Poly Haven — Forest Floor
 
 - Asset: `Forest Floor`

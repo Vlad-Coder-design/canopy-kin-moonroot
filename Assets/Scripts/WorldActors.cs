@@ -357,7 +357,14 @@ namespace CanopyKin
             DropCargoVisual();
             HasCargo = true;
             Cargo = kind;
-            cargoVisual = ResourceNode.CreateCargoVisual(transform, kind, new Vector3(0, .78f, -.08f), .78f);
+            // The production ant family has a lower dorsal attachment point than
+            // the retired prototype. Seat cargo on the abdomen instead of leaving
+            // it visibly floating above the worker.
+            cargoVisual = ResourceNode.CreateCargoVisual(
+                transform,
+                kind,
+                new Vector3(0, .52f, -.08f),
+                .78f);
             Visual?.SetCarrying(true);
         }
 

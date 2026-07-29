@@ -47,18 +47,24 @@ namespace CanopyKin
                 // visually destroyed the distinction between packed earth and the
                 // surface biome.
                 bool highQualityGround = textureFolder == "ForestFloor";
-                string highQualityRoot = "HighQuality/PolyHaven/ForestFloor/forest_floor";
-                Texture2D albedo = highQualityGround
-                    ? Resources.Load<Texture2D>($"{highQualityRoot}_diff_8k")
+                bool antExoskeleton = textureFolder == "AntExoskeleton";
+                string highQualityRoot = highQualityGround
+                    ? "HighQuality/PolyHaven/ForestFloor/forest_floor"
+                    : antExoskeleton
+                        ? "HighQuality/Original/Ant/ant_exoskeleton"
+                        : null;
+                string resolution = highQualityGround ? "8k" : "4k";
+                Texture2D albedo = highQualityRoot != null
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_diff_{resolution}")
                     : null;
-                Texture2D normal = highQualityGround
-                    ? Resources.Load<Texture2D>($"{highQualityRoot}_nor_dx_8k")
+                Texture2D normal = highQualityRoot != null
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_nor_dx_{resolution}")
                     : null;
-                Texture2D roughness = highQualityGround
-                    ? Resources.Load<Texture2D>($"{highQualityRoot}_rough_8k")
+                Texture2D roughness = highQualityRoot != null
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_rough_{resolution}")
                     : null;
-                Texture2D occlusion = highQualityGround
-                    ? Resources.Load<Texture2D>($"{highQualityRoot}_ao_8k")
+                Texture2D occlusion = highQualityRoot != null
+                    ? Resources.Load<Texture2D>($"{highQualityRoot}_ao_{resolution}")
                     : null;
                 Texture2D height = highQualityGround
                     ? Resources.Load<Texture2D>($"{highQualityRoot}_disp_8k")
@@ -66,6 +72,7 @@ namespace CanopyKin
                 albedo = albedo ? albedo : Resources.Load<Texture2D>($"Textures/{textureFolder}/albedo");
                 normal = normal ? normal : Resources.Load<Texture2D>($"Textures/{textureFolder}/normal");
                 roughness = roughness ? roughness : Resources.Load<Texture2D>($"Textures/{textureFolder}/roughness");
+                occlusion = occlusion ? occlusion : Resources.Load<Texture2D>($"Textures/{textureFolder}/ao");
                 ConfigureTexture(albedo);
                 ConfigureTexture(normal);
                 ConfigureTexture(roughness);

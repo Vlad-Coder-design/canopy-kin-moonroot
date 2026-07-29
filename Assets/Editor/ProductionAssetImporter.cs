@@ -11,7 +11,8 @@ namespace CanopyKin.Editor
     public sealed class ProductionAssetImporter : AssetPostprocessor
     {
         const string HighQualityRoot = "Assets/Resources/HighQuality/";
-        const string ProductionAnt = "Assets/Resources/Models/Ant/CanopyKinProductionAnt.fbx";
+        const string ProductionAntFamilyRoot =
+            "Assets/Resources/Models/Ant/Family/";
         const string ProductionSpider =
             "Assets/Resources/Models/Creatures/CanopyKinFishingSpider.fbx";
         const string ProductionBeetle =
@@ -93,7 +94,9 @@ namespace CanopyKin.Editor
                 return;
             }
 
-            bool productionAnt = assetPath.Equals(ProductionAnt, System.StringComparison.Ordinal);
+            bool productionAnt =
+                assetPath.StartsWith(ProductionAntFamilyRoot, System.StringComparison.Ordinal) &&
+                assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase);
             bool productionSpider = assetPath.Equals(ProductionSpider, System.StringComparison.Ordinal);
             bool productionBeetle = assetPath.Equals(ProductionBeetle, System.StringComparison.Ordinal);
             if (!productionAnt && !productionSpider && !productionBeetle) return;
@@ -104,14 +107,18 @@ namespace CanopyKin.Editor
             importer.optimizeGameObjects = false;
             importer.importCameras = false;
             importer.importLights = false;
+            importer.importVisibility = false;
             importer.addCollider = false;
             importer.isReadable = false;
             importer.meshCompression = ModelImporterMeshCompression.Off;
             importer.importNormals = ModelImporterNormals.Import;
             importer.importTangents = ModelImporterTangents.CalculateMikk;
+            importer.animationCompression = ModelImporterAnimationCompression.Optimal;
+            importer.skinWeights = ModelImporterSkinWeights.Custom;
+            importer.maxBonesPerVertex = 4;
             importer.materialImportMode = productionSpider || productionBeetle
                 ? ModelImporterMaterialImportMode.None
-                : ModelImporterMaterialImportMode.ImportStandard;
+                : ModelImporterMaterialImportMode.None;
         }
     }
 }
