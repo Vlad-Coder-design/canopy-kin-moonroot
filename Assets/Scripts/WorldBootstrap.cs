@@ -14,6 +14,7 @@ namespace CanopyKin
     {
         public static WorldBootstrap Instance { get; private set; }
         public static readonly Vector3 NestPoint = new(0, 0, -7);
+        public static readonly Vector2 HeroMicrohabitatCenter = new(9.1f, 16.1f);
         static readonly Vector3 UndergroundCenter = new(0, -5.45f, -7);
 
         public PlayerAnt Player { get; private set; }
@@ -100,7 +101,24 @@ namespace CanopyKin
             float pondDistance = Vector2.Distance(new Vector2(x, z), new Vector2(-13.5f, 13.5f));
             float pondBlend = 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(2.5f, 6.2f, pondDistance));
             height -= pondBlend * .9f;
-            return height;
+            return height + HeroMicroDisplacement(x, z);
+        }
+
+        static float HeroMicroDisplacement(float x, float z)
+        {
+            float dx = x - HeroMicrohabitatCenter.x;
+            float dz = z - HeroMicrohabitatCenter.y;
+            float distance = Mathf.Sqrt(dx * dx / 36f + dz * dz / 25f);
+            float mask = 1f - Mathf.SmoothStep(.68f, 1f, distance);
+            if (mask <= 0) return 0;
+
+            float clods = (Mathf.PerlinNoise(x * .92f + 27f, z * .92f + 16f) - .5f) * .19f;
+            float grains = (Mathf.PerlinNoise(x * 2.65f + 4f, z * 2.65f + 39f) - .5f) * .055f;
+            float rootBank = Mathf.Exp(-Mathf.Pow((dz - 2.25f - Mathf.Sin(dx * .52f) * .32f) / .72f, 2f)) * .17f;
+            float puddle = Mathf.Clamp01(1f - Vector2.Distance(
+                new Vector2(x, z),
+                HeroMicrohabitatCenter + new Vector2(-3.25f, -.85f)) / 1.35f);
+            return (clods + grains + rootBank - puddle * .17f) * mask;
         }
 
         void Awake()
@@ -118,6 +136,13 @@ namespace CanopyKin
                         "-ant-visual-qa",
                         System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginAntVisualQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-environment-slice-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginEnvironmentSliceQa());
             else if (System.Array.Exists(
                     arguments,
                     argument => string.Equals(
@@ -167,6 +192,66 @@ namespace CanopyKin
                              "-mission-flow-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginMissionFlowSmokeTest());
+        }
+
+        IEnumerator BeginEnvironmentSliceQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+
+            Vector3 playerPosition = At(
+                HeroMicrohabitatCenter.x,
+                HeroMicrohabitatCenter.y,
+                .06f);
+            Player.Teleport(playerPosition);
+            Player.Face(playerPosition + Vector3.forward);
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            foreach (Creature creature in creatures)
+                if (creature) creature.gameObject.SetActive(false);
+            AntVisual playerVisual = Player.GetComponentInChildren<AntVisual>(true);
+            playerVisual.SetPlayerMotion(1.45f, .32f, true,
+                QaGroundNormal(playerPosition.x, playerPosition.z));
+            IsCinematic = true;
+            yield return new WaitForSecondsRealtime(.8f);
+
+            Vector3 focus = playerPosition + Vector3.up * .4f;
+            SetQaCamera(focus, new Vector3(2.8f, .45f, .12f), 43f);
+            yield return CaptureQaScreenshot("environment-070-player-side-close.tga");
+            SetQaCamera(focus + new Vector3(-.35f, .18f, 1.15f),
+                new Vector3(5.5f, 2.45f, -5.7f), 48f);
+            yield return CaptureQaScreenshot("environment-070-hero-wide.tga");
+            SetQaCamera(focus + new Vector3(-1.55f, -.12f, .25f),
+                new Vector3(1.75f, .72f, -2.2f), 41f);
+            yield return CaptureQaScreenshot("environment-070-ground-detail.tga");
+            SetQaCamera(At(11.2f, 15.55f, .72f),
+                new Vector3(1.5f, .85f, -2.2f), 37f);
+            yield return CaptureQaScreenshot("environment-070-veined-grass.tga");
+            SetQaCamera(At(9.55f, 18.15f, .42f),
+                new Vector3(3.2f, 1.25f, -3.15f), 42f);
+            yield return CaptureQaScreenshot("environment-070-roots-moss-stones.tga");
+            SetQaCamera(At(5.85f, 15.25f, .18f),
+                new Vector3(.35f, 2.65f, -1.15f), 35f);
+            yield return CaptureQaScreenshot("environment-070-puddle-leaves.tga");
+            SetQaCamera(At(8.08f, 15.35f, .14f),
+                new Vector3(1.25f, .86f, -1.5f), 32f);
+            yield return CaptureQaScreenshot("environment-070-dead-leaf-detail.tga");
+
+            yield return new WaitForSecondsRealtime(1.1f);
+            SetQaCamera(At(11.2f, 15.55f, .72f),
+                new Vector3(1.5f, .85f, -2.2f), 37f);
+            yield return CaptureQaScreenshot("environment-070-veined-grass-wind.tga");
+            Debug.Log(
+                "MOONROOT_ENVIRONMENT_SLICE_QA_OK screenshots=8 " +
+                "ground=PBR-blended grass=atlas-reactive roots=collidable puddle=physical");
+            if (!Application.isEditor)
+                Application.Quit(0);
         }
 
         IEnumerator BeginAntVisualQa()
@@ -815,6 +900,7 @@ namespace CanopyKin
             BuildNest();
             BuildForageRoute();
             BuildLandmarks();
+            BuildHeroMicrohabitat();
             BuildVegetation();
             BuildResources();
             BuildMissionLocations();
@@ -853,6 +939,7 @@ namespace CanopyKin
             sunLight.shadowBias = .035f;
             sunLight.shadowNormalBias = .32f;
             sunLight.transform.rotation = Quaternion.Euler(42f, -28f, 0);
+            sunLight.gameObject.AddComponent<CanopyLightMotion>().Initialize(sunLight);
 
             skyFillLight = new GameObject("Cool canopy fill").AddComponent<Light>();
             skyFillLight.transform.SetParent(transform);
@@ -1289,6 +1376,193 @@ namespace CanopyKin
                     new[] { At(1.5f, 17f, .4f), At(6.2f, 18.4f, 1.1f), At(12.5f, 20.4f, 1.55f), At(17f, 21.6f, .65f) },
                     new[] { .82f, .72f, .58f, .3f },
                     true);
+        }
+
+        void BuildHeroMicrohabitat()
+        {
+            var habitat = new GameObject("Maximum-quality playable microhabitat").transform;
+            habitat.SetParent(environment, false);
+            int xSegments = RuntimeQualityProfile.IsFullQuality ? 96 : 54;
+            int zSegments = RuntimeQualityProfile.IsFullQuality ? 80 : 46;
+            VisualFactory.HeroMicroTerrain(
+                habitat,
+                HeroMicrohabitatCenter,
+                new Vector2(12f, 10f),
+                xSegments,
+                zSegments,
+                GroundHeight);
+
+            // A small root system establishes the terrain's moisture and shelter
+            // zones. Branches follow the ground instead of floating above it.
+            VisualFactory.HeroTexturedRoot(
+                "Fine feeder root beside the ant path",
+                habitat,
+                new[]
+                {
+                    At(5.35f, 18.35f, .04f), At(7.35f, 18.18f, .17f),
+                    At(9.55f, 18.42f, .24f), At(12.75f, 19.05f, .06f)
+                },
+                new[] { .23f, .3f, .25f, .08f },
+                true);
+            VisualFactory.HeroTexturedRoot(
+                "Forked feeder root",
+                habitat,
+                new[]
+                {
+                    At(9.1f, 18.35f, .13f), At(10.15f, 17.55f, .16f),
+                    At(11.2f, 16.85f, .08f), At(12.25f, 16.35f, .025f)
+                },
+                new[] { .18f, .15f, .11f, .035f },
+                true);
+            VisualFactory.HeroTexturedRoot(
+                "Hair root crossing damp soil",
+                habitat,
+                new[]
+                {
+                    At(7.75f, 18.12f, .1f), At(7.2f, 17.25f, .08f),
+                    At(6.7f, 16.4f, .035f), At(6.2f, 15.8f, .018f)
+                },
+                new[] { .13f, .105f, .065f, .022f },
+                true);
+
+            Vector3[] stones =
+            {
+                At(6.15f, 17.72f, .16f), At(7.25f, 18.68f, .13f),
+                At(10.85f, 18.55f, .17f), At(12.2f, 17.45f, .14f),
+                At(12.55f, 14.55f, .11f), At(10.9f, 13.55f, .09f),
+                At(7.15f, 13.55f, .1f), At(5.55f, 14.25f, .12f)
+            };
+            for (int i = 0; i < stones.Length; i++)
+            {
+                float size = .38f + (i % 3) * .12f;
+                VisualFactory.HeroStone(
+                    habitat,
+                    stones[i],
+                    new Vector3(size * 1.25f, size * .62f, size),
+                    260 + i,
+                    i < 4 || i == 7);
+            }
+
+            Vector3[] mossPositions =
+            {
+                At(6.55f, 18.2f, .025f), At(7.95f, 18.55f, .025f),
+                At(9.15f, 18.72f, .025f), At(10.25f, 18.48f, .025f),
+                At(11.5f, 18.75f, .025f), At(6.05f, 17.45f, .025f),
+                At(11.45f, 17.25f, .025f), At(5.65f, 15.75f, .02f)
+            };
+            for (int i = 0; i < mossPositions.Length; i++)
+            {
+                float scale = .42f + (i % 4) * .075f;
+                VisualFactory.MossCushion(
+                    habitat,
+                    mossPositions[i],
+                    new Vector3(scale, .38f + i % 2 * .07f, scale * .8f),
+                    310 + i);
+            }
+
+            // Leaf litter accumulates downwind and beneath the root. The central
+            // one-metre ant lane remains readable for navigation and combat.
+            var random = new System.Random(92417);
+            for (int i = 0; i < (RuntimeQualityProfile.IsFullQuality ? 24 : 13); i++)
+            {
+                float angle = Mathf.Lerp(-.35f, 3.35f, (float)random.NextDouble());
+                float radius = Mathf.Lerp(1.55f, 5.15f, Mathf.Sqrt((float)random.NextDouble()));
+                float x = HeroMicrohabitatCenter.x + Mathf.Cos(angle) * radius;
+                float z = HeroMicrohabitatCenter.y + Mathf.Sin(angle) * radius * .78f;
+                if (Vector2.Distance(new Vector2(x, z), HeroMicrohabitatCenter) < 1.2f)
+                    continue;
+                VisualFactory.HeroFallenLeaf(
+                    habitat,
+                    At(x, z, .035f),
+                    new Vector3(
+                        Mathf.Lerp(.68f, 1.28f, (float)random.NextDouble()),
+                        1f,
+                        Mathf.Lerp(.68f, 1.22f, (float)random.NextDouble())),
+                    400 + i);
+            }
+            Vector3[] specimenLeaves =
+            {
+                At(8.05f, 15.28f, .038f),
+                At(8.1f, 16.42f, .036f),
+                At(7.35f, 15.88f, .037f)
+            };
+            for (int i = 0; i < specimenLeaves.Length; i++)
+                VisualFactory.HeroFallenLeaf(
+                    habitat,
+                    specimenLeaves[i],
+                    new Vector3(1.05f + i * .08f, 1f, .94f + i * .05f),
+                    470 + i);
+
+            // Grass forms light-seeking colonies at the open and damp margins,
+            // rather than a uniform random field across the traversal lane.
+            int grassCount = RuntimeQualityProfile.IsFullQuality ? 54 : 24;
+            for (int i = 0; i < grassCount; i++)
+            {
+                float side = i % 2 == 0 ? -1f : 1f;
+                float along = Mathf.Lerp(-4.25f, 4.25f, (float)random.NextDouble());
+                float distanceFromLane = Mathf.Lerp(1.55f, 4.75f,
+                    Mathf.Pow((float)random.NextDouble(), .72f));
+                float x = HeroMicrohabitatCenter.x + side * distanceFromLane;
+                float z = HeroMicrohabitatCenter.y + along +
+                          Mathf.Sin(x * .8f) * .28f;
+                Vector2 local = new(x - HeroMicrohabitatCenter.x, z - HeroMicrohabitatCenter.y);
+                if (Mathf.Abs(local.x) > 5.7f || Mathf.Abs(local.y) > 4.65f)
+                    continue;
+                Vector2 puddleCenter = HeroMicrohabitatCenter + new Vector2(-3.25f, -.85f);
+                if (Vector2.Distance(new Vector2(x, z), puddleCenter) < 1.45f)
+                    continue;
+                Color color = Color.Lerp(
+                    new Color(.31f, .46f, .13f),
+                    new Color(.55f, .67f, .25f),
+                    (float)random.NextDouble());
+                GameObject grass = VisualFactory.HeroGrassTuft(
+                    habitat,
+                    At(x, z, .015f),
+                    Mathf.Lerp(.82f, 1.65f, (float)random.NextDouble()),
+                    color,
+                    500 + i);
+                grass.transform.localRotation = Quaternion.Euler(
+                    0,
+                    Mathf.Lerp(0, 360, (float)random.NextDouble()),
+                    Mathf.Lerp(-5f, 5f, (float)random.NextDouble()));
+                if (i < 18)
+                    grass.AddComponent<ReactiveVegetation>().Initialize();
+            }
+            Vector3[] specimenGrass =
+            {
+                At(11.15f, 15.55f, .015f),
+                At(11.62f, 15.08f, .015f),
+                At(10.92f, 14.88f, .015f),
+                At(11.7f, 16.08f, .015f)
+            };
+            for (int i = 0; i < specimenGrass.Length; i++)
+            {
+                GameObject grass = VisualFactory.HeroGrassTuft(
+                    habitat,
+                    specimenGrass[i],
+                    1.05f + i * .16f,
+                    Color.Lerp(new Color(.43f, .58f, .18f),
+                        new Color(.68f, .72f, .3f), i / 3f),
+                    590 + i);
+                grass.transform.localRotation = Quaternion.Euler(0, i * 71f, i - 2f);
+                grass.AddComponent<ReactiveVegetation>().Initialize();
+            }
+
+            Vector3 puddlePosition = At(
+                HeroMicrohabitatCenter.x - 3.25f,
+                HeroMicrohabitatCenter.y - .85f,
+                .026f);
+            VisualFactory.HeroPuddle(
+                habitat,
+                puddlePosition,
+                new Vector3(1.28f, 1f, .82f),
+                7);
+
+            Debug.Log(
+                $"MOONROOT_HERO_MICROHABITAT_READY ground={xSegments}x{zSegments} " +
+                $"grass={grassCount + specimenGrass.Length} " +
+                $"leaves={(RuntimeQualityProfile.IsFullQuality ? 24 : 13) + specimenLeaves.Length} " +
+                "stones=8 moss=8 roots=3 puddles=1");
         }
 
         Vector3 At(float x, float z, float above = 0) => new(x, GroundHeight(x, z) + above, z);

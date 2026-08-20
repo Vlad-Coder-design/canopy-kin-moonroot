@@ -1,6 +1,7 @@
 """Convert generated QA TGA frames to reviewable PNG files."""
 
 from pathlib import Path
+import sys
 
 from PIL import Image
 
@@ -10,8 +11,9 @@ SCREENSHOTS = ROOT / "QA" / "Screenshots"
 
 
 def main() -> None:
+    pattern = sys.argv[1] if len(sys.argv) > 1 else "*.tga"
     converted = 0
-    for source in sorted(SCREENSHOTS.glob("ant-051-windows-*.tga")):
+    for source in sorted(SCREENSHOTS.glob(pattern)):
         target = source.with_suffix(".png")
         with Image.open(source) as image:
             image.save(target, format="PNG", optimize=True)

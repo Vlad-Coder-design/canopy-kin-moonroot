@@ -160,6 +160,81 @@ namespace CanopyKin
             return material;
         }
 
+        public static Material HeroVegetationMaterial(Color color)
+        {
+            Color32 c = color;
+            c.r = (byte)Mathf.Min(255, Mathf.RoundToInt(c.r / 32f) * 32);
+            c.g = (byte)Mathf.Min(255, Mathf.RoundToInt(c.g / 32f) * 32);
+            c.b = (byte)Mathf.Min(255, Mathf.RoundToInt(c.b / 32f) * 32);
+            c.a = 255;
+            string key = $"hero-vegetation-{c.r:X2}{c.g:X2}{c.b:X2}";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinHeroVegetation") ??
+                            Shader.Find("Transparent/Cutout/Diffuse");
+            var material = new Material(shader)
+            {
+                name = "Moonroot close-up veined grass",
+                color = c,
+                enableInstancing = true
+            };
+            material.SetColor("_Color", c);
+            Texture2D atlas = Resources.Load<Texture2D>(
+                "HighQuality/Original/Vegetation/moonroot_grass_atlas_v1");
+            if (atlas)
+            {
+                atlas.wrapMode = TextureWrapMode.Clamp;
+                atlas.filterMode = FilterMode.Trilinear;
+                atlas.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
+                material.SetTexture("_MainTex", atlas);
+            }
+            if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", .3f);
+            if (material.HasProperty("_WindStrength"))
+                material.SetFloat("_WindStrength", RuntimeQualityProfile.IsFullQuality ? .075f : .045f);
+            Materials[key] = material;
+            return material;
+        }
+
+        static Material HeroGroundMaterial()
+        {
+            const string key = "hero-ground-blend-v1";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinHeroGround") ??
+                            Resources.Load<Shader>("CanopyKinLit") ??
+                            Shader.Find("Standard");
+            var material = new Material(shader)
+            {
+                name = "Moonroot layered microhabitat ground",
+                color = Color.white
+            };
+            Texture2D soilAlbedo = Resources.Load<Texture2D>("Textures/Soil/albedo");
+            Texture2D soilNormal = Resources.Load<Texture2D>("Textures/Soil/normal");
+            Texture2D soilRoughness = Resources.Load<Texture2D>("Textures/Soil/roughness");
+            Texture2D soilAo = Texture2D.whiteTexture;
+            Texture2D mossAlbedo = Resources.Load<Texture2D>("Textures/Moss/albedo");
+            Texture2D mossNormal = Resources.Load<Texture2D>("Textures/Moss/normal");
+            Texture2D leafAlbedo = Resources.Load<Texture2D>(
+                "HighQuality/PolyHaven/ForestFloor/forest_floor_diff_8k");
+            Texture2D leafNormal = Resources.Load<Texture2D>(
+                "HighQuality/PolyHaven/ForestFloor/forest_floor_nor_dx_8k");
+            Texture2D[] textures =
+            {
+                soilAlbedo, soilNormal, soilRoughness, soilAo,
+                mossAlbedo, mossNormal, leafAlbedo, leafNormal
+            };
+            foreach (Texture2D texture in textures) ConfigureTexture(texture);
+            if (soilAlbedo) material.SetTexture("_SoilAlbedo", soilAlbedo);
+            if (soilNormal) material.SetTexture("_SoilNormal", soilNormal);
+            if (soilRoughness) material.SetTexture("_SoilRoughness", soilRoughness);
+            if (soilAo) material.SetTexture("_SoilAO", soilAo);
+            if (mossAlbedo) material.SetTexture("_MossAlbedo", mossAlbedo);
+            if (mossNormal) material.SetTexture("_MossNormal", mossNormal);
+            if (leafAlbedo) material.SetTexture("_LeafAlbedo", leafAlbedo);
+            if (leafNormal) material.SetTexture("_LeafNormal", leafNormal);
+            if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", 1.24f);
+            Materials[key] = material;
+            return material;
+        }
+
         public static Material WaterMaterial()
         {
             const string key = "water";
@@ -167,6 +242,53 @@ namespace CanopyKin
             Shader shader = Resources.Load<Shader>("CanopyKinWater") ?? Shader.Find("Transparent/Diffuse");
             var material = new Material(shader) { name = "Rainwater" };
             material.SetColor("_Color", new Color(.035f, .19f, .18f, .72f));
+            Materials[key] = material;
+            return material;
+        }
+
+        static Material HeroWaterMaterial()
+        {
+            const string key = "hero-water-v1";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinHeroWater") ??
+                            Resources.Load<Shader>("CanopyKinWater") ??
+                            Shader.Find("Transparent/Diffuse");
+            var material = new Material(shader) { name = "Surface-tension rainwater" };
+            material.SetColor("_Color", new Color(.045f, .18f, .17f, .8f));
+            if (material.HasProperty("_EdgeColor"))
+                material.SetColor("_EdgeColor", new Color(.48f, .7f, .58f, .92f));
+            Materials[key] = material;
+            return material;
+        }
+
+        static Material HeroLeafMaterial()
+        {
+            const string key = "hero-dead-leaf-atlas-v1";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinHeroLeaf") ??
+                            Shader.Find("Transparent/Cutout/Diffuse");
+            var material = new Material(shader)
+            {
+                name = "Moonroot photoreal dead leaves",
+                color = Color.white,
+                enableInstancing = true
+            };
+            Texture2D atlas = Resources.Load<Texture2D>(
+                "HighQuality/Original/Vegetation/moonroot_dead_leaf_atlas_v1");
+            Texture2D normal = Resources.Load<Texture2D>("Textures/LeafLitter/normal");
+            Texture2D roughness = Resources.Load<Texture2D>("Textures/LeafLitter/roughness");
+            if (atlas)
+            {
+                atlas.wrapMode = TextureWrapMode.Clamp;
+                atlas.filterMode = FilterMode.Trilinear;
+                atlas.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
+                material.SetTexture("_MainTex", atlas);
+            }
+            ConfigureTexture(normal);
+            ConfigureTexture(roughness);
+            if (normal) material.SetTexture("_BumpMap", normal);
+            if (roughness) material.SetTexture("_RoughnessMap", roughness);
+            if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", .22f);
             Materials[key] = material;
             return material;
         }
@@ -502,6 +624,197 @@ namespace CanopyKin
             renderer.receiveShadows = true;
             root.AddComponent<MeshCollider>().sharedMesh = mesh;
             return root;
+        }
+
+        public static GameObject HeroMicroTerrain(
+            Transform parent,
+            Vector2 center,
+            Vector2 size,
+            int xSegments,
+            int zSegments,
+            Func<float, float, float> height)
+        {
+            GameObject ground = MeshObject(
+                "High-density layered hero ground",
+                parent,
+                EnvironmentMeshFactory.MicroTerrain(
+                    center,
+                    size,
+                    xSegments,
+                    zSegments,
+                    height),
+                Vector3.zero,
+                Vector3.one,
+                HeroGroundMaterial(),
+                true);
+            ground.GetComponent<Renderer>().receiveShadows = true;
+            ground.AddComponent<MovementSurface>().Initialize("Layered forest soil", .97f);
+            return ground;
+        }
+
+        public static GameObject HeroGrassTuft(
+            Transform parent,
+            Vector3 position,
+            float height,
+            Color color,
+            int variant)
+        {
+            var root = new GameObject("Veined reactive woodland grass");
+            root.transform.SetParent(parent, false);
+            root.transform.position = position;
+            root.transform.localScale = new Vector3(.82f, height, .82f);
+            var high = MeshObject(
+                "Close leaf geometry",
+                root.transform,
+                EnvironmentMeshFactory.HeroGrassCluster(variant),
+                Vector3.zero,
+                Vector3.one,
+                HeroVegetationMaterial(color));
+            var low = MeshObject(
+                "Distant leaf geometry",
+                root.transform,
+                EnvironmentMeshFactory.HeroGrassCluster(variant, true),
+                Vector3.zero,
+                Vector3.one,
+                HeroVegetationMaterial(color));
+            low.GetComponent<Renderer>().shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
+            var lod = root.AddComponent<LODGroup>();
+            lod.fadeMode = LODFadeMode.CrossFade;
+            lod.animateCrossFading = true;
+            lod.SetLODs(new[]
+            {
+                new LOD(RuntimeQualityProfile.IsFullQuality ? .09f : .14f,
+                    new Renderer[] { high.GetComponent<Renderer>() }),
+                new LOD(.025f, new Renderer[] { low.GetComponent<Renderer>() })
+            });
+            lod.RecalculateBounds();
+            return root;
+        }
+
+        public static GameObject HeroStone(
+            Transform parent,
+            Vector3 position,
+            Vector3 scale,
+            int variant,
+            bool moss)
+        {
+            Material material = HeroStoneMaterial(moss);
+            GameObject stone = MeshObject(
+                moss ? "Partly mossed fractured stone" : "Partly buried fractured stone",
+                parent,
+                EnvironmentMeshFactory.HeroStone(variant),
+                position,
+                scale,
+                material,
+                true);
+            stone.transform.localRotation = Quaternion.Euler(
+                variant * 17f % 24f - 12f,
+                variant * 53f,
+                variant * 11f % 18f - 9f);
+            return stone;
+        }
+
+        static Material HeroStoneMaterial(bool moss)
+        {
+            string key = moss ? "hero-stone-mossed" : "hero-stone-dry";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinLit") ?? Shader.Find("Standard");
+            Color tint = moss
+                ? new Color(.42f, .47f, .35f)
+                : new Color(.43f, .4f, .36f);
+            var material = new Material(shader)
+            {
+                name = moss ? "Lichen-dark fractured stone" : "Dry fractured stone",
+                color = tint,
+                enableInstancing = true
+            };
+            material.SetColor("_Color", tint);
+            Texture2D normal = Resources.Load<Texture2D>("Textures/Soil/normal");
+            Texture2D roughness = Resources.Load<Texture2D>("Textures/Soil/roughness");
+            ConfigureTexture(normal);
+            ConfigureTexture(roughness);
+            if (normal) material.SetTexture("_BumpMap", normal);
+            if (roughness) material.SetTexture("_RoughnessMap", roughness);
+            if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", 1.38f);
+            if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", moss ? .12f : .04f);
+            Materials[key] = material;
+            return material;
+        }
+
+        public static GameObject HeroFallenLeaf(
+            Transform parent,
+            Vector3 position,
+            Vector3 scale,
+            int variant)
+        {
+            GameObject leaf = MeshObject(
+                "Detailed curled and damaged leaf",
+                parent,
+                EnvironmentMeshFactory.HeroFallenLeaf(variant),
+                position,
+                scale,
+                HeroLeafMaterial());
+            leaf.transform.localRotation = Quaternion.Euler(
+                -3f + variant % 4 * 1.5f,
+                variant * 61f,
+                (variant % 5 - 2) * 3.5f);
+            return leaf;
+        }
+
+        public static GameObject MossCushion(
+            Transform parent,
+            Vector3 position,
+            Vector3 scale,
+            int variant)
+        {
+            GameObject moss = MeshObject(
+                "Layered velvet moss cushion",
+                parent,
+                EnvironmentMeshFactory.MossCushion(variant),
+                position,
+                scale,
+                PbrMaterial("Moss", new Color(.98f, 1.16f, .72f), .08f, 1.32f,
+                    new Vector2(2.4f, 2.4f)));
+            moss.transform.localRotation = Quaternion.Euler(0, variant * 73f, 0);
+            return moss;
+        }
+
+        public static GameObject HeroTexturedRoot(
+            string name,
+            Transform parent,
+            IReadOnlyList<Vector3> path,
+            IReadOnlyList<float> radii,
+            bool collider = true)
+        {
+            Mesh mesh = OrganicMeshFactory.Tube(path, radii, 16);
+            return MeshObject(
+                name,
+                parent,
+                mesh,
+                Vector3.zero,
+                Vector3.one,
+                ProductionBarkMaterial(),
+                collider);
+        }
+
+        public static GameObject HeroPuddle(
+            Transform parent,
+            Vector3 position,
+            Vector3 scale,
+            int variant)
+        {
+            GameObject puddle = MeshObject(
+                "Irregular shallow reflective rain puddle",
+                parent,
+                EnvironmentMeshFactory.IrregularPuddle(variant),
+                position,
+                scale,
+                HeroWaterMaterial());
+            puddle.AddComponent<MeshCollider>().sharedMesh =
+                puddle.GetComponent<MeshFilter>().sharedMesh;
+            puddle.AddComponent<MovementSurface>().Initialize("Shallow water", .7f);
+            return puddle;
         }
 
         public static GameObject GrassTuft(Transform parent, Vector3 position, float height, Color color, int variant = 0)

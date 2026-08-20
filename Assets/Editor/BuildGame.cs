@@ -39,7 +39,7 @@ namespace CanopyKin.Editor
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
         const string RootNetworkPath =
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
-        const string ProductVersion = "0.6.0";
+        const string ProductVersion = "0.7.0";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
