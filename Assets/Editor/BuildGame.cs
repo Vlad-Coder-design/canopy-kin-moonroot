@@ -38,7 +38,7 @@ namespace CanopyKin.Editor
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
         const string RootNetworkPath =
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
-        const string ProductVersion = "0.5.0";
+        const string ProductVersion = "0.5.1";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
@@ -244,7 +244,8 @@ namespace CanopyKin.Editor
                     .First().sharedMesh.triangles.Length / 3;
                 antCloseTriangles += closeTriangles;
                 antDistantTriangles += distantTriangles;
-                if (closeTriangles < 100000 || distantTriangles > 8000)
+                if (closeTriangles < 45000 || closeTriangles > 60000 ||
+                    distantTriangles < 8000 || distantTriangles > 15000)
                     throw new InvalidOperationException(
                         $"{antPath} has invalid LOD topology: " +
                         $"close={closeTriangles} distant={distantTriangles}.");
@@ -258,6 +259,32 @@ namespace CanopyKin.Editor
                 if (missingBone != null)
                     throw new InvalidOperationException(
                         $"{antPath} is missing production bone: {missingBone}");
+
+                Transform head = ant.GetComponentsInChildren<Transform>(true)
+                    .FirstOrDefault(item => item.name == "Head");
+                Transform abdomen = ant.GetComponentsInChildren<Transform>(true)
+                    .FirstOrDefault(item => item.name == "Abdomen");
+                Transform thorax = ant.GetComponentsInChildren<Transform>(true)
+                    .FirstOrDefault(item => item.name == "Thorax");
+                Transform[] feet = ant.GetComponentsInChildren<Transform>(true)
+                    .Where(item => item.name.EndsWith("_Tarsus", StringComparison.Ordinal))
+                    .ToArray();
+                if (!head || !abdomen || !thorax || feet.Length != 6)
+                    throw new InvalidOperationException(
+                        $"{antPath} lacks axis-validation transforms.");
+                Vector3 headLocal = ant.transform.InverseTransformPoint(head.position);
+                Vector3 abdomenLocal = ant.transform.InverseTransformPoint(abdomen.position);
+                float forwardDot = Vector3.Dot(
+                    (headLocal - abdomenLocal).normalized,
+                    Vector3.forward);
+                float averageFootY = feet.Average(
+                    foot => ant.transform.InverseTransformPoint(foot.position).y);
+                float thoraxY = ant.transform.InverseTransformPoint(thorax.position).y;
+                if (forwardDot < .7f || thoraxY <= averageFootY)
+                    throw new InvalidOperationException(
+                        $"{antPath} has invalid Unity axes: " +
+                        $"forwardDot={forwardDot:F3} thoraxY={thoraxY:F3} " +
+                        $"feetY={averageFootY:F3}.");
 
                 AnimationClip[] clips = AssetDatabase.LoadAllAssetsAtPath(antPath)
                     .OfType<AnimationClip>()

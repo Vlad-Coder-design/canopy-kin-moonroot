@@ -27,6 +27,39 @@ insect-cuticle surface, and locally derived into 4K albedo, DirectX normal,
 roughness and ambient-occlusion maps. Windows imports the 4K source maps while
 WebGL receives independent 2K platform copies.
 
+## Sketchfab — Game-Ready Worker Ant Model
+
+- Asset: `Game-Ready Worker Ant Model`
+- Creator: Msassasa (`@LilCick`)
+- Provider: Sketchfab
+- Source:
+  https://sketchfab.com/3d-models/game-ready-worker-ant-model-b48893d316cc4b2f98ec1d1e37027e6a
+- Creator-provided original:
+  https://drive.google.com/file/d/1FZ0JOgfEm71EQQW4SXqalfPg29DdLfIp/view
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- License URL: https://creativecommons.org/licenses/by/4.0/
+- Download date: 2026-07-29
+- Original format: Blender 4.0 `.blend`
+- Original file:
+  `ArtSource/ThirdParty/Sketchfab/GameReadyWorkerAnt/Raw/GameReadyWorkerAnt.blend`
+- Original SHA-256:
+  `63EF209CAF1A59C95D79C551E46580F4D098E1ED53E69C10FD33091C489F14CF`
+- Inspected original: 55 meshes, two armatures, 52-bone worker rig, 47,900
+  triangles and a large set of authored actions
+- Modifications: baked 53 anatomical pieces into a single skinned mesh;
+  preserved detailed head, thorax, abdomen, mandibles, eyes, antennae and all
+  six segmented legs; closed nine source openings; triangulated every face;
+  recalculated outward normals; normalized transforms; limited weights for
+  Unity; added the project animation set; authored eight caste morphologies;
+  produced 47,090-triangle close and 11,772-triangle distant LODs; replaced
+  the procedural source surface with the project-owned opaque 4K cuticle PBR
+  material; baked Unity `+Y` up / `+Z` forward axes
+- Use: visible model and rig source for player, scout, worker, nurse, light
+  soldier, heavy soldier, queen and rival ants from version 0.5.1 onward
+
+Attribution is required by CC BY 4.0 and is retained here and in the
+redistributed source record.
+
 ## OpenGameArt — Ant 3D Model + Rigging + Animated (Low-poly-ish)
 
 - Asset: `Ant 3D Model + Rigging + Animated (Low-poly-ish)`
@@ -51,8 +84,9 @@ WebGL receives independent 2K platform copies.
   worker, nurse, scout, player, light-soldier, heavy-soldier, queen and rival
   morphologies; queen wing-scar plates; soldier pronotum plates; 13 authored
   animation clips; new project-owned 4K PBR material set
-- Use: anatomical and skinning base for every 0.5.0 ant-family model. The
-  1,080-triangle source mesh is not shipped as a visible final model.
+- Use: historical anatomical and skinning base for the version 0.5.0 ant
+  family. It is retained for provenance but is no longer instantiated as a
+  visible model from version 0.5.1 onward.
 
 The source is explicitly published as CC0. Credit is retained here for
 provenance even though attribution is not required.

@@ -5,8 +5,8 @@ articulated ant, explores a rolling forest-floor region and an underground nurse
 gathers and carries resources, commands worker and soldier squads, fights multiple
 insect castes, upgrades the colony, and completes the Moonroot tutorial mission.
 
-Version 0.5.0 uses a rebuilt eight-caste skinned ant family derived from a
-legally verified CC0 anatomical/rigging base, custom organic environment meshes,
+Version 0.5.1 uses a rebuilt upright eight-caste skinned ant family derived
+from Msassasa's legally verified CC BY 4.0 Game-Ready Worker Ant, custom organic environment meshes,
 full-resolution licensed and original PBR texture sets, articulated insect
 animation, LOD vegetation, positional effects, an original procedural
 soundtrack, bilingual UI, settings, save/load, and a complete WebGL loading
@@ -39,7 +39,7 @@ browser has not captured the mouse.
 Public build: https://vlad-coder-design.github.io/canopy-kin-moonroot/
 
 `Builds/WebGL` is deployed by `.github/workflows/pages.yml` on pushes to `main`.
-Version 0.5.0 uses hash-named gzip WebGL artifacts with Unity's JavaScript
+Version 0.5.1 uses hash-named gzip WebGL artifacts with Unity's JavaScript
 decompression fallback. This keeps the data file below GitHub's per-file limit
 while still loading correctly from GitHub Pages without custom response headers.
 
@@ -60,9 +60,9 @@ The project now maintains two independent production profiles:
 The reliable low-memory batch build uses `-job-worker-count 1
 --burst-disable-compilation`.
 
-The final ant topology, eight caste morphologies, 13-clip animation set,
+The final ant topology corrections, eight caste morphologies, 13-clip animation set,
 procedural creature/environment geometry, generated source textures, gameplay,
-mission content, audio, and interface layout are project work. The ant family
-uses a recorded CC0 OpenGameArt base and the outdoor terrain uses recorded CC0
-Poly Haven scans. See `THIRD_PARTY_ASSETS.md` for exact sources, licenses and
-modifications.
+mission content, audio, and interface layout are project work. The current ant
+family uses a recorded CC BY 4.0 Sketchfab base by Msassasa and the outdoor
+terrain uses recorded CC0 Poly Haven scans. See `THIRD_PARTY_ASSETS.md` for
+exact sources, attribution, licenses and modifications.

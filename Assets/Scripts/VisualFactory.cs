@@ -25,6 +25,11 @@ namespace CanopyKin
             float normalStrength = 1f,
             Vector2? tiling = null)
         {
+            // Every PBR material created by this path is a solid surface.
+            // Forcing alpha here prevents a source FBX material or texture alpha
+            // channel from silently switching an ant or environment mesh to a
+            // transparent render state.
+            tint.a = 1f;
             Vector2 tile = tiling ?? Vector2.one;
             Color32 c = tint;
             string key = $"{textureFolder}|{c.r:X2}{c.g:X2}{c.b:X2}{c.a:X2}|{smoothness:F2}|{normalStrength:F2}|{tile.x:F1},{tile.y:F1}";
@@ -40,6 +45,7 @@ namespace CanopyKin
             if (material.HasProperty("_Color")) material.SetColor("_Color", tint);
             if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", smoothness);
             if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", normalStrength);
+            ConfigureOpaque(material);
             if (!string.IsNullOrEmpty(textureFolder))
             {
                 // Forest-floor scans belong on the outdoor terrain only. Reusing
@@ -95,6 +101,34 @@ namespace CanopyKin
             }
             Materials[key] = material;
             return material;
+        }
+
+        public static void ConfigureOpaque(Material material)
+        {
+            if (!material) return;
+            Color color = material.color;
+            color.a = 1f;
+            material.color = color;
+            if (material.HasProperty("_Color"))
+                material.SetColor("_Color", color);
+            material.SetOverrideTag("RenderType", "Opaque");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
+            material.DisableKeyword("_ALPHATEST_ON");
+            material.DisableKeyword("_ALPHABLEND_ON");
+            material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            material.DisableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 0);
+            if (material.HasProperty("_Surface")) material.SetFloat("_Surface", 0);
+            if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 0);
+            if (material.HasProperty("_SrcBlend"))
+                material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.One);
+            if (material.HasProperty("_DstBlend"))
+                material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.Zero);
+            if (material.HasProperty("_ZWrite")) material.SetFloat("_ZWrite", 1);
+            if (material.HasProperty("_ZTest"))
+                material.SetFloat("_ZTest", (float)UnityEngine.Rendering.CompareFunction.LessEqual);
+            if (material.HasProperty("_Cull"))
+                material.SetFloat("_Cull", (float)UnityEngine.Rendering.CullMode.Back);
         }
 
         public static Material VegetationMaterial(Color color)

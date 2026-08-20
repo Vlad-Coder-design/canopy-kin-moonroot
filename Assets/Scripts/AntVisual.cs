@@ -16,8 +16,8 @@ namespace CanopyKin
     }
 
     /// <summary>
-    /// Drives the original Blender-authored skinned ant and its anatomical armature.
-    /// A cached organic-mesh fallback remains only for import failure recovery.
+    /// Drives the production skinned ant family and its anatomical armature.
+    /// The gameplay root remains upright; only this visual child aligns to terrain.
     /// </summary>
     public sealed class AntVisual : MonoBehaviour
     {
@@ -71,6 +71,7 @@ namespace CanopyKin
         bool playerMotionSupplied;
         bool dead;
         bool built;
+        readonly RaycastHit[] groundHits = new RaycastHit[8];
 
         public AntCaste Caste { get; private set; }
         public string AnimationState { get; private set; } = "Idle";
@@ -111,12 +112,13 @@ namespace CanopyKin
             if (!prefab) return false;
 
             GameObject model = Instantiate(prefab, transform, false);
-            model.name = $"0.5 production {Caste} ant family rig";
+            model.name = $"0.5.1 upright production {Caste} ant family rig";
             model.transform.localPosition = Vector3.zero;
-            // The CC0 anatomical base faces Blender +Y, which becomes Unity -Z
-            // through the standard -Z/Y FBX export. Face gameplay +Z.
-            model.transform.localRotation = Quaternion.Euler(0, 180f, 0);
-            model.transform.localScale = Vector3.one * 1.62f;
+            // 0.5.1 sources are baked as Blender Z-up/-Y-forward. Standard FBX
+            // export imports them as Unity +Y-up/+Z-forward, so an identity
+            // visual transform is the only correction and is applied once.
+            model.transform.localRotation = Quaternion.identity;
+            model.transform.localScale = Vector3.one * 1.52f;
             foreach (Animator animator in model.GetComponentsInChildren<Animator>(true))
                 animator.enabled = false;
 
@@ -194,6 +196,8 @@ namespace CanopyKin
                         : materialName.Contains("AntJoint") ? jointMaterial : shellMaterial;
                 }
                 renderer.sharedMaterials = materials;
+                foreach (Material material in renderer.sharedMaterials)
+                    VisualFactory.ConfigureOpaque(material);
                 renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 renderer.receiveShadows = true;
                 if (renderer is SkinnedMeshRenderer skin)
@@ -210,8 +214,11 @@ namespace CanopyKin
                 // attempting to add a duplicate component at runtime.
                 LODGroup group = model.GetComponent<LODGroup>();
                 if (!group) group = model.AddComponent<LODGroup>();
-                group.fadeMode = LODFadeMode.CrossFade;
-                group.animateCrossFading = true;
+                // Dithered cross-fading visibly punched holes through the dark
+                // exoskeleton in WebGL. Solid LOD switching preserves depth
+                // writes and prevents the environment showing through the ant.
+                group.fadeMode = LODFadeMode.None;
+                group.animateCrossFading = false;
                 group.SetLODs(new[]
                 {
                     new LOD(.46f, close),
@@ -220,12 +227,41 @@ namespace CanopyKin
                 group.RecalculateBounds();
             }
 
+            if (!abdomen || !thorax || !headBone || legs.Count != 6 ||
+                !leftMandible || !rightMandible)
+                return false;
             CacheRestPose();
+            Vector3 headLocal = model.transform.InverseTransformPoint(headBone.position);
+            Vector3 abdomenLocal = model.transform.InverseTransformPoint(abdomen.position);
+            float forwardDot = Vector3.Dot(
+                (headLocal - abdomenLocal).normalized,
+                Vector3.forward);
+            float footHeight = 0;
+            int feet = 0;
+            foreach (LegRig leg in legs)
+            {
+                Transform foot = leg.Foot ? leg.Foot : leg.Ankle;
+                footHeight += model.transform.InverseTransformPoint(foot.position).y;
+                feet++;
+            }
+            footHeight /= Mathf.Max(1, feet);
+            float thoraxHeight =
+                model.transform.InverseTransformPoint(thorax.position).y;
+            if (forwardDot < .7f || thoraxHeight <= footHeight)
+            {
+                Debug.LogError(
+                    $"MOONROOT_ANT_AXIS_INVALID caste={Caste} " +
+                    $"forwardDot={forwardDot:F3} thoraxY={thoraxHeight:F3} " +
+                    $"feetY={footHeight:F3}");
+                Destroy(model);
+                return false;
+            }
             Debug.Log(
                 $"MOONROOT_ANT_FAMILY_READY caste={Caste} path={resourcePath} " +
-                $"legs={legs.Count} lod0={close.Length} lod1={distant.Length}");
-            return abdomen && thorax && headBone && legs.Count == 6 &&
-                   leftMandible && rightMandible;
+                $"legs={legs.Count} lod0={close.Length} lod1={distant.Length} " +
+                $"forwardDot={forwardDot:F3} upSpan={thoraxHeight - footHeight:F3} " +
+                $"opaque=1");
+            return true;
         }
 
         void CacheRestPose()
@@ -452,7 +488,8 @@ namespace CanopyKin
             suppliedSpeed = Mathf.Max(0, speed);
             suppliedSpeed01 = Mathf.Clamp01(speed01);
             suppliedGrounded = grounded;
-            suppliedGroundNormal = surfaceNormal.sqrMagnitude > .1f
+            suppliedGroundNormal = surfaceNormal.sqrMagnitude > .1f &&
+                                   Vector3.Angle(surfaceNormal, Vector3.up) <= 72f
                 ? surfaceNormal.normalized
                 : Vector3.up;
         }
@@ -581,16 +618,61 @@ namespace CanopyKin
         {
             if (playerMotionSupplied)
             {
-                Quaternion target = Quaternion.FromToRotation(Vector3.up, suppliedGroundNormal);
+                Quaternion target = LocalSlopeRotation(suppliedGroundNormal);
                 slopeRotation = Quaternion.Slerp(slopeRotation, target, Time.deltaTime * 8f);
                 return;
             }
             Vector3 origin = transform.parent ? transform.parent.position + Vector3.up * .75f : transform.position + Vector3.up * .75f;
-            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 1.8f, ~0, QueryTriggerInteraction.Ignore))
+            int count = Physics.RaycastNonAlloc(
+                origin,
+                Vector3.down,
+                groundHits,
+                1.8f,
+                ~0,
+                QueryTriggerInteraction.Ignore);
+            RaycastHit best = default;
+            float nearest = float.MaxValue;
+            Transform gameplayRoot = transform.parent;
+            for (int i = 0; i < count; i++)
             {
-                Quaternion target = Quaternion.FromToRotation(Vector3.up, hit.normal);
+                RaycastHit candidate = groundHits[i];
+                if (!candidate.collider ||
+                    (gameplayRoot &&
+                     candidate.collider.transform.IsChildOf(gameplayRoot)) ||
+                    candidate.distance >= nearest ||
+                    Vector3.Angle(candidate.normal, Vector3.up) > 72f)
+                    continue;
+                nearest = candidate.distance;
+                best = candidate;
+            }
+            if (best.collider)
+            {
+                Quaternion target = LocalSlopeRotation(best.normal);
                 slopeRotation = Quaternion.Slerp(slopeRotation, target, Time.deltaTime * 5.5f);
             }
+            else
+                slopeRotation = Quaternion.Slerp(
+                    slopeRotation,
+                    Quaternion.identity,
+                    Time.deltaTime * 5.5f);
+        }
+
+        Quaternion LocalSlopeRotation(Vector3 normal)
+        {
+            Transform gameplayRoot = transform.parent;
+            Quaternion parentRotation = gameplayRoot
+                ? gameplayRoot.rotation
+                : Quaternion.identity;
+            Vector3 worldForward = parentRotation * Vector3.forward;
+            Vector3 surfaceForward = Vector3.ProjectOnPlane(worldForward, normal);
+            if (surfaceForward.sqrMagnitude < .001f)
+                surfaceForward = Vector3.ProjectOnPlane(
+                    parentRotation * Vector3.right,
+                    normal);
+            Quaternion desiredWorld = Quaternion.LookRotation(
+                surfaceForward.normalized,
+                normal);
+            return Quaternion.Inverse(parentRotation) * desiredWorld;
         }
     }
 

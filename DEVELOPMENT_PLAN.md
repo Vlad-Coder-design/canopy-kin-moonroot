@@ -1,5 +1,29 @@
 # Vertical Slice Progress
 
+## 0.5.1 opaque/upright ant correction
+
+- Replaced the 0.5.0 visible family with Msassasa's CC BY 4.0 *Game-Ready
+  Worker Ant Model*, selected after inspecting both linked candidate pages and
+  the downloaded Blender source. Exact attribution, hash and modifications are
+  recorded in `THIRD_PARTY_ASSETS.md`.
+- Baked the source's 53 separately rigged anatomical pieces into identity-
+  transform skinned meshes. Closed nine segment openings, triangulated every
+  face, recalculated all normals outward and exported Unity-native `+Y` up /
+  `+Z` forward axes.
+- Rebuilt player, scout, worker, nurse, light soldier, heavy soldier, queen and
+  rival variants. Every caste has a 47,090-triangle close LOD, an
+  11,772-triangle distant LOD, 52-bone rig and 13 gameplay clips.
+- Removed the 180-degree runtime model correction and dithered LOD cross-fade.
+  Runtime materials are now explicitly opaque, depth-writing and back-face
+  culled with all alpha keywords disabled.
+- Corrected terrain alignment so a world-space surface normal is converted
+  through the gameplay root's yaw before becoming the visual's local rotation.
+  NPC ground probes ignore their own collider and reject wall-like normals;
+  gameplay roots remain upright.
+- Added both build-time and runtime proofs for anatomical forward/up axes,
+  material opacity and required bones. The release is rejected automatically
+  if a caste imports sideways or backwards.
+
 ## 0.5.0 ant-family replacement
 
 - Replaced the former shared 0.4.1 ant presentation with eight separately
