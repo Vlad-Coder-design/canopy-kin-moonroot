@@ -10,3 +10,5 @@ QA/Screenshots/*.tga
 *.log
 crash.dmp
 /test-results.xml
+/.tools/
+/Tools/__pycache__/

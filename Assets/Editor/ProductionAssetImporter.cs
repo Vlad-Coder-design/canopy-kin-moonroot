@@ -13,6 +13,8 @@ namespace CanopyKin.Editor
         const string HighQualityRoot = "Assets/Resources/HighQuality/";
         const string ProductionAntFamilyRoot =
             "Assets/Resources/Models/Ant/Family/";
+        const string AntPrototypeRoot =
+            "Assets/Resources/Models/Ant/Prototype/";
         const string ProductionSpider =
             "Assets/Resources/Models/Creatures/CanopyKinFishingSpider.fbx";
         const string ProductionBeetle =
@@ -97,9 +99,12 @@ namespace CanopyKin.Editor
             bool productionAnt =
                 assetPath.StartsWith(ProductionAntFamilyRoot, System.StringComparison.Ordinal) &&
                 assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase);
+            bool antPrototype =
+                assetPath.StartsWith(AntPrototypeRoot, System.StringComparison.Ordinal) &&
+                assetPath.EndsWith(".fbx", System.StringComparison.OrdinalIgnoreCase);
             bool productionSpider = assetPath.Equals(ProductionSpider, System.StringComparison.Ordinal);
             bool productionBeetle = assetPath.Equals(ProductionBeetle, System.StringComparison.Ordinal);
-            if (!productionAnt && !productionSpider && !productionBeetle) return;
+            if (!productionAnt && !antPrototype && !productionSpider && !productionBeetle) return;
             importer.globalScale = 1f;
             importer.useFileScale = true;
             importer.importAnimation = true;
@@ -109,11 +114,13 @@ namespace CanopyKin.Editor
             importer.importLights = false;
             importer.importVisibility = false;
             importer.addCollider = false;
-            importer.isReadable = false;
+            importer.isReadable = antPrototype;
             importer.meshCompression = ModelImporterMeshCompression.Off;
             importer.importNormals = ModelImporterNormals.Import;
             importer.importTangents = ModelImporterTangents.CalculateMikk;
-            importer.animationCompression = ModelImporterAnimationCompression.Optimal;
+            importer.animationCompression = antPrototype
+                ? ModelImporterAnimationCompression.Off
+                : ModelImporterAnimationCompression.Optimal;
             importer.skinWeights = ModelImporterSkinWeights.Custom;
             importer.maxBonesPerVertex = 4;
             importer.materialImportMode = productionSpider || productionBeetle

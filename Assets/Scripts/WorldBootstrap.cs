@@ -71,6 +71,10 @@ namespace CanopyKin
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Spawn()
         {
+            // The maximum-quality ant approval scene deliberately runs without
+            // the generated mission world. It must prove the imported FBX,
+            // renderer and clips in isolation before gameplay integration.
+            if (FindFirstObjectByType<AntPrototypeShowcase>()) return;
             if (!FindFirstObjectByType<WorldBootstrap>())
                 new GameObject("Moonroot vertical slice").AddComponent<WorldBootstrap>();
         }

@@ -57,6 +57,14 @@ WebGL receives independent 2K platform copies.
 - Use: visible model and rig source for player, scout, worker, nurse, light
   soldier, heavy soldier, queen and rival ants from version 0.5.1 onward
 
+Version 0.6.0 also uses this same licensed source for the separate maximum-
+quality `Formica rufa` player prototype. That derivative preserves the donor's
+17 dense authored actions, adds a Formicinae petiolar scale, paired pretarsal
+claws, rebuilt closed antenna/tarsus shells, arthrodial membranes, macro setae,
+67 production bones, project-owned 4K PBR cuticle materials and a 304,764-
+triangle editable bake source. Exact derivative paths and hashes are recorded
+in `ArtSource/AntPrototype/SOURCE.md`.
+
 Attribution is required by CC BY 4.0 and is retained here and in the
 redistributed source record.
 
