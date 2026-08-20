@@ -62,8 +62,9 @@ quality `Formica rufa` player prototype. That derivative preserves the donor's
 17 dense authored actions, adds a Formicinae petiolar scale, paired pretarsal
 claws, rebuilt closed antenna/tarsus shells, arthrodial membranes, macro setae,
 67 production bones, project-owned 4K PBR cuticle materials and a 304,764-
-triangle editable bake source. Exact derivative paths and hashes are recorded
-in `ArtSource/AntPrototype/SOURCE.md`.
+triangle editable bake source. Its game-ready Unity export contains 53,390
+triangles and 24 named gameplay clips. Exact derivative paths and hashes are
+recorded in `ArtSource/AntPrototype/SOURCE.md`.
 
 Attribution is required by CC BY 4.0 and is retained here and in the
 redistributed source record.

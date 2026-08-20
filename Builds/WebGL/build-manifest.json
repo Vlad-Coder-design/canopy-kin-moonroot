@@ -1,8 +1,8 @@
 {
   "product": "Canopy Kin: Moonroot",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "edition": "WebGL Optimized",
   "unity": "6000.0.78f1",
-  "buildBytes": 75371459,
-  "builtUtc": "2026-07-29T17:07:42.4637040Z"
+  "buildBytes": 79578851,
+  "builtUtc": "2026-08-20T17:52:13.8508882Z"
 }

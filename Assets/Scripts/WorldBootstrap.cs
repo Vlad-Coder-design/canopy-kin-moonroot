@@ -198,21 +198,21 @@ namespace CanopyKin
 
             Vector3 playerFocus = Player.transform.position + Vector3.up * .42f;
             SetQaCamera(playerFocus, new Vector3(0, .34f, 2.65f), 43f);
-            yield return CaptureQaScreenshot("ant-051-windows-player-front.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-player-front.tga");
             SetQaCamera(playerFocus, new Vector3(2.8f, .45f, .12f), 43f);
-            yield return CaptureQaScreenshot("ant-051-windows-player-side-close.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-player-side-close.tga");
             SetQaCamera(playerFocus, new Vector3(0, .45f, -2.7f), 43f);
-            yield return CaptureQaScreenshot("ant-051-windows-player-rear.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-player-rear.tga");
             SetQaCamera(playerFocus, new Vector3(2.9f, 1.35f, -3.25f), 47f);
-            yield return CaptureQaScreenshot("ant-051-windows-player-uneven-ground.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-player-uneven-ground.tga");
             SetQaCamera(playerFocus, new Vector3(0, 3.2f, -.12f), 39f);
-            yield return CaptureQaScreenshot("ant-051-windows-player-top.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-player-top.tga");
             // A deliberately low camera within the real sunlit mission region
             // puts the ant against the bright sky. Any holes, blended shell
             // fragments or inverted faces are immediately visible here.
             SetQaCamera(playerFocus, new Vector3(.22f, -.12f, 2.2f), 36f);
             yield return CaptureQaScreenshot(
-                "ant-051-windows-player-bright-background.tga");
+                "ant-060-windows-player-bright-background.tga");
 
             // Arrange the real worker and unlocked soldier SquadUnit actors.
             IsCinematic = false;
@@ -255,7 +255,7 @@ namespace CanopyKin
             SetRenderers(Player.transform, false);
             Vector3 lineupFocus = lineup + Vector3.up * .44f;
             SetQaCamera(lineupFocus, new Vector3(0, 1.02f, -4.45f), 38f);
-            yield return CaptureQaScreenshot("ant-051-windows-worker-soldiers.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-worker-soldiers.tga");
 
             // Exercise the real cargo attachment and carrying pose on workers.
             foreach (SquadUnit unit in units)
@@ -287,7 +287,7 @@ namespace CanopyKin
                 carryCenter + Vector3.up * .56f,
                 new Vector3(2.75f, 1.02f, -4.25f),
                 41f);
-            yield return CaptureQaScreenshot("ant-051-windows-workers-carrying.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-workers-carrying.tga");
 
             // Inspect the actual queen actor in the authored underground chamber.
             IsUnderground = true;
@@ -303,7 +303,7 @@ namespace CanopyKin
             SetRenderers(queen.transform, true);
             Vector3 queenFocus = queen.transform.position + Vector3.up * .5f;
             SetQaCamera(queenFocus, new Vector3(2.6f, 1.08f, 2.6f), 42f);
-            yield return CaptureQaScreenshot("ant-051-windows-queen-chamber.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-queen-chamber.tga");
 
             // Return to the real beetle mission actor and capture the player bite
             // while the production mandibles are inside their damage window.
@@ -335,12 +335,14 @@ namespace CanopyKin
                                 Vector3.up * .48f;
             SetQaCamera(biteFocus, new Vector3(3.4f, 1.05f, -3.35f), 43f);
             yield return new WaitForSecondsRealtime(.18f);
-            yield return CaptureQaScreenshot("ant-051-windows-player-bite.tga");
+            yield return CaptureQaScreenshot("ant-060-windows-player-bite.tga");
 
             Debug.Log(
                 "MOONROOT_ANT_VISUAL_QA_OK screenshots=10 " +
                 $"playerState={playerVisual.AnimationState} queen={queen.Caste} " +
                 $"workers={workers.Length}");
+            if (!Application.isEditor)
+                Application.Quit(0);
         }
 
         static Vector3 QaGroundNormal(float x, float z)
@@ -378,24 +380,41 @@ namespace CanopyKin
             string directory = Path.Combine(projectRoot, "QA", "Screenshots");
             Directory.CreateDirectory(directory);
             string path = Path.Combine(directory, fileName);
-            var texture = new Texture2D(
-                Screen.width,
-                Screen.height,
-                TextureFormat.RGB24,
-                false);
-            texture.ReadPixels(
-                new Rect(0, 0, Screen.width, Screen.height),
-                0,
-                0,
-                false);
-            texture.Apply(false, false);
+            Camera camera = Camera.main;
+            if (!camera)
+                throw new System.InvalidOperationException(
+                    "QA screenshot requires a main camera.");
+            const int width = 1600;
+            const int height = 900;
+            RenderTexture priorTarget = camera.targetTexture;
+            RenderTexture priorActive = RenderTexture.active;
+            RenderTexture target = RenderTexture.GetTemporary(
+                width,
+                height,
+                24,
+                RenderTextureFormat.ARGB32);
+            var texture = new Texture2D(width, height, TextureFormat.RGB24, false);
+            try
+            {
+                camera.targetTexture = target;
+                RenderTexture.active = target;
+                camera.Render();
+                texture.ReadPixels(new Rect(0, 0, width, height), 0, 0, false);
+                texture.Apply(false, false);
+            }
+            finally
+            {
+                camera.targetTexture = priorTarget;
+                RenderTexture.active = priorActive;
+                RenderTexture.ReleaseTemporary(target);
+            }
             Color32[] pixels = texture.GetPixels32();
             byte[] tga = new byte[18 + pixels.Length * 3];
             tga[2] = 2;
-            tga[12] = (byte)(Screen.width & 0xff);
-            tga[13] = (byte)((Screen.width >> 8) & 0xff);
-            tga[14] = (byte)(Screen.height & 0xff);
-            tga[15] = (byte)((Screen.height >> 8) & 0xff);
+            tga[12] = (byte)(width & 0xff);
+            tga[13] = (byte)((width >> 8) & 0xff);
+            tga[14] = (byte)(height & 0xff);
+            tga[15] = (byte)((height >> 8) & 0xff);
             tga[16] = 24;
             int write = 18;
             foreach (Color32 pixel in pixels)
@@ -752,6 +771,8 @@ namespace CanopyKin
             Debug.Log(
                 $"MOONROOT_MISSION_FLOW_SMOKE_OK finalStep={Mission.Step} " +
                 $"activeSoldiers={CountActiveSoldiers()} saveLoad={saved && loaded}");
+            if (!Application.isEditor)
+                Application.Quit(0);
         }
 
         void RequireMissionStep(int expected, string stage)

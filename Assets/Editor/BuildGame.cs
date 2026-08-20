@@ -14,7 +14,6 @@ namespace CanopyKin.Editor
         const string ScenePath = "Assets/Scenes/Moonroot.unity";
         static readonly string[] ProductionAntPaths =
         {
-            "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Player.fbx",
             "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Scout.fbx",
             "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Worker.fbx",
             "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Nurse.fbx",
@@ -23,6 +22,8 @@ namespace CanopyKin.Editor
             "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Queen.fbx",
             "Assets/Resources/Models/Ant/Family/CanopyKinAnt_Rival.fbx"
         };
+        const string ApprovedPlayerAntPath =
+            "Assets/Resources/Models/Ant/Prototype/CanopyKin_FormicaRufa_Player_Prototype.fbx";
         const string AntAlbedoPath =
             "Assets/Resources/HighQuality/Original/Ant/ant_exoskeleton_diff_4k.jpg";
         const string ProductionSpiderPath =
@@ -38,7 +39,7 @@ namespace CanopyKin.Editor
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
         const string RootNetworkPath =
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
-        const string ProductVersion = "0.5.1";
+        const string ProductVersion = "0.6.0";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
@@ -79,7 +80,11 @@ namespace CanopyKin.Editor
                 EnabledScenes(),
                 "Builds/WebGL",
                 BuildTarget.WebGL,
-                BuildOptions.CleanBuildCache);
+                // The output directory was recreated immediately above. Keep
+                // Unity's warmed Bee/IL2CPP cache: forcing a cache purge after
+                // target-specific texture imports can exceed Bee's six-run
+                // convergence guard even though every individual run succeeds.
+                BuildOptions.None);
             RequireSuccess(report, "WebGL");
             File.WriteAllText("Builds/WebGL/.nojekyll", string.Empty);
             WriteManifest("Builds/WebGL", "WebGL Optimized", report);
@@ -121,7 +126,11 @@ namespace CanopyKin.Editor
                 Environment.GetEnvironmentVariable("MOONROOT_WEBGL_DIAGNOSTICS"),
                 "1",
                 StringComparison.Ordinal);
-            PlayerSettings.stripEngineCode = true;
+            // Runtime-created visuals and PlayableGraph components depend on
+            // engine classes that Unity cannot infer from the mostly-empty
+            // bootstrap scene. Engine stripping removed class ID 115 in the
+            // browser and spammed deserialization errors after startup.
+            PlayerSettings.stripEngineCode = false;
             // High managed stripping produced a release-only WebGL regression:
             // Unity removed runtime-reached Input System/UI code and the player
             // emitted a NullReferenceException every frame. Low still strips
@@ -207,6 +216,10 @@ namespace CanopyKin.Editor
             int antCloseTriangles = 0;
             int antDistantTriangles = 0;
             int antClipCount = 0;
+            AssetDatabase.ImportAsset(
+                ApprovedPlayerAntPath,
+                ImportAssetOptions.ForceUpdate |
+                ImportAssetOptions.ForceSynchronousImport);
             foreach (string antPath in ProductionAntPaths)
                 AssetDatabase.ImportAsset(
                     antPath,
@@ -223,6 +236,50 @@ namespace CanopyKin.Editor
                 "Leg_L_Rear_Coxa", "Leg_R_Rear_Coxa",
                 "Leg_L_Front_Tarsus", "Leg_R_Front_Tarsus"
             };
+            GameObject approvedPlayer =
+                AssetDatabase.LoadAssetAtPath<GameObject>(ApprovedPlayerAntPath);
+            if (!approvedPlayer)
+                throw new FileNotFoundException(
+                    "Approved Formica rufa player FBX is missing",
+                    ApprovedPlayerAntPath);
+            SkinnedMeshRenderer[] playerSkins =
+                approvedPlayer.GetComponentsInChildren<SkinnedMeshRenderer>(true);
+            if (playerSkins.Length != 1 || !playerSkins[0].sharedMesh)
+                throw new InvalidOperationException(
+                    "Approved player must contain exactly one useful skinned mesh.");
+            int playerTriangles = playerSkins[0].sharedMesh.triangles.Length / 3;
+            if (playerTriangles < 50000)
+                throw new InvalidOperationException(
+                    $"Approved player lost production topology: {playerTriangles} triangles.");
+            var playerBones = playerSkins[0].bones
+                .Where(bone => bone)
+                .Select(bone => bone.name)
+                .ToHashSet();
+            string missingPlayerBone = requiredBones.FirstOrDefault(
+                required => !playerBones.Contains(required));
+            if (missingPlayerBone != null)
+                throw new InvalidOperationException(
+                    $"Approved player is missing anatomical bone: {missingPlayerBone}");
+            string[] playerClips = AssetDatabase.LoadAllAssetsAtPath(ApprovedPlayerAntPath)
+                .OfType<AnimationClip>()
+                .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
+                .Select(clip =>
+                {
+                    int separator = clip.name.LastIndexOf('|');
+                    return separator >= 0
+                        ? clip.name.Substring(separator + 1)
+                        : clip.name;
+                })
+                .Where(name => name.StartsWith("ANT_", StringComparison.Ordinal))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (playerClips.Length < 24)
+                throw new InvalidOperationException(
+                    $"Approved player requires 24 genuine/derived animation assets; " +
+                    $"imported {playerClips.Length}.");
+            antCloseTriangles += playerTriangles;
+            antClipCount += playerClips.Length;
+
             foreach (string antPath in ProductionAntPaths)
             {
                 GameObject ant = AssetDatabase.LoadAssetAtPath<GameObject>(antPath);
@@ -467,7 +524,8 @@ namespace CanopyKin.Editor
                     $"Production root network lost authored detail: high={rootHighTriangles}, low={rootLowTriangles}.");
 
             Debug.Log(
-                $"CANOPY_KIN_PRODUCTION_ASSETS_OK antCastes={ProductionAntPaths.Length} " +
+                $"CANOPY_KIN_PRODUCTION_ASSETS_OK antCastes={ProductionAntPaths.Length + 1} " +
+                $"approvedPlayerTriangles={playerTriangles} approvedPlayerClips={playerClips.Length} " +
                 $"antCloseTriangles={antCloseTriangles} antDistantTriangles={antDistantTriangles} " +
                 $"antClips={antClipCount} " +
                 $"windowsTexture={standalone.maxTextureSize} webTexture={web.maxTextureSize} " +

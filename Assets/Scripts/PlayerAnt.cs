@@ -606,6 +606,7 @@ namespace CanopyKin
             Health = 100;
             Stamina = 100;
             Teleport(WorldBootstrap.Instance.PlayerRespawn);
+            visual?.Revive();
             dying = false;
             WorldBootstrap.Instance.ShowToast(GameText.Pick("Moonroot carried you home", "Лунный Корень вернул вас домой"));
         }

@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Animations;
+using UnityEngine.Playables;
 
 namespace CanopyKin
 {
@@ -71,6 +74,17 @@ namespace CanopyKin
         bool playerMotionSupplied;
         bool dead;
         bool built;
+        Animator authoredAnimator;
+        PlayableGraph authoredGraph;
+        AnimationMixerPlayable authoredMixer;
+        readonly Dictionary<string, AnimationClip> authoredClips =
+            new(StringComparer.Ordinal);
+        readonly AnimationClip[] playableClips = new AnimationClip[2];
+        readonly bool[] playableLoops = new bool[2];
+        int authoredActiveInput = -1;
+        int authoredPreviousInput = -1;
+        float authoredBlend = 1f;
+        string authoredState;
         readonly RaycastHit[] groundHits = new RaycastHit[8];
 
         public AntCaste Caste { get; private set; }
@@ -107,18 +121,23 @@ namespace CanopyKin
 
         bool TryBuildProductionModel(Color shell)
         {
-            string resourcePath = $"Models/Ant/Family/CanopyKinAnt_{Caste}";
+            bool approvedPlayer = Caste == AntCaste.Player;
+            string resourcePath = approvedPlayer
+                ? "Models/Ant/Prototype/CanopyKin_FormicaRufa_Player_Prototype"
+                : $"Models/Ant/Family/CanopyKinAnt_{Caste}";
             GameObject prefab = Resources.Load<GameObject>(resourcePath);
             if (!prefab) return false;
 
             GameObject model = Instantiate(prefab, transform, false);
-            model.name = $"0.5.1 upright production {Caste} ant family rig";
+            model.name = approvedPlayer
+                ? "0.6.0 APPROVED Formica rufa player rig"
+                : $"0.5.1 upright production {Caste} ant family rig";
             model.transform.localPosition = Vector3.zero;
             // 0.5.1 sources are baked as Blender Z-up/-Y-forward. Standard FBX
             // export imports them as Unity +Y-up/+Z-forward, so an identity
             // visual transform is the only correction and is applied once.
             model.transform.localRotation = Quaternion.identity;
-            model.transform.localScale = Vector3.one * 1.52f;
+            model.transform.localScale = Vector3.one * (approvedPlayer ? 1.36f : 1.52f);
             foreach (Animator animator in model.GetComponentsInChildren<Animator>(true))
                 animator.enabled = false;
 
@@ -185,15 +204,49 @@ namespace CanopyKin
                 .62f,
                 new Vector2(3.6f, 3.6f));
             Material eyeMaterial = VisualFactory.Material(new Color(.006f, .018f, .012f), .88f);
+            Material playerRedMaterial = approvedPlayer
+                ? VisualFactory.PbrMaterial(
+                    "AntExoskeleton",
+                    new Color(.78f, .16f, .035f),
+                    .34f,
+                    1.28f,
+                    new Vector2(2.8f, 2.8f))
+                : null;
+            Material playerDarkMaterial = approvedPlayer
+                ? VisualFactory.PbrMaterial(
+                    "AntExoskeleton",
+                    new Color(.11f, .018f, .008f),
+                    .28f,
+                    1.34f,
+                    new Vector2(3.1f, 3.1f))
+                : null;
+            Material playerJointMaterial = approvedPlayer
+                ? VisualFactory.PbrMaterial(
+                    "AntExoskeleton",
+                    new Color(.25f, .045f, .012f),
+                    .2f,
+                    1.05f,
+                    new Vector2(3.6f, 3.6f))
+                : null;
             foreach (Renderer renderer in model.GetComponentsInChildren<Renderer>(true))
             {
                 Material[] materials = renderer.sharedMaterials;
                 for (int i = 0; i < materials.Length; i++)
                 {
                     string materialName = materials[i] ? materials[i].name : string.Empty;
-                    materials[i] = materialName.Contains("CompoundEye")
-                        ? eyeMaterial
-                        : materialName.Contains("AntJoint") ? jointMaterial : shellMaterial;
+                    if (materialName.Contains("CompoundEye", StringComparison.OrdinalIgnoreCase))
+                        materials[i] = eyeMaterial;
+                    else if (approvedPlayer &&
+                             materialName.Contains("DarkGaster", StringComparison.OrdinalIgnoreCase))
+                        materials[i] = playerDarkMaterial;
+                    else if (approvedPlayer &&
+                             materialName.Contains("Joint", StringComparison.OrdinalIgnoreCase))
+                        materials[i] = playerJointMaterial;
+                    else
+                        materials[i] = approvedPlayer ? playerRedMaterial :
+                            materialName.Contains("AntJoint", StringComparison.OrdinalIgnoreCase)
+                                ? jointMaterial
+                                : shellMaterial;
                 }
                 renderer.sharedMaterials = materials;
                 foreach (Material material in renderer.sharedMaterials)
@@ -256,12 +309,66 @@ namespace CanopyKin
                 Destroy(model);
                 return false;
             }
+            if (approvedPlayer && !SetupAuthoredPlayerAnimation(model, resourcePath))
+            {
+                Destroy(model);
+                return false;
+            }
             Debug.Log(
                 $"MOONROOT_ANT_FAMILY_READY caste={Caste} path={resourcePath} " +
                 $"legs={legs.Count} lod0={close.Length} lod1={distant.Length} " +
                 $"forwardDot={forwardDot:F3} upSpan={thoraxHeight - footHeight:F3} " +
-                $"opaque=1");
+                $"opaque=1 authoredClips={authoredClips.Count}");
             return true;
+        }
+
+        bool SetupAuthoredPlayerAnimation(GameObject model, string resourcePath)
+        {
+            authoredAnimator = model.GetComponentInChildren<Animator>(true);
+            if (!authoredAnimator) authoredAnimator = model.AddComponent<Animator>();
+            authoredAnimator.runtimeAnimatorController = null;
+            authoredAnimator.applyRootMotion = false;
+            authoredAnimator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            authoredAnimator.updateMode = AnimatorUpdateMode.Normal;
+            authoredAnimator.enabled = true;
+
+            foreach (AnimationClip clip in Resources.LoadAll<AnimationClip>(resourcePath))
+            {
+                string name = ShortClipName(clip.name);
+                if (name.StartsWith("ANT_", StringComparison.Ordinal))
+                    authoredClips[name] = clip;
+            }
+            foreach (string required in new[]
+            {
+                "ANT_CalmIdle", "ANT_NormalWalk", "ANT_FastRun",
+                "ANT_TurnLeft", "ANT_TurnRight", "ANT_Attack_Primary"
+            })
+                if (!authoredClips.ContainsKey(required))
+                {
+                    Debug.LogError($"MOONROOT_PLAYER_CLIP_MISSING clip={required}");
+                    return false;
+                }
+
+            authoredGraph = PlayableGraph.Create("Moonroot approved Formica rufa animation graph");
+            authoredGraph.SetTimeUpdateMode(DirectorUpdateMode.GameTime);
+            authoredMixer = AnimationMixerPlayable.Create(authoredGraph, 2, true);
+            AnimationPlayableOutput output = AnimationPlayableOutput.Create(
+                authoredGraph,
+                "Formica rufa skeleton",
+                authoredAnimator);
+            output.SetSourcePlayable(authoredMixer);
+            authoredGraph.Play();
+            SwitchAuthoredAnimation("Idle", true);
+            Debug.Log(
+                $"MOONROOT_PLAYER_AUTHORED_ANIMATION_READY clips={authoredClips.Count} " +
+                $"renderer={model.GetComponentInChildren<SkinnedMeshRenderer>(true)?.name}");
+            return true;
+        }
+
+        static string ShortClipName(string clipName)
+        {
+            int separator = clipName.LastIndexOf('|');
+            return separator >= 0 ? clipName.Substring(separator + 1) : clipName;
         }
 
         void CacheRestPose()
@@ -500,6 +607,13 @@ namespace CanopyKin
             death = Mathf.Max(death, .05f);
         }
 
+        public void Revive()
+        {
+            dead = false;
+            death = 0;
+            SwitchAuthoredAnimation("Idle", true);
+        }
+
         void Update()
         {
             if (!built) return;
@@ -550,6 +664,18 @@ namespace CanopyKin
                 AnimationState = turnLean < 0 ? "TurnLeft" : "TurnRight";
             else if (speed > 3.05f) AnimationState = "Run";
             else AnimationState = speed > .06f ? "Walk" : "Idle";
+
+            if (authoredGraph.IsValid())
+            {
+                UpdateAuthoredAnimation(speed, dt);
+                transform.localPosition = Vector3.zero;
+                transform.localRotation = slopeRotation *
+                    Quaternion.Euler(
+                        stagger * Mathf.Sin(Time.time * 34f) * 4f,
+                        0,
+                        -death * 72f);
+                return;
+            }
 
             for (int i = 0; i < legs.Count; i++)
             {
@@ -614,6 +740,84 @@ namespace CanopyKin
                 thorax.localPosition = thoraxRestPosition + Vector3.up * bob * .35f;
         }
 
+        void UpdateAuthoredAnimation(float speed, float dt)
+        {
+            SwitchAuthoredAnimation(AnimationState, false);
+            if (authoredPreviousInput >= 0 && authoredBlend < 1f)
+            {
+                authoredBlend = Mathf.MoveTowards(authoredBlend, 1f, dt * 8.5f);
+                authoredMixer.SetInputWeight(authoredPreviousInput, 1f - authoredBlend);
+                authoredMixer.SetInputWeight(authoredActiveInput, authoredBlend);
+            }
+            else if (authoredActiveInput >= 0)
+                authoredMixer.SetInputWeight(authoredActiveInput, 1f);
+
+            for (int input = 0; input < playableClips.Length; input++)
+            {
+                Playable playable = authoredMixer.GetInput(input);
+                AnimationClip clip = playableClips[input];
+                if (!playable.IsValid() || !clip) continue;
+                float playbackSpeed = 1f;
+                if (input == authoredActiveInput)
+                {
+                    if (AnimationState == "Walk")
+                        playbackSpeed = Mathf.Clamp(speed / 1.55f, .58f, 2.15f);
+                    else if (AnimationState == "Run")
+                        playbackSpeed = Mathf.Clamp(speed / 3.65f, .78f, 1.65f);
+                }
+                playable.SetSpeed(playbackSpeed);
+                if (playableLoops[input] && clip.length > .01f && playable.GetTime() >= clip.length)
+                    playable.SetTime(playable.GetTime() % clip.length);
+            }
+        }
+
+        void SwitchAuthoredAnimation(string state, bool instant)
+        {
+            if (!authoredGraph.IsValid() || state == authoredState) return;
+            string clipName = state switch
+            {
+                "Walk" => "ANT_NormalWalk",
+                "Run" => "ANT_FastRun",
+                "TurnLeft" => "ANT_TurnLeft",
+                "TurnRight" => "ANT_TurnRight",
+                "Attack" => "ANT_Attack_Primary",
+                "Interact" => "ANT_ColonyWork",
+                "Carry" => "ANT_GrabHeavyBite",
+                "Climb" => "ANT_Jump",
+                "StartMove" => "ANT_SlowWalk",
+                "StopMove" => "ANT_CalmIdle",
+                "Stagger" => "ANT_Attack_Secondary",
+                "Death" => "ANT_CalmIdle",
+                _ => "ANT_CalmIdle"
+            };
+            if (!authoredClips.TryGetValue(clipName, out AnimationClip clip)) return;
+
+            int targetInput = authoredActiveInput < 0 ? 0 : 1 - authoredActiveInput;
+            Playable replaced = authoredMixer.GetInput(targetInput);
+            if (replaced.IsValid())
+            {
+                authoredMixer.DisconnectInput(targetInput);
+                authoredGraph.DestroySubgraph(replaced);
+            }
+            AnimationClipPlayable clipPlayable = AnimationClipPlayable.Create(authoredGraph, clip);
+            authoredGraph.Connect(clipPlayable, 0, authoredMixer, targetInput);
+            clipPlayable.SetTime(0);
+            clipPlayable.SetSpeed(1);
+            playableClips[targetInput] = clip;
+            playableLoops[targetInput] = state is "Idle" or "Walk" or "Run" or
+                "TurnLeft" or "TurnRight" or "Carry";
+
+            authoredPreviousInput = authoredActiveInput;
+            authoredActiveInput = targetInput;
+            authoredState = state;
+            authoredBlend = instant || authoredPreviousInput < 0 ? 1f : 0f;
+            authoredMixer.SetInputWeight(authoredActiveInput, authoredBlend);
+            if (authoredPreviousInput >= 0)
+                authoredMixer.SetInputWeight(
+                    authoredPreviousInput,
+                    instant ? 0f : 1f);
+        }
+
         void LateUpdate()
         {
             if (playerMotionSupplied)
@@ -673,6 +877,11 @@ namespace CanopyKin
                 surfaceForward.normalized,
                 normal);
             return Quaternion.Inverse(parentRotation) * desiredWorld;
+        }
+
+        void OnDestroy()
+        {
+            if (authoredGraph.IsValid()) authoredGraph.Destroy();
         }
     }
 

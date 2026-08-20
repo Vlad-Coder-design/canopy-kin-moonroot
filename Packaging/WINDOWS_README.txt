@@ -1,4 +1,4 @@
-CANOPY KIN: MOONROOT — WINDOWS FULL QUALITY v0.4.0
+CANOPY KIN: MOONROOT — WINDOWS FULL QUALITY v0.6.0
 
 Keep CanopyKin.exe, CanopyKin_Data, MonoBleedingEdge, D3D12 and the DLL files
 together in the same folder. Launch CanopyKin.exe.
