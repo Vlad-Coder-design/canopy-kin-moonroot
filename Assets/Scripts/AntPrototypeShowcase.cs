@@ -89,11 +89,15 @@ namespace CanopyKin
             if (animator && animator.runtimeAnimatorController)
             {
                 var available = animator.runtimeAnimatorController.animationClips
-                    .Select(item => item.name)
+                    .Select(item => ShortClipName(item.name))
                     .Distinct()
                     .ToHashSet(StringComparer.Ordinal);
-                clips.AddRange(PreferredClips.Where(available.Contains));
-                clips.AddRange(available.Where(name => !clips.Contains(name)));
+                clips.AddRange(PreferredClips.Where(name =>
+                    available.Contains(name) &&
+                    animator.HasState(0, Animator.StringToHash(name))));
+                clips.AddRange(available.Where(name =>
+                    !clips.Contains(name) &&
+                    animator.HasState(0, Animator.StringToHash(name))));
             }
             if (clips.Count > 0) Play(0);
             string[] arguments = Environment.GetCommandLineArgs();
@@ -102,24 +106,30 @@ namespace CanopyKin
                 StartCoroutine(CaptureQa());
         }
 
+        static string ShortClipName(string clipName)
+        {
+            int separator = clipName.LastIndexOf('|');
+            return separator >= 0 ? clipName.Substring(separator + 1) : clipName;
+        }
+
         void ApplyMaximumQualityMaterials()
         {
             if (!antRoot) return;
             Material red = VisualFactory.PbrMaterial(
                 "AntExoskeleton",
-                new Color(.92f, .24f, .065f),
+                new Color(.78f, .16f, .035f),
                 .34f,
                 1.28f,
                 new Vector2(2.8f, 2.8f));
             Material dark = VisualFactory.PbrMaterial(
                 "AntExoskeleton",
-                new Color(.16f, .045f, .022f),
+                new Color(.11f, .018f, .008f),
                 .28f,
                 1.34f,
                 new Vector2(3.1f, 3.1f));
             Material joint = VisualFactory.PbrMaterial(
                 "AntExoskeleton",
-                new Color(.29f, .07f, .025f),
+                new Color(.25f, .045f, .012f),
                 .2f,
                 1.05f,
                 new Vector2(3.6f, 3.6f));
@@ -204,7 +214,7 @@ namespace CanopyKin
             orbitYaw = 28f;
             orbitPitch = 16f;
             orbitDistance = 2.15f;
-            if (keyLight) keyLight.intensity = 1.55f;
+            if (keyLight) keyLight.intensity = 1.30f;
         }
 
         IEnumerator CaptureQa()
@@ -215,20 +225,21 @@ namespace CanopyKin
             yield return new WaitForSeconds(1.5f);
             foreach ((string clip, float yaw, float pitch, string file) in new[]
             {
-                ("ANT_CalmIdle", 5f, 12f, "unity-prototype-front.png"),
+                ("ANT_CalmIdle", 180f, 10f, "unity-prototype-front.png"),
                 ("ANT_NormalWalk", 88f, 10f, "unity-prototype-walk-side.png"),
-                ("ANT_FastRun", 42f, 20f, "unity-prototype-run.png"),
-                ("ANT_TurnLeft", 22f, 34f, "unity-prototype-turn.png"),
-                ("ANT_Attack_Primary", 18f, 8f, "unity-prototype-mandibles.png"),
-                ("ANT_GrabHeavyBite", -32f, 19f, "unity-prototype-carry-pose.png")
+                ("ANT_FastRun", 132f, 18f, "unity-prototype-run.png"),
+                ("ANT_TurnLeft", 152f, 30f, "unity-prototype-turn.png"),
+                ("ANT_Attack_Primary", 180f, 6f, "unity-prototype-mandibles.png"),
+                ("ANT_GrabHeavyBite", 218f, 17f, "unity-prototype-carry-pose.png")
             })
             {
                 PlayNamed(clip);
                 orbitYaw = yaw;
                 orbitPitch = pitch;
                 yield return new WaitForSeconds(.8f);
-                ScreenCapture.CaptureScreenshot(Path.Combine(directory, file), 1);
-                yield return new WaitForSeconds(.5f);
+                yield return new WaitForEndOfFrame();
+                CaptureCamera(Path.Combine(directory, file));
+                yield return new WaitForSeconds(.2f);
             }
             Debug.Log(
                 $"CANOPY_KIN_FORMICA_PROTOTYPE_QA_OK clips={clips.Count} " +
@@ -236,6 +247,33 @@ namespace CanopyKin
                 $"bones={(skin ? skin.bones.Length : 0)} directory={directory}");
             status = "Automated Game View evidence captured";
             if (!Application.isEditor) Application.Quit(0);
+        }
+
+        void CaptureCamera(string path)
+        {
+            const int width = 1600;
+            const int height = 900;
+            RenderTexture previousTarget = viewCamera.targetTexture;
+            RenderTexture previousActive = RenderTexture.active;
+            RenderTexture target = RenderTexture.GetTemporary(
+                width, height, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            var image = new Texture2D(width, height, TextureFormat.RGB24, false, false);
+            try
+            {
+                viewCamera.targetTexture = target;
+                RenderTexture.active = target;
+                viewCamera.Render();
+                image.ReadPixels(new Rect(0, 0, width, height), 0, 0, false);
+                image.Apply(false, false);
+                File.WriteAllBytes(path, image.EncodeToPNG());
+            }
+            finally
+            {
+                viewCamera.targetTexture = previousTarget;
+                RenderTexture.active = previousActive;
+                RenderTexture.ReleaseTemporary(target);
+                Destroy(image);
+            }
         }
 
         void EnsureStyles()

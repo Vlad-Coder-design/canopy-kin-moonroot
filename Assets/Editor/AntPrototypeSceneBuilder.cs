@@ -66,8 +66,12 @@ namespace CanopyKin.Editor
             AnimationClip[] clips = AssetDatabase.LoadAllAssetsAtPath(ModelPath)
                 .OfType<AnimationClip>()
                 .Where(clip => !clip.name.StartsWith("__preview__", StringComparison.Ordinal))
+                .Where(clip => ShortClipName(clip).StartsWith("ANT_", StringComparison.Ordinal))
                 .OrderBy(clip => clip.name, StringComparer.Ordinal)
                 .ToArray();
+            Debug.Log(
+                $"CANOPY_KIN_FORMICA_IMPORTED_CLIPS count={clips.Length} " +
+                $"names={string.Join("|", clips.Select(item => item.name))}");
             if (clips.Length < 24)
                 throw new InvalidOperationException(
                     $"Prototype requires 24 imported clips; imported {clips.Length}: " +
@@ -77,7 +81,8 @@ namespace CanopyKin.Editor
                 "ANT_CalmIdle", "ANT_NormalWalk", "ANT_FastRun",
                 "ANT_TurnLeft", "ANT_TurnRight", "ANT_Attack_Primary"
             })
-                if (clips.All(clip => !string.Equals(clip.name, required, StringComparison.Ordinal)))
+                if (clips.All(clip => !string.Equals(
+                        ShortClipName(clip), required, StringComparison.Ordinal)))
                     throw new InvalidOperationException($"Prototype missing genuine clip: {required}");
 
             AnimatorController controller = CreateController(clips);
@@ -108,7 +113,7 @@ namespace CanopyKin.Editor
             camera.nearClipPlane = .015f;
             camera.farClipPlane = 60f;
             camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(.007f, .011f, .009f);
+            camera.backgroundColor = new Color(.008f, .016f, .011f);
             camera.allowHDR = true;
             camera.allowMSAA = true;
             cameraObject.AddComponent<AudioListener>();
@@ -117,7 +122,7 @@ namespace CanopyKin.Editor
                 "Warm macro sunlight",
                 LightType.Directional,
                 new Color(1f, .78f, .57f),
-                1.55f,
+                1.30f,
                 new Vector3(46f, -34f, 0));
             key.shadows = LightShadows.Soft;
             key.shadowStrength = .92f;
@@ -126,24 +131,24 @@ namespace CanopyKin.Editor
             CreateLight(
                 "Cool sky fill",
                 LightType.Directional,
-                new Color(.37f, .57f, .78f),
-                .54f,
+                new Color(.42f, .56f, .67f),
+                .24f,
                 new Vector3(118f, 42f, -24f));
             Light rim = CreateLight(
                 "Chitin rim light",
                 LightType.Point,
                 new Color(.48f, .72f, 1f),
-                8.5f,
+                3.5f,
                 Vector3.zero);
             rim.transform.position = new Vector3(-1.4f, 1.1f, 1.25f);
             rim.range = 5f;
             rim.shadows = LightShadows.Soft;
 
             RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(.18f, .24f, .31f);
-            RenderSettings.ambientEquatorColor = new Color(.09f, .075f, .055f);
+            RenderSettings.ambientSkyColor = new Color(.10f, .14f, .16f);
+            RenderSettings.ambientEquatorColor = new Color(.055f, .045f, .032f);
             RenderSettings.ambientGroundColor = new Color(.025f, .018f, .012f);
-            RenderSettings.ambientIntensity = .72f;
+            RenderSettings.ambientIntensity = .50f;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = new Color(.012f, .018f, .015f);
@@ -174,7 +179,7 @@ namespace CanopyKin.Editor
                 scenes = new[] { ScenePath },
                 locationPathName = "Builds/AntPrototype/CanopyKinAntPrototype.exe",
                 target = BuildTarget.StandaloneWindows64,
-                options = BuildOptions.CleanBuildCache
+                options = BuildOptions.None
             });
             if (report.summary.result != BuildResult.Succeeded)
                 throw new InvalidOperationException(
@@ -193,14 +198,21 @@ namespace CanopyKin.Editor
             AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
             foreach (AnimationClip clip in clips)
             {
-                AnimatorState state = stateMachine.AddState(clip.name);
+                string stateName = ShortClipName(clip);
+                AnimatorState state = stateMachine.AddState(stateName);
                 state.motion = clip;
                 state.speed = 1f;
-                if (string.Equals(clip.name, "ANT_CalmIdle", StringComparison.Ordinal))
+                if (string.Equals(stateName, "ANT_CalmIdle", StringComparison.Ordinal))
                     stateMachine.defaultState = state;
             }
             EditorUtility.SetDirty(controller);
             return controller;
+        }
+
+        static string ShortClipName(AnimationClip clip)
+        {
+            int separator = clip.name.LastIndexOf('|');
+            return separator >= 0 ? clip.name.Substring(separator + 1) : clip.name;
         }
 
         static GameObject CreateGround()

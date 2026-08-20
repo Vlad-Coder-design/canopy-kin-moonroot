@@ -3,6 +3,7 @@
 /Logs/
 /UserSettings/
 /Builds/Windows/
+/Builds/AntPrototype/
 /Releases/*.zip
 ArtSource/AntFamily/*.fbx
 *.blend1
