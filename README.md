@@ -5,7 +5,7 @@ articulated ant, explores a rolling forest-floor region and an underground nurse
 gathers and carries resources, commands worker and soldier squads, fights multiple
 insect castes, upgrades the colony, and completes the Moonroot tutorial mission.
 
-Version 0.6.0 gives the player a separately authored close-camera Formica rufa
+Version 0.8.0 gives the player a separately authored close-camera Formica rufa
 model derived from Msassasa's legally verified CC BY 4.0 Game-Ready Worker Ant.
 The production export has 53,390 triangles, 67 anatomical/animation bones and
 24 named gameplay clips; the other seven castes keep the optimized upright LOD
@@ -13,6 +13,12 @@ family. The slice also includes custom organic environment meshes,
 full-resolution licensed and original PBR texture sets, LOD vegetation,
 positional effects, an original procedural soundtrack, bilingual UI,
 settings, save/load, and a complete WebGL loading shell.
+
+Version 0.8.0 also replaces the repeated brood/resource placeholders, rebuilds
+the underground chamber dressing, corrects twisted procedural roots, adds mixed
+woodland groundcover and closes the outdoor map with a fog-integrated forest LOD
+behind the playable geometry. Windows and WebGL retain separate quality and
+density profiles.
 
 ## Controls
 
@@ -41,7 +47,7 @@ browser has not captured the mouse.
 Public build: https://vlad-coder-design.github.io/canopy-kin-moonroot/
 
 `Builds/WebGL` is deployed by `.github/workflows/pages.yml` on pushes to `main`.
-Version 0.6.0 uses hash-named gzip WebGL artifacts with Unity's JavaScript
+Version 0.8.0 uses hash-named gzip WebGL artifacts with Unity's JavaScript
 decompression fallback. This keeps the data file below GitHub's per-file limit
 while still loading correctly from GitHub Pages without custom response headers.
 

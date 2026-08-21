@@ -152,6 +152,27 @@ https://polyhaven.com/license
 The downloaded model is explicitly published as CC0. Credit is retained here
 for provenance even though attribution is not required.
 
+## Project-owned generated environment textures (not third-party)
+
+- Assets: `moonroot_packed_soil_albedo_v1.png`,
+  `moonroot_groundcover_atlas_v2.png`,
+  `moonroot_forest_horizon_panorama_v1.png`, and
+  `moonroot_weathered_stone_albedo_v1.png`
+- Creator: OpenAI image generation, directed and integrated by the Canopy Kin
+  development team on 2026-08-21
+- Source/license: original project-owned generated assets; no commercial-game
+  material or third-party asset was copied
+- Modifications: transparent-background extraction for the groundcover atlas;
+  Unity mip generation and platform compression; cylindrical fog integration
+  for the panorama; existing project normal/roughness detail combined with the
+  stone base colour
+- Use: packed underground soil, mixed botanical groundcover, distant forest
+  closure, and forest stones
+- Exact prompts and original-output paths:
+  `Assets/Resources/HighQuality/Original/Nest/SOURCE.md`,
+  `Assets/Resources/HighQuality/Original/Vegetation/SOURCE.md`, and
+  `Assets/Resources/HighQuality/Original/Environment/SOURCE.md`
+
 ## Sketchfab — CC0 Japanese Rhinoceros Beetle
 
 - Asset: `CC0 Japanese Rhinoceros Beetle`

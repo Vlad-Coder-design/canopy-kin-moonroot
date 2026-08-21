@@ -103,6 +103,43 @@ namespace CanopyKin
             return material;
         }
 
+        public static Material NestSoilMaterial()
+        {
+            const string key = "moonroot-packed-nest-soil-v1";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinLit") ?? Shader.Find("Standard");
+            var material = new Material(shader)
+            {
+                name = "Moonroot packed nest soil",
+                color = new Color(.78f, .68f, .56f),
+                enableInstancing = true
+            };
+            Texture2D albedo = Resources.Load<Texture2D>(
+                "HighQuality/Original/Nest/moonroot_packed_soil_albedo_v1");
+            Texture2D normal = Resources.Load<Texture2D>("Textures/Soil/normal");
+            Texture2D roughness = Resources.Load<Texture2D>("Textures/Soil/roughness");
+            Texture2D ao = Resources.Load<Texture2D>("Textures/Soil/ao");
+            ConfigureTexture(albedo);
+            ConfigureTexture(normal);
+            ConfigureTexture(roughness);
+            ConfigureTexture(ao);
+            if (albedo) material.SetTexture("_MainTex", albedo);
+            if (normal) material.SetTexture("_BumpMap", normal);
+            if (roughness) material.SetTexture("_RoughnessMap", roughness);
+            if (ao) material.SetTexture("_OcclusionMap", ao);
+            material.SetTextureScale("_MainTex", new Vector2(1.65f, 1.65f));
+            material.SetTextureScale("_BumpMap", new Vector2(2.4f, 2.4f));
+            material.SetTextureScale("_RoughnessMap", new Vector2(2.4f, 2.4f));
+            material.SetTextureScale("_OcclusionMap", new Vector2(2.4f, 2.4f));
+            if (material.HasProperty("_Color")) material.SetColor("_Color", material.color);
+            if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", 1.18f);
+            if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", .025f);
+            if (material.HasProperty("_Occlusion")) material.SetFloat("_Occlusion", .94f);
+            ConfigureOpaque(material);
+            Materials[key] = material;
+            return material;
+        }
+
         public static void ConfigureOpaque(Material material)
         {
             if (!material) return;
@@ -190,6 +227,39 @@ namespace CanopyKin
             if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", .3f);
             if (material.HasProperty("_WindStrength"))
                 material.SetFloat("_WindStrength", RuntimeQualityProfile.IsFullQuality ? .075f : .045f);
+            Materials[key] = material;
+            return material;
+        }
+
+        public static Material GroundcoverMaterial(Color color)
+        {
+            Color32 c = color;
+            c.r = (byte)Mathf.Min(255, Mathf.RoundToInt(c.r / 32f) * 32);
+            c.g = (byte)Mathf.Min(255, Mathf.RoundToInt(c.g / 32f) * 32);
+            c.b = (byte)Mathf.Min(255, Mathf.RoundToInt(c.b / 32f) * 32);
+            c.a = 255;
+            string key = $"groundcover-v2-{c.r:X2}{c.g:X2}{c.b:X2}";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Shader shader = Resources.Load<Shader>("CanopyKinHeroVegetation") ??
+                            Shader.Find("Transparent/Cutout/Diffuse");
+            var material = new Material(shader)
+            {
+                name = "Moonroot mixed woodland groundcover",
+                color = c,
+                enableInstancing = true
+            };
+            material.SetColor("_Color", c);
+            Texture2D atlas = Resources.Load<Texture2D>(
+                "HighQuality/Original/Vegetation/moonroot_groundcover_atlas_v2");
+            if (atlas)
+            {
+                atlas.wrapMode = TextureWrapMode.Clamp;
+                atlas.filterMode = FilterMode.Trilinear;
+                atlas.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
+                material.SetTexture("_MainTex", atlas);
+            }
+            if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", .2f);
+            if (material.HasProperty("_WindStrength")) material.SetFloat("_WindStrength", .035f);
             Materials[key] = material;
             return material;
         }
@@ -330,6 +400,21 @@ namespace CanopyKin
             if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", .08f);
             if (material.HasProperty("_Occlusion")) material.SetFloat("_Occlusion", .95f);
             Materials[materialKey] = material;
+            return material;
+        }
+
+        static Material ProceduralBarkMaterial()
+        {
+            const string key = "moonroot-procedural-bark";
+            if (Materials.TryGetValue(key, out Material cached)) return cached;
+            Material material = PbrMaterial(
+                "Bark",
+                new Color(.82f, .72f, .61f),
+                .035f,
+                .86f,
+                new Vector2(1.35f, 2.8f));
+            material.name = "Moonroot continuous procedural bark";
+            Materials[key] = material;
             return material;
         }
 
@@ -539,7 +624,7 @@ namespace CanopyKin
                 mesh,
                 Vector3.zero,
                 Vector3.one,
-                ProductionBarkMaterial(),
+                ProceduralBarkMaterial(),
                 collider);
         }
 
@@ -697,6 +782,45 @@ namespace CanopyKin
             return root;
         }
 
+        public static GameObject GroundcoverPatch(
+            Transform parent,
+            Vector3 position,
+            float scale,
+            Color color,
+            int variant)
+        {
+            var root = new GameObject("Mixed sedge sorrel and woodland seedling patch");
+            root.transform.SetParent(parent, false);
+            root.transform.position = position;
+            root.transform.localScale = Vector3.one * scale;
+            var high = MeshObject(
+                "Close botanical cutouts on curved supports",
+                root.transform,
+                EnvironmentMeshFactory.GroundcoverCluster(variant),
+                Vector3.zero,
+                Vector3.one,
+                GroundcoverMaterial(color));
+            var low = MeshObject(
+                "Distant groundcover",
+                root.transform,
+                EnvironmentMeshFactory.GroundcoverCluster(variant, true),
+                Vector3.zero,
+                Vector3.one,
+                GroundcoverMaterial(color));
+            low.GetComponent<Renderer>().shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
+            var lod = root.AddComponent<LODGroup>();
+            lod.fadeMode = LODFadeMode.CrossFade;
+            lod.animateCrossFading = true;
+            lod.SetLODs(new[]
+            {
+                new LOD(.1f, new Renderer[] { high.GetComponent<Renderer>() }),
+                new LOD(.026f, new Renderer[] { low.GetComponent<Renderer>() })
+            });
+            lod.RecalculateBounds();
+            return root;
+        }
+
         public static GameObject HeroStone(
             Transform parent,
             Vector3 position,
@@ -726,8 +850,8 @@ namespace CanopyKin
             if (Materials.TryGetValue(key, out Material cached)) return cached;
             Shader shader = Resources.Load<Shader>("CanopyKinLit") ?? Shader.Find("Standard");
             Color tint = moss
-                ? new Color(.42f, .47f, .35f)
-                : new Color(.43f, .4f, .36f);
+                ? new Color(.8f, .88f, .72f)
+                : new Color(.94f, .91f, .85f);
             var material = new Material(shader)
             {
                 name = moss ? "Lichen-dark fractured stone" : "Dry fractured stone",
@@ -737,8 +861,12 @@ namespace CanopyKin
             material.SetColor("_Color", tint);
             Texture2D normal = Resources.Load<Texture2D>("Textures/Soil/normal");
             Texture2D roughness = Resources.Load<Texture2D>("Textures/Soil/roughness");
+            Texture2D albedo = Resources.Load<Texture2D>(
+                "HighQuality/Original/Environment/moonroot_weathered_stone_albedo_v1");
+            ConfigureTexture(albedo);
             ConfigureTexture(normal);
             ConfigureTexture(roughness);
+            if (albedo) material.SetTexture("_MainTex", albedo);
             if (normal) material.SetTexture("_BumpMap", normal);
             if (roughness) material.SetTexture("_RoughnessMap", roughness);
             if (material.HasProperty("_NormalStrength")) material.SetFloat("_NormalStrength", 1.38f);
@@ -799,7 +927,7 @@ namespace CanopyKin
                 mesh,
                 Vector3.zero,
                 Vector3.one,
-                ProductionBarkMaterial(),
+                ProceduralBarkMaterial(),
                 collider);
         }
 
@@ -816,10 +944,53 @@ namespace CanopyKin
                 position,
                 scale,
                 HeroWaterMaterial());
+            GameObject wetBank = MeshObject(
+                "Dark damp bank around the rainwater",
+                puddle.transform,
+                EnvironmentMeshFactory.IrregularPuddle(variant + 31),
+                new Vector3(0, -.018f, 0),
+                new Vector3(1.16f, 1f, 1.16f),
+                PbrMaterial("Soil", new Color(.38f, .29f, .22f), .04f, 1.22f,
+                    new Vector2(1.7f, 1.7f)));
+            wetBank.GetComponent<Renderer>().shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
             puddle.AddComponent<MeshCollider>().sharedMesh =
                 puddle.GetComponent<MeshFilter>().sharedMesh;
             puddle.AddComponent<MovementSurface>().Initialize("Shallow water", .7f);
             return puddle;
+        }
+
+        public static GameObject ForestHorizonBackdrop(Transform parent)
+        {
+            Shader shader = Resources.Load<Shader>("CanopyKinForestBackdrop") ?? Shader.Find("Diffuse");
+            var material = new Material(shader)
+            {
+                name = "Photographic distant forest closure",
+                color = new Color(.86f, .88f, .82f)
+            };
+            if (material.HasProperty("_Color")) material.SetColor("_Color", material.color);
+            Texture2D panorama = Resources.Load<Texture2D>(
+                "HighQuality/Original/Environment/moonroot_forest_horizon_panorama_v1");
+            if (panorama)
+            {
+                // Mirroring removes the hard left/right seam while allowing the
+                // 2D plate to cover the full 360-degree enclosure without smear.
+                panorama.wrapMode = TextureWrapMode.Mirror;
+                panorama.filterMode = FilterMode.Trilinear;
+                panorama.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 8 : 2;
+                material.SetTexture("_MainTex", panorama);
+            }
+            GameObject bank = MeshObject(
+                "Fogged photographic forest horizon",
+                parent,
+                EnvironmentMeshFactory.ForestHorizonBank(17),
+                Vector3.zero,
+                Vector3.one,
+                material);
+            bank.GetComponent<Renderer>().shadowCastingMode =
+                UnityEngine.Rendering.ShadowCastingMode.Off;
+            bank.GetComponent<Renderer>().receiveShadows = false;
+            return bank;
         }
 
         public static GameObject GrassTuft(Transform parent, Vector3 position, float height, Color color, int variant = 0)

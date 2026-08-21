@@ -42,14 +42,18 @@ Shader "CanopyKin/HeroGroundBlend"
 
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
-            float2 soilUv = IN.worldPos.xz / 3.35;
+            float2 soilUv = IN.worldPos.xz / 2.75;
+            float2 rotatedSoilUv = float2(-IN.worldPos.z, IN.worldPos.x) / 4.31 + float2(.37, .19);
             float2 macroUv = IN.worldPos.xz / 9.7 + float2(.17, .31);
             float2 mossUv = IN.worldPos.xz / 1.18 + float2(.41, .08);
             float2 leafUv = IN.worldPos.xz / 2.25 + float2(.13, .57);
 
-            fixed3 soil = tex2D(_SoilAlbedo, soilUv).rgb;
+            fixed3 soilA = tex2D(_SoilAlbedo, soilUv).rgb;
+            fixed3 soilB = tex2D(_SoilAlbedo, rotatedSoilUv).rgb;
             fixed3 macro = tex2D(_SoilAlbedo, macroUv).rgb;
-            soil = lerp(soil, soil * macro * 1.23, .34);
+            half breakup = saturate(dot(macro, fixed3(.31, .51, .18)) * 1.7 - .34);
+            fixed3 soil = lerp(soilA, soilB, breakup * .46);
+            soil = lerp(soil, soil * macro * 1.16, .27);
             fixed3 moss = tex2D(_MossAlbedo, mossUv).rgb * fixed3(.78, .92, .68);
             fixed3 leaves = tex2D(_LeafAlbedo, leafUv).rgb * fixed3(.86, .8, .68);
 
@@ -71,7 +75,8 @@ Shader "CanopyKin/HeroGroundBlend"
             o.Albedo = albedo * _Tint.rgb;
             o.Normal = blendedNormal;
             o.Metallic = 0;
-            o.Smoothness = saturate(lerp((1.0h - roughness) * .72h, .86h, wetMask));
+            half drySmoothness = saturate((1.0h - roughness) * .2h + .025h);
+            o.Smoothness = saturate(lerp(drySmoothness, .52h, wetMask));
             o.Occlusion = lerp(ao, .72h, mossMask * .24h);
             o.Alpha = 1;
         }

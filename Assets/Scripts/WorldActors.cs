@@ -34,7 +34,7 @@ namespace CanopyKin
             {
                 float angle = i * 2.399f;
                 Vector3 position = new(Mathf.Cos(angle) * .32f, .18f + i * .025f, Mathf.Sin(angle) * .32f);
-                GameObject piece = CreateCargoVisual(transform, kind, position, .95f);
+                GameObject piece = CreateCargoVisual(transform, kind, position, .95f, i);
                 piece.transform.localRotation = Quaternion.Euler(12f + i * 9f, i * 71f, 24f);
                 pieces.Add(piece);
             }
@@ -80,31 +80,14 @@ namespace CanopyKin
             return true;
         }
 
-        public static GameObject CreateCargoVisual(Transform parent, ResourceKind kind, Vector3 localPosition, float scale)
+        public static GameObject CreateCargoVisual(
+            Transform parent,
+            ResourceKind kind,
+            Vector3 localPosition,
+            float scale,
+            int variant = 0)
         {
-            Color color = kind switch
-            {
-                ResourceKind.Seed => new Color(.6f, .31f, .055f),
-                ResourceKind.Resin => new Color(1f, .25f, .018f),
-                _ => new Color(.62f, .18f, .075f)
-            };
-            OrganicMeshFactory.BodyShape shape = kind == ResourceKind.Resin
-                ? OrganicMeshFactory.BodyShape.SpiderBody
-                : OrganicMeshFactory.BodyShape.Brood;
-            Vector3 dimensions = kind switch
-            {
-                ResourceKind.Seed => new Vector3(.32f, .25f, .52f),
-                ResourceKind.Resin => new Vector3(.31f, .22f, .3f),
-                _ => new Vector3(.34f, .24f, .42f)
-            };
-            return VisualFactory.OrganicPart(
-                $"{kind} cargo",
-                parent,
-                shape,
-                localPosition,
-                dimensions * scale,
-                color,
-                kind == ResourceKind.Resin ? .78f : .32f);
+            return WorldAssetVisualFactory.Cargo(parent, kind, localPosition, scale, variant);
         }
 
         static string CargoMessage(ResourceKind kind) => kind switch

@@ -114,14 +114,36 @@ namespace CanopyKin
             var vertices = new List<Vector3>(path.Count * (sides + 1));
             var uv = new List<Vector2>(vertices.Capacity);
             var triangles = new List<int>((path.Count - 1) * sides * 6);
+            Vector3 previousNormal = Vector3.zero;
             for (int i = 0; i < path.Count; i++)
             {
                 Vector3 tangent = i == 0 ? path[1] - path[0] :
                     i == path.Count - 1 ? path[i] - path[i - 1] :
                     path[i + 1] - path[i - 1];
                 tangent.Normalize();
-                Vector3 normal = Vector3.Cross(tangent, Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) > .9f ? Vector3.right : Vector3.up).normalized;
+                Vector3 normal;
+                if (i == 0)
+                {
+                    normal = Vector3.Cross(tangent,
+                        Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) > .9f
+                            ? Vector3.right
+                            : Vector3.up).normalized;
+                }
+                else
+                {
+                    // Parallel transport keeps the radial frame continuous on
+                    // curved roots. Recomputing it from world-up at every point
+                    // produced sudden 180-degree twists and visible spikes.
+                    normal = previousNormal - tangent * Vector3.Dot(previousNormal, tangent);
+                    if (normal.sqrMagnitude < .0001f)
+                        normal = Vector3.Cross(tangent,
+                            Mathf.Abs(Vector3.Dot(tangent, Vector3.up)) > .9f
+                                ? Vector3.right
+                                : Vector3.up);
+                    normal.Normalize();
+                }
                 Vector3 binormal = Vector3.Cross(tangent, normal).normalized;
+                previousNormal = normal;
                 for (int s = 0; s <= sides; s++)
                 {
                     float angle = s / (float)sides * Mathf.PI * 2f;

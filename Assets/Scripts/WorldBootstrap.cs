@@ -161,6 +161,13 @@ namespace CanopyKin
                          arguments,
                          argument => string.Equals(
                              argument,
+                             "-world-assets-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginWorldAssetsQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
                              "-environment-traversal-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginEnvironmentTraversalSmoke());
@@ -244,30 +251,30 @@ namespace CanopyKin
 
             Vector3 focus = playerPosition + Vector3.up * .4f;
             SetQaCamera(focus, new Vector3(2.8f, .45f, .12f), 43f);
-            yield return CaptureQaScreenshot("environment-070-player-side-close.tga");
+            yield return CaptureQaScreenshot("environment-080-player-side-close.tga");
             SetQaCamera(focus + new Vector3(-.35f, .18f, 1.15f),
                 new Vector3(5.5f, 2.45f, -5.7f), 48f);
-            yield return CaptureQaScreenshot("environment-070-hero-wide.tga");
+            yield return CaptureQaScreenshot("environment-080-hero-wide.tga");
             SetQaCamera(focus + new Vector3(-1.55f, -.12f, .25f),
                 new Vector3(1.75f, .72f, -2.2f), 41f);
-            yield return CaptureQaScreenshot("environment-070-ground-detail.tga");
+            yield return CaptureQaScreenshot("environment-080-ground-detail.tga");
             SetQaCamera(At(11.2f, 15.55f, .72f),
                 new Vector3(1.5f, .85f, -2.2f), 37f);
-            yield return CaptureQaScreenshot("environment-070-veined-grass.tga");
+            yield return CaptureQaScreenshot("environment-080-veined-grass.tga");
             SetQaCamera(At(9.55f, 18.15f, .42f),
                 new Vector3(3.2f, 1.25f, -3.15f), 42f);
-            yield return CaptureQaScreenshot("environment-070-roots-moss-stones.tga");
+            yield return CaptureQaScreenshot("environment-080-roots-moss-stones.tga");
             SetQaCamera(At(5.85f, 15.25f, .18f),
                 new Vector3(.35f, 2.65f, -1.15f), 35f);
-            yield return CaptureQaScreenshot("environment-070-puddle-leaves.tga");
+            yield return CaptureQaScreenshot("environment-080-puddle-leaves.tga");
             SetQaCamera(At(8.08f, 15.35f, .14f),
                 new Vector3(1.25f, .86f, -1.5f), 32f);
-            yield return CaptureQaScreenshot("environment-070-dead-leaf-detail.tga");
+            yield return CaptureQaScreenshot("environment-080-dead-leaf-detail.tga");
 
             yield return new WaitForSecondsRealtime(1.1f);
             SetQaCamera(At(11.2f, 15.55f, .72f),
                 new Vector3(1.5f, .85f, -2.2f), 37f);
-            yield return CaptureQaScreenshot("environment-070-veined-grass-wind.tga");
+            yield return CaptureQaScreenshot("environment-080-veined-grass-wind.tga");
             Debug.Log(
                 "MOONROOT_ENVIRONMENT_SLICE_QA_OK screenshots=8 " +
                 "ground=PBR-blended grass=atlas-reactive roots=collidable puddle=physical");
@@ -350,6 +357,45 @@ namespace CanopyKin
             Player.Face(position + Vector3.forward);
             yield return new WaitForSecondsRealtime(27f);
             Debug.Log("MOONROOT_ENVIRONMENT_PROFILE_QA_OK seconds=27");
+            if (!Application.isEditor)
+                Application.Quit(0);
+        }
+
+        IEnumerator BeginWorldAssetsQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.QueenBriefingStep);
+            IsUnderground = true;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            IsCinematic = true;
+            yield return new WaitForSecondsRealtime(.8f);
+
+            Vector3 queenFocus = UndergroundCenter + new Vector3(-2.9f, .55f, -1.75f);
+            SetQaCamera(queenFocus, new Vector3(3.2f, 1.18f, 3.35f), 43f);
+            yield return CaptureQaScreenshot("world-080-queen-chamber.tga");
+            SetQaCamera(queenFocus + new Vector3(.35f, -.14f, .55f),
+                new Vector3(1.25f, .64f, 1.42f), 34f);
+            yield return CaptureQaScreenshot("world-080-brood-detail.tga");
+
+            Vector3 storageFocus = UndergroundCenter + new Vector3(-3.35f, .38f, .95f);
+            SetQaCamera(storageFocus, new Vector3(1.45f, .72f, 1.8f), 35f);
+            yield return CaptureQaScreenshot("world-080-storage-cargo.tga");
+            SetQaCamera(UndergroundCenter + new Vector3(0, .72f, .72f),
+                new Vector3(-3.7f, 1.45f, -3.45f), 49f);
+            yield return CaptureQaScreenshot("world-080-colony-wide.tga");
+            SetQaCamera(UndergroundCenter + new Vector3(0, .78f, 3.05f),
+                new Vector3(2.15f, 1.1f, -2.35f), 38f);
+            yield return CaptureQaScreenshot("world-080-tunnel-entrance.tga");
+
+            Debug.Log(
+                "MOONROOT_WORLD_ASSET_QA_OK screenshots=5 " +
+                "brood=egg-larva-pupa cargo=seed-resin-protein nest=connected-berms");
             if (!Application.isEditor)
                 Application.Quit(0);
         }
@@ -1071,7 +1117,7 @@ namespace CanopyKin
             VisualFactory.Terrain(
                 "Layered loam terrain",
                 environment,
-                82f,
+                110f,
                 RuntimeQualityProfile.TerrainResolution(GameSettings.Quality),
                 GroundHeight,
                 new Color(.82f, .76f, .65f));
@@ -1101,20 +1147,20 @@ namespace CanopyKin
             RenderSettings.ambientMode = AmbientMode.Trilight;
             RenderSettings.ambientSkyColor = new Color(.52f, .59f, .55f);
             RenderSettings.ambientEquatorColor = new Color(.28f, .32f, .26f);
-            RenderSettings.ambientGroundColor = new Color(.11f, .075f, .045f);
+            RenderSettings.ambientGroundColor = new Color(.15f, .11f, .072f);
             RenderSettings.reflectionIntensity = .68f;
             RenderSettings.fog = true;
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = new Color(.48f, .59f, .55f);
-            RenderSettings.fogDensity = .009f;
+            RenderSettings.fogDensity = .0115f;
 
             sunLight = new GameObject("Canopy-break sunlight").AddComponent<Light>();
             sunLight.transform.SetParent(transform);
             sunLight.type = LightType.Directional;
             sunLight.color = new Color(1f, .9f, .71f);
-            sunLight.intensity = 1.08f;
+            sunLight.intensity = .94f;
             sunLight.shadows = LightShadows.Soft;
-            sunLight.shadowStrength = .78f;
+            sunLight.shadowStrength = .62f;
             sunLight.shadowBias = .035f;
             sunLight.shadowNormalBias = .32f;
             sunLight.transform.rotation = Quaternion.Euler(42f, -28f, 0);
@@ -1124,7 +1170,7 @@ namespace CanopyKin
             skyFillLight.transform.SetParent(transform);
             skyFillLight.type = LightType.Directional;
             skyFillLight.color = new Color(.36f, .49f, .55f);
-            skyFillLight.intensity = .3f;
+            skyFillLight.intensity = .48f;
             skyFillLight.shadows = LightShadows.None;
             skyFillLight.transform.rotation = Quaternion.Euler(62f, 142f, 18f);
             GameSettings.Apply();
@@ -1139,10 +1185,10 @@ namespace CanopyKin
                 // silhouettes must stay readable on ordinary browser displays.
                 // This uses ambient/fill energy rather than extra per-pixel
                 // lights, so WebGL draw cost is unchanged.
-                RenderSettings.ambientSkyColor = new Color(.35f, .37f, .32f);
-                RenderSettings.ambientEquatorColor = new Color(.255f, .24f, .195f);
-                RenderSettings.ambientGroundColor = new Color(.135f, .108f, .076f);
-                RenderSettings.fogColor = new Color(.16f, .185f, .17f);
+                RenderSettings.ambientSkyColor = new Color(.43f, .41f, .34f);
+                RenderSettings.ambientEquatorColor = new Color(.32f, .285f, .22f);
+                RenderSettings.ambientGroundColor = new Color(.19f, .145f, .095f);
+                RenderSettings.fogColor = new Color(.205f, .21f, .18f);
                 RenderSettings.fogDensity = .0065f;
                 if (sunLight) sunLight.intensity = .17f;
                 if (skyFillLight) skyFillLight.intensity = .17f;
@@ -1154,11 +1200,11 @@ namespace CanopyKin
 
             RenderSettings.ambientSkyColor = new Color(.52f, .59f, .55f);
             RenderSettings.ambientEquatorColor = new Color(.28f, .32f, .26f);
-            RenderSettings.ambientGroundColor = new Color(.11f, .075f, .045f);
+            RenderSettings.ambientGroundColor = new Color(.15f, .11f, .072f);
             RenderSettings.fogColor = new Color(.48f, .59f, .55f);
-            RenderSettings.fogDensity = .009f;
-            if (sunLight) sunLight.intensity = 1.08f;
-            if (skyFillLight) skyFillLight.intensity = .3f;
+            RenderSettings.fogDensity = .0115f;
+            if (sunLight) sunLight.intensity = .94f;
+            if (skyFillLight) skyFillLight.intensity = .48f;
             if (amberNestLight) amberNestLight.intensity = .16f;
             if (tunnelFillLight) tunnelFillLight.intensity = .12f;
             if (nurseryFillLight) nurseryFillLight.intensity = .08f;
@@ -1194,28 +1240,77 @@ namespace CanopyKin
         {
             var enclosure = new GameObject("Forest horizon enclosure").transform;
             enclosure.SetParent(environment, false);
-            int treeCount = RuntimeQualityProfile.DistantTreeCount(GameSettings.Quality);
+            VisualFactory.ForestHorizonBackdrop(enclosure);
+            int treeCount = RuntimeQualityProfile.IsFullQuality ? 18 : 12;
             for (int i = 0; i < treeCount; i++)
             {
                 float angle = i / (float)treeCount * Mathf.PI * 2f;
-                float radius = 36f + Mathf.Sin(i * 3.2f) * 2.4f;
+                float radius = 45.5f + Mathf.Sin(i * 3.2f) * 3.1f;
                 Vector3 basePoint = new(Mathf.Cos(angle) * radius, GroundHeight(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius) - .8f, Mathf.Sin(angle) * radius);
-                Vector3 top = basePoint + new Vector3(Mathf.Sin(angle) * 1.8f, Random.Range(11f, 18f), Mathf.Cos(angle) * 1.8f);
+                Vector3 top = basePoint + new Vector3(
+                    Mathf.Sin(angle) * 3.2f,
+                    Random.Range(30f, 43f),
+                    Mathf.Cos(angle) * 3.2f);
                 GameObject distantTree = VisualFactory.TexturedRoot(
-                    "Distant bark pillar",
+                    "Distant mature trunk extending beyond camera frame",
                     enclosure,
-                    new[] { basePoint, Vector3.Lerp(basePoint, top, .45f) + Vector3.up * .7f, top },
-                    new[] { Random.Range(2.2f, 3.5f), Random.Range(1.7f, 2.5f), Random.Range(1.2f, 1.8f) },
+                    new[]
+                    {
+                        basePoint - Vector3.up * .7f,
+                        Vector3.Lerp(basePoint, top, .12f),
+                        Vector3.Lerp(basePoint, top, .29f) + RingTangent(angle) * .7f,
+                        Vector3.Lerp(basePoint, top, .48f) - RingTangent(angle) * .65f,
+                        Vector3.Lerp(basePoint, top, .72f) + RingTangent(angle) * .5f,
+                        top
+                    },
+                    new[]
+                    {
+                        Random.Range(2.5f, 3.8f), Random.Range(2.25f, 3.05f),
+                        Random.Range(1.85f, 2.55f), Random.Range(1.42f, 2.05f),
+                        Random.Range(1.05f, 1.55f), Random.Range(.72f, 1.08f)
+                    },
                     false);
                 distantTree.GetComponent<Renderer>().shadowCastingMode =
                     UnityEngine.Rendering.ShadowCastingMode.Off;
+                if (i % 2 == 0)
+                {
+                    Vector3 inward = new Vector3(-Mathf.Cos(angle), 0, -Mathf.Sin(angle));
+                    Vector3 tangent = new Vector3(-Mathf.Sin(angle), 0, Mathf.Cos(angle));
+                    VisualFactory.TexturedRoot(
+                        "Root-flared distant trunk base",
+                        enclosure,
+                        new[]
+                        {
+                            basePoint + tangent * 1.35f + Vector3.up * 1.45f,
+                            basePoint + tangent * 2.15f + inward * 1.3f + Vector3.up * .34f,
+                            basePoint + tangent * 3.6f + inward * 2.2f + Vector3.up * .05f
+                        },
+                        new[] { .86f, .58f, .12f },
+                        false);
+                    float branchT = .31f + (i % 5) * .035f;
+                    Vector3 branchBase = Vector3.Lerp(basePoint, top, branchT);
+                    VisualFactory.TexturedRoot(
+                        "High background branch",
+                        enclosure,
+                        new[]
+                        {
+                            branchBase,
+                            branchBase + tangent * 3.8f + Vector3.up * 1.1f,
+                            branchBase + tangent * 7f + Vector3.up * .2f
+                        },
+                        new[] { 1.05f, .58f, .16f },
+                        false);
+                }
             }
-            for (int i = 0; i < 14; i++)
+            for (int i = 0; i < 22; i++)
             {
                 float angle = i / 14f * Mathf.PI * 2f + .17f;
-                Vector3 position = new(Mathf.Cos(angle) * 31f, GroundHeight(Mathf.Cos(angle) * 31f, Mathf.Sin(angle) * 31f), Mathf.Sin(angle) * 31f);
+                Vector3 position = new(Mathf.Cos(angle) * 42f, GroundHeight(Mathf.Cos(angle) * 42f, Mathf.Sin(angle) * 42f), Mathf.Sin(angle) * 42f);
                 VisualFactory.GrassTuft(enclosure, position, Random.Range(4.6f, 7.4f), Color.Lerp(new Color(.15f, .31f, .07f), new Color(.31f, .51f, .13f), Random.value), i);
             }
+
+            static Vector3 RingTangent(float angle) =>
+                new(-Mathf.Sin(angle), 0, Mathf.Cos(angle));
         }
 
         void BuildNest()
@@ -1293,8 +1388,7 @@ namespace CanopyKin
             GameObject floor = VisualFactory.Terrain("Compacted chamber floor", underground, 11.5f, 28,
                 (x, z) => Mathf.PerlinNoise((x + 9f) * .3f, (z + 13f) * .3f) * .11f,
                 new Color(.58f, .43f, .31f));
-            floor.GetComponent<Renderer>().sharedMaterial =
-                VisualFactory.PbrMaterial("Soil", new Color(.6f, .45f, .32f), .03f, 1.2f, new Vector2(.8f, .8f));
+            floor.GetComponent<Renderer>().sharedMaterial = VisualFactory.NestSoilMaterial();
 
             VisualFactory.MeshObject(
                 "Continuous earthen chamber shell",
@@ -1302,38 +1396,37 @@ namespace CanopyKin
                 OrganicMeshFactory.CaveShell(),
                 Vector3.zero,
                 Vector3.one,
-                VisualFactory.PbrMaterial("Soil", new Color(.5f, .38f, .27f), .025f, 1.05f, new Vector2(.72f, .72f)),
+                VisualFactory.NestSoilMaterial(),
                 true);
 
-            for (int i = 0; i < 16; i++)
+            // Four overlapping work zones make the colony read as connected
+            // chambers and galleries, rather than one circular room.
+            WorldAssetVisualFactory.ChamberBerm(
+                underground, "Central traffic chamber berm", new Vector3(0, .03f, .45f),
+                new Vector3(1.45f, .38f, 1.2f), 1);
+            WorldAssetVisualFactory.ChamberBerm(
+                underground, "Queen nursery chamber berm", new Vector3(-2.9f, .04f, -1.75f),
+                new Vector3(1.32f, .42f, .8f), 2);
+            WorldAssetVisualFactory.ChamberBerm(
+                underground, "Food storage chamber berm", new Vector3(-3.35f, .04f, .95f),
+                new Vector3(.78f, .3f, .68f), 3);
+            WorldAssetVisualFactory.ChamberBerm(
+                underground, "Worker nursery chamber berm", new Vector3(2.9f, .04f, -.25f),
+                new Vector3(.88f, .34f, .72f), 4);
+
+            for (int i = 0; i < 6; i++)
             {
-                float angle = i / 16f * Mathf.PI * 2f;
-                Vector3 lower = new(Mathf.Cos(angle) * 4.75f, .05f, Mathf.Sin(angle) * 4.75f);
-                Vector3 middle = new(Mathf.Cos(angle) * 4.2f, 1.7f + Mathf.Sin(i * 1.8f) * .25f, Mathf.Sin(angle) * 4.2f);
-                Vector3 upper = new(Mathf.Cos(angle) * 3f, 3.3f, Mathf.Sin(angle) * 3f);
+                float angle = i / 6f * Mathf.PI * 2f;
+                Vector3 lower = new(Mathf.Cos(angle) * 4.86f, -.48f, Mathf.Sin(angle) * 4.72f);
+                Vector3 middle = new(Mathf.Cos(angle) * 4.35f, 1.85f + Mathf.Sin(i * 1.8f) * .22f, Mathf.Sin(angle) * 4.12f);
+                Vector3 upper = new(Mathf.Cos(angle) * 3.15f, 4.25f, Mathf.Sin(angle) * 2.95f);
                 VisualFactory.TexturedRoot(
-                    "Woven root chamber wall",
+                    "Buried structural root",
                     underground,
                     new[] { lower, middle, upper },
-                    new[] { .6f, .48f, .32f },
+                    new[] { .52f, .39f, .24f },
                     true);
             }
-            for (int i = 0; i < 7; i++)
-            {
-                float angle = i / 7f * Mathf.PI * 2f;
-                VisualFactory.TexturedRoot(
-                    "Ceiling support root",
-                    underground,
-                    new[]
-                    {
-                        new Vector3(Mathf.Cos(angle) * 3f, 3.25f, Mathf.Sin(angle) * 3f),
-                        new Vector3(Mathf.Cos(angle) * 1.5f, 3.55f, Mathf.Sin(angle) * 1.5f),
-                        new Vector3(0, 3.72f, 0)
-                    },
-                    new[] { .34f, .27f, .18f },
-                    false);
-            }
-
             BuildQueenChamber();
             BuildStorageChambers();
             CreateNestDoor("Tunnel to forest floor", UndergroundCenter + new Vector3(0, .3f, 3.45f), true);
@@ -1343,26 +1436,26 @@ namespace CanopyKin
             amberNestLight.transform.localPosition = new Vector3(-1.2f, 2.45f, -.85f);
             amberNestLight.type = LightType.Point;
             amberNestLight.range = 12f;
-            amberNestLight.intensity = 1.18f;
-            amberNestLight.color = new Color(.72f, .49f, .34f);
+            amberNestLight.intensity = 1.62f;
+            amberNestLight.color = new Color(.86f, .58f, .39f);
             amberNestLight.shadows = LightShadows.Soft;
-            amberNestLight.shadowStrength = .32f;
+            amberNestLight.shadowStrength = .26f;
 
             tunnelFillLight = new GameObject("Cool tunnel fill").AddComponent<Light>();
             tunnelFillLight.transform.SetParent(underground, false);
             tunnelFillLight.transform.localPosition = new Vector3(0, 1.1f, 3.3f);
             tunnelFillLight.type = LightType.Point;
             tunnelFillLight.range = 8f;
-            tunnelFillLight.intensity = .92f;
-            tunnelFillLight.color = new Color(.31f, .52f, .46f);
+            tunnelFillLight.intensity = 1.26f;
+            tunnelFillLight.color = new Color(.39f, .62f, .55f);
 
             nurseryFillLight = new GameObject("Nursery soft fill").AddComponent<Light>();
             nurseryFillLight.transform.SetParent(underground, false);
             nurseryFillLight.transform.localPosition = new Vector3(2f, 1.45f, -1.2f);
             nurseryFillLight.type = LightType.Point;
             nurseryFillLight.range = 7f;
-            nurseryFillLight.intensity = .48f;
-            nurseryFillLight.color = new Color(.67f, .43f, .29f);
+            nurseryFillLight.intensity = .82f;
+            nurseryFillLight.color = new Color(.78f, .51f, .34f);
         }
 
         void BuildQueenChamber()
@@ -1370,26 +1463,17 @@ namespace CanopyKin
             var queen = new GameObject("Queen chamber").transform;
             queen.SetParent(underground, false);
             queen.localPosition = new Vector3(-2.9f, .08f, -1.75f);
-            VisualFactory.OrganicPart(
-                "Queen chamber packed earth",
-                queen,
-                OrganicMeshFactory.BodyShape.SpiderBody,
-                Vector3.zero,
-                new Vector3(3.6f, .54f, 2.25f),
-                new Color(.32f, .15f, .055f),
-                .06f).GetComponent<Renderer>().sharedMaterial =
-                VisualFactory.PbrMaterial("Soil", new Color(.73f, .52f, .34f), .04f, 1.15f, new Vector2(1.2f, 1.2f));
-            for (int i = 0; i < 12; i++)
+            for (int i = 0; i < 11; i++)
             {
                 float angle = i * 2.399f;
-                VisualFactory.OrganicPart(
-                    i % 3 == 0 ? "Pupa" : "Larva",
+                BroodStage stage = i % 6 == 0 ? BroodStage.Pupa :
+                    i % 3 == 0 ? BroodStage.Egg : BroodStage.Larva;
+                WorldAssetVisualFactory.Brood(
                     queen,
-                    OrganicMeshFactory.BodyShape.Brood,
-                    new Vector3(Mathf.Cos(angle) * 1.65f, .31f + (i % 2) * .04f, Mathf.Sin(angle) * .78f),
-                    new Vector3(.34f, .25f, .52f) * (i % 3 == 0 ? 1.15f : .9f),
-                    new Color(.78f, .68f, .48f),
-                    .34f);
+                    stage,
+                    new Vector3(Mathf.Cos(angle) * 1.62f, .24f + (i % 2) * .035f, Mathf.Sin(angle) * .76f),
+                    stage == BroodStage.Egg ? .13f : stage == BroodStage.Pupa ? .25f : .21f,
+                    i);
             }
             AntVisual.Create(queen, new Color(.23f, .045f, .012f), 1.28f, AntCaste.Queen)
                 .transform.localPosition = new Vector3(0, .28f, -.35f);
@@ -1420,8 +1504,11 @@ namespace CanopyKin
             storage.SetParent(underground, false);
             storage.localPosition = new Vector3(-3.35f, .16f, .95f);
             for (int i = 0; i < 9; i++)
-                ResourceNode.CreateCargoVisual(storage, i % 4 == 0 ? ResourceKind.Resin : ResourceKind.Seed,
-                    new Vector3((i % 3 - 1) * .4f, .12f + i / 3 * .11f, (i / 3 - 1) * .35f), .75f);
+                ResourceNode.CreateCargoVisual(storage,
+                    i % 5 == 0 ? ResourceKind.Resin : i % 4 == 0 ? ResourceKind.Protein : ResourceKind.Seed,
+                    new Vector3((i % 3 - 1) * .42f, .14f + i / 3 * .12f, (i / 3 - 1) * .36f),
+                    .24f,
+                    i);
 
             var stationObject = new GameObject("Nursery growth site");
             stationObject.transform.SetParent(underground, false);
@@ -1463,50 +1550,78 @@ namespace CanopyKin
             door.AddComponent<ColonyEntrance>().Initialize(undergroundDoor);
             door.AddComponent<IInteractableHost>().Target = door.GetComponent<ColonyEntrance>();
             GameObject opening = VisualFactory.OrganicPart(
-                "Deep earthen tunnel",
+                "Shadowed earthen tunnel throat",
                 door.transform,
                 OrganicMeshFactory.BodyShape.Eye,
                 Vector3.zero,
                 new Vector3(2.15f, .42f, 1.7f),
-                new Color(.008f, .005f, .003f),
-                .02f);
+                new Color(.08f, .052f, .031f),
+                .025f);
             opening.transform.localRotation = Quaternion.Euler(90, 0, 0);
+
+            Vector3[] archPath =
+            {
+                new(-1.16f, -.16f, .08f), new(-1.02f, .34f, .015f),
+                new(-.72f, .76f, -.06f), new(0, 1.02f, -.12f),
+                new(.72f, .76f, -.06f), new(1.02f, .34f, .015f),
+                new(1.16f, -.16f, .08f)
+            };
+            VisualFactory.MeshObject(
+                "Continuous curved root tunnel collar",
+                door.transform,
+                OrganicMeshFactory.Tube(archPath,
+                    new[] { .24f, .22f, .18f, .16f, .18f, .22f, .24f }, 16),
+                Vector3.zero,
+                Vector3.one,
+                VisualFactory.PbrMaterial("Bark", new Color(.54f, .38f, .2f),
+                    .05f, 1.1f, new Vector2(1.2f, 2.2f)));
+            Light mouthFill = new GameObject("Soft reflected tunnel light").AddComponent<Light>();
+            mouthFill.transform.SetParent(door.transform, false);
+            mouthFill.transform.localPosition = new Vector3(0, .42f, .32f);
+            mouthFill.type = LightType.Point;
+            mouthFill.range = 3.2f;
+            mouthFill.intensity = undergroundDoor ? .7f : .42f;
+            mouthFill.color = undergroundDoor
+                ? new Color(.45f, .62f, .49f)
+                : new Color(.82f, .59f, .31f);
+            mouthFill.shadows = LightShadows.None;
         }
 
         void BuildLandmarks()
         {
-            GameObject productionTrunk = VisualFactory.ProductionDeadTree(
+            VisualFactory.HeroTexturedRoot(
+                "Long rain-fallen branch landmark",
                 environment,
-                At(11.7f, 10.9f, .34f),
-                Quaternion.Euler(5f, -28f, 7f),
-                Vector3.one * 4.1f);
-            if (!productionTrunk)
-            {
-                VisualFactory.TexturedRoot(
-                    "Fallen storm branch import fallback",
-                    environment,
-                    new[]
-                    {
-                        At(5.2f, 7.5f, .58f),
-                        At(9.3f, 10.1f, .9f),
-                        At(14.8f, 12.9f, .72f),
-                        At(18.2f, 14.2f, .44f)
-                    },
-                    new[] { .9f, .78f, .62f, .26f },
-                    true);
-            }
-            GameObject branchFork = VisualFactory.ProductionRootNetwork(
+                new[]
+                {
+                    At(3.4f, 6.6f, .24f), At(5.2f, 7.5f, .42f),
+                    At(7.4f, 8.7f, .62f), At(9.3f, 10.1f, .72f),
+                    At(12.1f, 11.6f, .68f), At(14.8f, 12.9f, .52f),
+                    At(16.7f, 13.8f, .34f), At(18.2f, 14.2f, .16f)
+                },
+                new[] { .68f, .72f, .7f, .64f, .56f, .43f, .27f, .12f },
+                true);
+            VisualFactory.HeroTexturedRoot(
+                "Broken lateral branch",
                 environment,
-                At(12.35f, 9.25f, .08f),
-                Quaternion.Euler(2f, 26f, -5f),
-                new Vector3(.92f, .88f, .76f));
-            if (!branchFork)
-                VisualFactory.TexturedRoot(
-                    "Broken branch fork import fallback",
-                    environment,
-                    new[] { At(11.2f, 11.1f, .72f), At(13.2f, 8.3f, 1.45f), At(14.1f, 6.9f, 1.75f) },
-                    new[] { .42f, .28f, .12f },
-                    true);
+                new[]
+                {
+                    At(10.7f, 10.95f, .72f), At(11.8f, 9.85f, .82f),
+                    At(13.05f, 8.7f, .7f), At(14.2f, 7.8f, .3f)
+                },
+                new[] { .32f, .27f, .2f, .07f },
+                true);
+            VisualFactory.HeroTexturedRoot(
+                "Weathered branch fork",
+                environment,
+                new[]
+                {
+                    At(10.9f, 11.4f, .22f), At(11.7f, 10.55f, .48f),
+                    At(12.55f, 9.45f, .78f), At(13.2f, 8.3f, 1.05f),
+                    At(13.75f, 7.2f, 1.18f)
+                },
+                new[] { .5f, .45f, .35f, .24f, .11f },
+                true);
 
             Vector3[] stones =
             {
@@ -1530,31 +1645,29 @@ namespace CanopyKin
                 VisualFactory.Stone("Wet pool stone", environment, p, new Vector3(.9f, .46f, .75f), 20 + i, true, i % 2 == 0);
             }
 
-            GameObject rootRidge = VisualFactory.ProductionRootNetwork(
+            VisualFactory.HeroTexturedRoot(
+                "Partly buried pond root ridge",
                 environment,
-                At(-13.65f, 8.8f, .03f),
-                Quaternion.Euler(-2f, -57f, 3f),
-                new Vector3(3.75f, 1.55f, 1.08f));
-            if (!rootRidge)
-                VisualFactory.TexturedRoot(
-                    "Root ridge import fallback",
-                    environment,
-                    new[] { At(-20f, -1f, .32f), At(-16f, 5f, .72f), At(-11f, 13f, 1.1f), At(-7f, 19f, .56f) },
-                    new[] { 1.25f, 1.05f, .82f, .42f },
-                    true);
+                new[]
+                {
+                    At(-20f, -1f, .12f), At(-18.2f, 2f, .38f),
+                    At(-16f, 5f, .58f), At(-13.7f, 8.9f, .84f),
+                    At(-11f, 13f, .78f), At(-8.6f, 17f, .42f), At(-7f, 19f, .16f)
+                },
+                new[] { 1.05f, 1.02f, .92f, .76f, .58f, .38f, .18f },
+                true);
 
-            GameObject rootBridge = VisualFactory.ProductionRootNetwork(
+            VisualFactory.HeroTexturedRoot(
+                "Climbable arcing feeder root bridge",
                 environment,
-                At(9.1f, 19.35f, .12f),
-                Quaternion.Euler(5f, -16.5f, -2f),
-                new Vector3(2.75f, 1.45f, .9f));
-            if (!rootBridge)
-                VisualFactory.TexturedRoot(
-                    "Climbable root bridge import fallback",
-                    environment,
-                    new[] { At(1.5f, 17f, .4f), At(6.2f, 18.4f, 1.1f), At(12.5f, 20.4f, 1.55f), At(17f, 21.6f, .65f) },
-                    new[] { .82f, .72f, .58f, .3f },
-                    true);
+                new[]
+                {
+                    At(1.5f, 17f, .12f), At(4.1f, 17.55f, .46f),
+                    At(6.2f, 18.4f, .82f), At(9.2f, 19.35f, 1.12f),
+                    At(12.5f, 20.4f, 1.18f), At(15f, 21.15f, .7f), At(17f, 21.6f, .18f)
+                },
+                new[] { .7f, .7f, .64f, .55f, .46f, .3f, .12f },
+                true);
         }
 
         void BuildHeroMicrohabitat()
@@ -1674,7 +1787,7 @@ namespace CanopyKin
 
             // Grass forms light-seeking colonies at the open and damp margins,
             // rather than a uniform random field across the traversal lane.
-            int grassCount = RuntimeQualityProfile.IsFullQuality ? 54 : 24;
+            int grassCount = RuntimeQualityProfile.IsFullQuality ? 30 : 15;
             for (int i = 0; i < grassCount; i++)
             {
                 float side = i % 2 == 0 ? -1f : 1f;
@@ -1697,7 +1810,7 @@ namespace CanopyKin
                 GameObject grass = VisualFactory.HeroGrassTuft(
                     habitat,
                     At(x, z, .015f),
-                    Mathf.Lerp(.82f, 1.65f, (float)random.NextDouble()),
+                    Mathf.Lerp(.62f, 1.12f, (float)random.NextDouble()),
                     color,
                     500 + i);
                 grass.transform.localRotation = Quaternion.Euler(
@@ -1719,12 +1832,34 @@ namespace CanopyKin
                 GameObject grass = VisualFactory.HeroGrassTuft(
                     habitat,
                     specimenGrass[i],
-                    1.05f + i * .16f,
+                    .74f + i * .08f,
                     Color.Lerp(new Color(.43f, .58f, .18f),
                         new Color(.68f, .72f, .3f), i / 3f),
                     590 + i);
                 grass.transform.localRotation = Quaternion.Euler(0, i * 71f, i - 2f);
                 grass.AddComponent<ReactiveVegetation>().Initialize();
+            }
+
+            // Four real botanical silhouettes replace the former grass-only
+            // wall while keeping the central ant lane open and readable.
+            Vector3[] groundcoverPositions =
+            {
+                At(6.25f, 14.45f, .018f), At(6.75f, 17.15f, .018f),
+                At(7.65f, 18.8f, .018f), At(9.15f, 19.05f, .018f),
+                At(10.55f, 18.75f, .018f), At(12.15f, 17.8f, .018f),
+                At(12.65f, 15.65f, .018f), At(11.8f, 13.85f, .018f),
+                At(8.1f, 13.7f, .018f), At(5.7f, 16.25f, .018f)
+            };
+            for (int i = 0; i < groundcoverPositions.Length; i++)
+            {
+                GameObject patch = VisualFactory.GroundcoverPatch(
+                    habitat,
+                    groundcoverPositions[i],
+                    .58f + (i % 4) * .11f,
+                    Color.Lerp(new Color(.62f, .72f, .43f), Color.white, (i % 3) * .1f),
+                    720 + i);
+                patch.transform.localRotation = Quaternion.Euler(0, i * 47f, 0);
+                if (i < 6) patch.AddComponent<ReactiveVegetation>().Initialize();
             }
 
             Vector3 puddlePosition = At(
@@ -1739,7 +1874,7 @@ namespace CanopyKin
 
             Debug.Log(
                 $"MOONROOT_HERO_MICROHABITAT_READY ground={xSegments}x{zSegments} " +
-                $"grass={grassCount + specimenGrass.Length} " +
+                $"grass={grassCount + specimenGrass.Length} groundcover={groundcoverPositions.Length} " +
                 $"leaves={(RuntimeQualityProfile.IsFullQuality ? 24 : 13) + specimenLeaves.Length} " +
                 "stones=8 moss=8 roots=3 puddles=1");
         }
@@ -1799,6 +1934,22 @@ namespace CanopyKin
                 placedGrass++;
             }
             instancedGrass.Complete();
+
+            int groundcoverCount = RuntimeQualityProfile.IsFullQuality ? 84 : 34;
+            for (int i = 0; i < groundcoverCount; i++)
+            {
+                Vector2 center = lightSeekingColonies[(i * 7 + 3) % lightSeekingColonies.Length];
+                Vector2 offset = Random.insideUnitCircle * Random.Range(1.4f, 5.6f);
+                Vector2 p = center + offset;
+                if (KeepClear(p.x, p.y)) continue;
+                GameObject patch = VisualFactory.GroundcoverPatch(
+                    environment,
+                    At(p.x, p.y, .016f),
+                    Random.Range(.48f, 1.08f),
+                    Color.Lerp(new Color(.58f, .68f, .38f), Color.white, Random.Range(0f, .18f)),
+                    900 + i);
+                patch.transform.localRotation = Quaternion.Euler(0, Random.Range(0f, 360f), 0);
+            }
 
             int leafCount = RuntimeQualityProfile.LeafCount(GameSettings.Quality);
             Vector2[] litterShelters =
@@ -2270,6 +2421,12 @@ namespace CanopyKin
             {
                 IsUnderground = false;
                 player.Teleport(SurfacePlayerSpawn);
+                // Face back toward the entrance after emerging. The prior
+                // inherited +Z heading placed the third-person camera inside
+                // the large mound behind the player and filled the WebGL view
+                // with soil. This orientation presents the entrance as a clear
+                // landmark and keeps the full camera boom on open terrain.
+                player.Face(NestPosition + Vector3.up * .32f, 11f);
                 squads.Teleport(SurfacePlayerSpawn + Vector3.forward * .8f);
                 ShowToast(GameText.Pick("Forest floor — the rain has stopped", "Лесная подстилка — дождь закончился"));
             }
@@ -2277,6 +2434,7 @@ namespace CanopyKin
             {
                 IsUnderground = true;
                 player.Teleport(UndergroundPlayerSpawn);
+                player.Face(UndergroundCenter + new Vector3(-2.9f, .35f, -1.75f), 12f);
                 squads.Teleport(UndergroundPlayerSpawn + Vector3.forward * 1.25f);
                 ShowToast(GameText.Pick("Moonroot underground colony", "Подземная колония Лунного Корня"));
             }

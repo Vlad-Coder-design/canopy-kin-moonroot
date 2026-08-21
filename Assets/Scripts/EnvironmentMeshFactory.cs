@@ -129,21 +129,72 @@ namespace CanopyKin
                 triangles.Add(a + 1); triangles.Add(b); triangles.Add(b + 1);
             }
 
-            // Split triangle vertices so fracture planes retain crisp normals.
-            // The prior shared sphere topology visually rounded every chip.
-            var facetedVertices = new List<Vector3>(triangles.Count);
-            var facetedUv = new List<Vector2>(triangles.Count);
-            var facetedTriangles = new List<int>(triangles.Count);
-            foreach (int sourceIndex in triangles)
+            // Shared vertices preserve weathered normals across the surface.
+            // Shape noise still creates a few chipped planes without turning
+            // every triangle into a visible low-poly facet.
+            var mesh = new Mesh { name = $"Weathered chipped hero stone {variant % 9}" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uv);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateTangents();
+            mesh.RecalculateBounds();
+            Cache[key] = mesh;
+            return mesh;
+        }
+
+        public static Mesh GroundcoverCluster(int variant, bool lowDetail = false)
+        {
+            string key = $"groundcover-{variant % 12}-{lowDetail}";
+            if (Cache.TryGetValue(key, out Mesh cached)) return cached;
+            int specimenCount = lowDetail ? 2 : 5;
+            int verticalSegments = lowDetail ? 2 : 6;
+            var vertices = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var colors = new List<Color>();
+            var triangles = new List<int>();
+            var random = new System.Random(variant * 48611 + (lowDetail ? 19 : 71));
+            for (int specimen = 0; specimen < specimenCount; specimen++)
             {
-                facetedVertices.Add(vertices[sourceIndex]);
-                facetedUv.Add(uv[sourceIndex]);
-                facetedTriangles.Add(facetedTriangles.Count);
+                int atlas = (variant + specimen) % 4;
+                float angle = (float)random.NextDouble() * Mathf.PI * 2f;
+                float radius = Mathf.Sqrt((float)random.NextDouble()) * .32f;
+                float width = Mathf.Lerp(.42f, .72f, (float)random.NextDouble());
+                float height = Mathf.Lerp(.54f, .94f, (float)random.NextDouble());
+                float lean = Mathf.Lerp(.05f, .22f, (float)random.NextDouble());
+                Vector3 origin = new(Mathf.Cos(angle) * radius, 0, Mathf.Sin(angle) * radius);
+                Vector3 side = new(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+                Vector3 forward = Vector3.Cross(Vector3.up, side);
+                int start = vertices.Count;
+                float u0 = atlas % 2 * .5f;
+                float v0 = atlas < 2 ? .5f : 0f;
+                for (int segment = 0; segment <= verticalSegments; segment++)
+                {
+                    float t = segment / (float)verticalSegments;
+                    Vector3 center = origin + Vector3.up * height * t +
+                                     forward * lean * t * t +
+                                     side * Mathf.Sin(t * Mathf.PI) * .035f;
+                    float taper = Mathf.Lerp(1f, .86f, t);
+                    vertices.Add(center - side * width * .5f * taper);
+                    vertices.Add(center + side * width * .5f * taper);
+                    uv.Add(new Vector2(u0, v0 + t * .5f));
+                    uv.Add(new Vector2(u0 + .5f, v0 + t * .5f));
+                    Color wind = new(t, .82f, (float)random.NextDouble(), 1f);
+                    colors.Add(wind);
+                    colors.Add(wind);
+                }
+                for (int segment = 0; segment < verticalSegments; segment++)
+                {
+                    int a = start + segment * 2;
+                    triangles.Add(a); triangles.Add(a + 2); triangles.Add(a + 1);
+                    triangles.Add(a + 1); triangles.Add(a + 2); triangles.Add(a + 3);
+                }
             }
-            var mesh = new Mesh { name = $"Fractured hero stone {variant % 9}" };
-            mesh.SetVertices(facetedVertices);
-            mesh.SetUVs(0, facetedUv);
-            mesh.SetTriangles(facetedTriangles, 0);
+            var mesh = new Mesh { name = lowDetail ? "Groundcover LOD" : "Mixed woodland groundcover" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uv);
+            mesh.SetColors(colors);
+            mesh.SetTriangles(triangles, 0);
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();
             mesh.RecalculateBounds();
@@ -402,6 +453,58 @@ namespace CanopyKin
             var mesh = new Mesh { name = "Irregular shallow rain puddle" };
             mesh.SetVertices(vertices);
             mesh.SetUVs(0, uv);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateTangents();
+            mesh.RecalculateBounds();
+            Cache[key] = mesh;
+            return mesh;
+        }
+
+        public static Mesh ForestHorizonBank(int variant, int segments = 96)
+        {
+            string key = $"forest-horizon-bank-{variant}-{segments}";
+            if (Cache.TryGetValue(key, out Mesh cached)) return cached;
+            const int levels = 5;
+            var vertices = new List<Vector3>((levels + 1) * (segments + 1));
+            var uv = new List<Vector2>(vertices.Capacity);
+            var colors = new List<Color>(vertices.Capacity);
+            var triangles = new List<int>(levels * segments * 6);
+            for (int level = 0; level <= levels; level++)
+            {
+                float v = level / (float)levels;
+                for (int segment = 0; segment <= segments; segment++)
+                {
+                    float u = segment / (float)segments;
+                    float angle = u * Mathf.PI * 2f;
+                    float radius = 52f + Mathf.Sin(angle * 5f + variant) * 2.1f +
+                                   Mathf.Sin(angle * 11f - variant * .7f) * .55f;
+                    float height = Mathf.Lerp(-4.8f, 24f, v) +
+                                   Mathf.Sin(angle * 4f + variant) * v * 1.25f +
+                                   Mathf.Sin(angle * 9f) * v * .48f;
+                    vertices.Add(new Vector3(Mathf.Cos(angle) * radius, height, Mathf.Sin(angle) * radius));
+                    // Eight mirrored panels keep macro features at a plausible
+                    // scale around the 326-metre circumference. A single copy
+                    // would stretch each tree across tens of metres.
+                    uv.Add(new Vector2(u * 8f, v));
+                    colors.Add(Color.Lerp(new Color(.25f, .2f, .12f, 1f),
+                        new Color(.12f, .24f, .1f, 1f), v));
+                }
+            }
+            int row = segments + 1;
+            for (int level = 0; level < levels; level++)
+            for (int segment = 0; segment < segments; segment++)
+            {
+                int a = level * row + segment;
+                int b = a + row;
+                // Inward winding: this is only a distant forest closure.
+                triangles.Add(a); triangles.Add(a + 1); triangles.Add(b);
+                triangles.Add(a + 1); triangles.Add(b + 1); triangles.Add(b);
+            }
+            var mesh = new Mesh { name = "Irregular fogged forest horizon bank" };
+            mesh.SetVertices(vertices);
+            mesh.SetUVs(0, uv);
+            mesh.SetColors(colors);
             mesh.SetTriangles(triangles, 0);
             mesh.RecalculateNormals();
             mesh.RecalculateTangents();

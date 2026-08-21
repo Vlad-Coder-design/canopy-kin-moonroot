@@ -29,8 +29,8 @@ namespace CanopyKin
 
         public static int GrassCount(int quality) =>
             IsFullQuality
-                ? quality switch { 0 => 320, 1 => 520, _ => 760 }
-                : quality switch { 0 => 105, 1 => 145, _ => 190 };
+                ? quality switch { 0 => 220, 1 => 340, _ => 480 }
+                : quality switch { 0 => 72, 1 => 104, _ => 136 };
 
         public static int LeafCount(int quality) =>
             IsFullQuality
