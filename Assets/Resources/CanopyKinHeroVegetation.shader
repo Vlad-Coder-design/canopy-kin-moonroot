@@ -23,11 +23,13 @@ Shader "CanopyKin/HeroVegetation"
         fixed4 _Color;
         half _Smoothness;
         half _WindStrength;
+        float4 _CanopyKinPlayerPosition;
 
         struct Input
         {
             float2 uv_MainTex;
             float3 viewDir;
+            float3 worldPos;
             fixed4 color : COLOR;
         };
 
@@ -48,12 +50,22 @@ Shader "CanopyKin/HeroVegetation"
             fixed4 atlas = tex2D(_MainTex, IN.uv_MainTex);
             fixed3 tint = lerp(fixed3(1,1,1), _Color.rgb, .34);
             fixed3 color = atlas.rgb * tint * 1.13;
+            half cameraFade = smoothstep(.48h, 1.32h,
+                distance(_WorldSpaceCameraPos, IN.worldPos));
+            float3 cameraToPlayer = _CanopyKinPlayerPosition.xyz - _WorldSpaceCameraPos;
+            float cameraToPlayerLengthSq = max(dot(cameraToPlayer, cameraToPlayer), .001);
+            float corridorPosition = saturate(dot(IN.worldPos - _WorldSpaceCameraPos, cameraToPlayer) /
+                                              cameraToPlayerLengthSq);
+            float3 corridorPoint = _WorldSpaceCameraPos + cameraToPlayer * corridorPosition;
+            half sightlineFade = smoothstep(.16h, .68h, distance(IN.worldPos, corridorPoint));
+            half playerFade = smoothstep(.42h, 1.38h,
+                distance(IN.worldPos.xz, _CanopyKinPlayerPosition.xz));
             half rim = pow(1.0h - saturate(abs(dot(normalize(IN.viewDir), half3(0,0,1)))), 2.0h);
             o.Albedo = color;
             o.Smoothness = _Smoothness;
             o.Occlusion = lerp(.72h, 1.0h, IN.color.g);
             o.Emission = color * rim * .055h;
-            o.Alpha = atlas.a;
+            o.Alpha = atlas.a * min(cameraFade, min(sightlineFade, playerFade));
         }
         ENDCG
     }

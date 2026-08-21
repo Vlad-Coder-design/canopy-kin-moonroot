@@ -24,8 +24,8 @@ namespace CanopyKin
 
         public static int TerrainResolution(int quality) =>
             IsFullQuality
-                ? quality switch { 0 => 128, 1 => 160, _ => 192 }
-                : quality switch { 0 => 64, 1 => 82, _ => 96 };
+                ? quality switch { 0 => 160, 1 => 240, _ => 320 }
+                : quality switch { 0 => 72, 1 => 96, _ => 128 };
 
         public static int GrassCount(int quality) =>
             IsFullQuality

@@ -144,6 +144,27 @@ namespace CanopyKin
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginEnvironmentSliceQa());
             else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-environment-video-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginEnvironmentVideoQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-environment-profile-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginEnvironmentProfileQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-environment-traversal-smoke",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginEnvironmentTraversalSmoke());
+            else if (System.Array.Exists(
                     arguments,
                     argument => string.Equals(
                         argument,
@@ -252,6 +273,161 @@ namespace CanopyKin
                 "ground=PBR-blended grass=atlas-reactive roots=collidable puddle=physical");
             if (!Application.isEditor)
                 Application.Quit(0);
+        }
+
+        IEnumerator BeginEnvironmentVideoQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            foreach (Creature creature in creatures)
+                if (creature) creature.gameObject.SetActive(false);
+
+            string projectRoot = Path.GetFullPath(
+                Path.Combine(Application.dataPath, "..", "..", ".."));
+            string directory = Path.Combine(
+                projectRoot,
+                "QA",
+                "VideoFrames",
+                "environment-070-contact");
+            Directory.CreateDirectory(directory);
+            foreach (string oldFrame in Directory.GetFiles(directory, "frame-*.tga"))
+                File.Delete(oldFrame);
+
+            const int frames = 90;
+            const float frameRate = 15f;
+            Vector3 start = At(8.55f, 15.45f, .06f);
+            Vector3 end = At(11.75f, 15.35f, .06f);
+            AntVisual visual = Player.GetComponentInChildren<AntVisual>(true);
+            IsCinematic = true;
+            for (int frame = 0; frame < frames; frame++)
+            {
+                float t = frame / (float)(frames - 1);
+                float eased = Mathf.SmoothStep(0f, 1f, t);
+                Vector3 position = Vector3.Lerp(start, end, eased);
+                position.z += Mathf.Sin(t * Mathf.PI * 2f) * .22f;
+                position.y = GroundHeight(position.x, position.z) + .06f;
+                Vector3 next = position + new Vector3(.25f, 0, Mathf.Cos(t * Mathf.PI * 2f) * .08f);
+                Player.Teleport(position);
+                Player.Face(next);
+                visual.SetPlayerMotion(2.15f, .54f, true,
+                    QaGroundNormal(position.x, position.z));
+                Vector3 focus = position + Vector3.up * .42f;
+                SetQaCamera(focus, new Vector3(2.6f, 1.02f, -3.15f), 44f);
+                yield return new WaitForSecondsRealtime(1f / frameRate);
+                yield return new WaitForEndOfFrame();
+                WriteQaTga(
+                    Path.Combine(directory, $"frame-{frame:D4}.tga"),
+                    960,
+                    540);
+            }
+
+            Debug.Log(
+                $"MOONROOT_ENVIRONMENT_VIDEO_QA_OK frames={frames} fps={frameRate} " +
+                $"directory={directory}");
+            if (!Application.isEditor)
+                Application.Quit(0);
+        }
+
+        IEnumerator BeginEnvironmentProfileQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            Vector3 position = At(9.1f, 16.1f, .06f);
+            Player.Teleport(position);
+            Player.Face(position + Vector3.forward);
+            yield return new WaitForSecondsRealtime(27f);
+            Debug.Log("MOONROOT_ENVIRONMENT_PROFILE_QA_OK seconds=27");
+            if (!Application.isEditor)
+                Application.Quit(0);
+        }
+
+        IEnumerator BeginEnvironmentTraversalSmoke()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+
+            Transform habitat = environment
+                .GetComponentsInChildren<Transform>(true)
+                .FirstOrDefault(candidate => candidate.name ==
+                    "Maximum-quality playable microhabitat");
+            if (!habitat)
+            {
+                Debug.LogError("MOONROOT_ENVIRONMENT_TRAVERSAL_FAILED reason=missing-habitat");
+                if (!Application.isEditor) Application.Quit(2);
+                yield break;
+            }
+
+            MeshCollider[] meshColliders = habitat.GetComponentsInChildren<MeshCollider>(true);
+            int rootColliders = meshColliders.Count(collider =>
+                collider.name.IndexOf("root", System.StringComparison.OrdinalIgnoreCase) >= 0);
+            MovementSurface[] surfaces = habitat.GetComponentsInChildren<MovementSurface>(true);
+            bool hasSoil = surfaces.Any(surface => surface.DisplayName == "Layered forest soil");
+            bool hasPuddle = surfaces.Any(surface => surface.DisplayName == "Shallow water");
+
+            int terrainHits = 0;
+            float minimumHeight = float.MaxValue;
+            float maximumHeight = float.MinValue;
+            for (int z = -4; z <= 4; z += 2)
+            for (int x = -5; x <= 5; x += 2)
+            {
+                float worldX = HeroMicrohabitatCenter.x + x;
+                float worldZ = HeroMicrohabitatCenter.y + z;
+                float height = GroundHeight(worldX, worldZ);
+                minimumHeight = Mathf.Min(minimumHeight, height);
+                maximumHeight = Mathf.Max(maximumHeight, height);
+                RaycastHit[] hits = Physics.RaycastAll(
+                    new Vector3(worldX, height + 6f, worldZ),
+                    Vector3.down,
+                    12f,
+                    ~0,
+                    QueryTriggerInteraction.Ignore);
+                if (hits.Any(hit => hit.collider.GetComponentInParent<MovementSurface>()?.DisplayName ==
+                                    "Layered forest soil"))
+                    terrainHits++;
+            }
+
+            Vector3 laneStart = At(HeroMicrohabitatCenter.x, HeroMicrohabitatCenter.y - 3.6f, .08f);
+            Player.Teleport(laneStart);
+            CharacterController controller = Player.GetComponent<CharacterController>();
+            for (int step = 0; step < 46; step++)
+            {
+                controller.Move(Vector3.forward * .052f);
+                yield return null;
+            }
+            float laneProgress = Vector3.ProjectOnPlane(
+                Player.transform.position - laneStart,
+                Vector3.up).magnitude;
+            float displacement = maximumHeight - minimumHeight;
+            bool passed = hasSoil && hasPuddle && rootColliders >= 3 &&
+                          terrainHits >= 25 && displacement >= .12f && laneProgress >= 1.8f;
+            string result =
+                $"terrainHits={terrainHits}/30 rootColliders={rootColliders} " +
+                $"surfaces={surfaces.Length} displacement={displacement:F3} " +
+                $"laneProgress={laneProgress:F3} soil={hasSoil} puddle={hasPuddle}";
+            if (passed)
+                Debug.Log("MOONROOT_ENVIRONMENT_TRAVERSAL_OK " + result);
+            else
+                Debug.LogError("MOONROOT_ENVIRONMENT_TRAVERSAL_FAILED " + result);
+            if (!Application.isEditor)
+                Application.Quit(passed ? 0 : 2);
         }
 
         IEnumerator BeginAntVisualQa()
@@ -465,12 +641,17 @@ namespace CanopyKin
             string directory = Path.Combine(projectRoot, "QA", "Screenshots");
             Directory.CreateDirectory(directory);
             string path = Path.Combine(directory, fileName);
+            WriteQaTga(path, 1600, 900);
+            Debug.Log($"MOONROOT_ANT_QA_SCREENSHOT path={path}");
+            yield return new WaitForSecondsRealtime(.5f);
+        }
+
+        static void WriteQaTga(string path, int width, int height)
+        {
             Camera camera = Camera.main;
             if (!camera)
                 throw new System.InvalidOperationException(
                     "QA screenshot requires a main camera.");
-            const int width = 1600;
-            const int height = 900;
             RenderTexture priorTarget = camera.targetTexture;
             RenderTexture priorActive = RenderTexture.active;
             RenderTexture target = RenderTexture.GetTemporary(
@@ -510,8 +691,6 @@ namespace CanopyKin
             }
             File.WriteAllBytes(path, tga);
             Object.Destroy(texture);
-            Debug.Log($"MOONROOT_ANT_QA_SCREENSHOT path={path}");
-            yield return new WaitForSecondsRealtime(.5f);
         }
 
         IEnumerator BeginBeetleQa()
@@ -1572,35 +1751,83 @@ namespace CanopyKin
             InstancedVegetation instancedGrass =
                 environment.gameObject.AddComponent<InstancedVegetation>();
             int grassCount = RuntimeQualityProfile.GrassCount(GameSettings.Quality);
-            for (int i = 0; i < grassCount; i++)
+            Vector2[] lightSeekingColonies =
             {
-                Vector2 circle = Random.insideUnitCircle * 33f;
-                float x = circle.x;
-                float z = circle.y + 5f;
+                new(-8f, 3.5f), new(-8.5f, 15.5f), new(6.8f, 5.8f),
+                new(15.5f, 12.8f), new(17f, 1.5f), new(-17f, -3f),
+                new(8.5f, -8.5f), new(-8.5f, -11f), new(-14f, 23f),
+                new(13.5f, 25f), new(1f, 28f)
+            };
+            int placedGrass = 0;
+            int grassAttempts = 0;
+            while (placedGrass < grassCount && grassAttempts++ < grassCount * 5)
+            {
+                Vector2 p;
+                if (Random.value < .78f)
+                {
+                    Vector2 center = lightSeekingColonies[Random.Range(0, lightSeekingColonies.Length)];
+                    Vector2 offset = Random.insideUnitCircle * Random.Range(2.1f, 5.4f);
+                    p = center + offset;
+                }
+                else
+                {
+                    Vector2 circle = Random.insideUnitCircle * 33f;
+                    p = new Vector2(circle.x, circle.y + 5f);
+                }
+                float x = p.x;
+                float z = p.y;
                 if (KeepClear(x, z)) continue;
+                float exposure = Mathf.PerlinNoise(x * .075f + 17f, z * .075f + 41f);
+                if (exposure < .24f && Random.value > .32f) continue;
                 float height = Random.Range(1.05f, 3.45f);
-                Color grass = Color.Lerp(new Color(.18f, .37f, .075f), new Color(.46f, .65f, .19f), Random.value);
+                float age = Mathf.Clamp01(Random.value * .78f + (1f - exposure) * .25f);
+                Color grass = Color.Lerp(
+                    new Color(.27f, .45f, .11f),
+                    new Color(.58f, .67f, .22f),
+                    1f - age);
                 Quaternion rotation = Quaternion.Euler(
                     0, Random.Range(0, 360f), Random.Range(-4f, 4f));
                 Vector3 scale = new(.82f, height, .82f);
                 if (SystemInfo.supportsInstancing)
-                    instancedGrass.Add(i, At(x, z), rotation, scale, grass);
+                    instancedGrass.Add(placedGrass, At(x, z), rotation, scale, grass);
                 else
                 {
-                    GameObject tuft = VisualFactory.GrassTuft(environment, At(x, z), height, grass, i);
+                    GameObject tuft = VisualFactory.GrassTuft(
+                        environment, At(x, z), height, grass, placedGrass);
                     tuft.transform.localRotation = rotation;
                 }
+                placedGrass++;
             }
             instancedGrass.Complete();
 
             int leafCount = RuntimeQualityProfile.LeafCount(GameSettings.Quality);
-            for (int i = 0; i < leafCount; i++)
+            Vector2[] litterShelters =
             {
-                Vector2 p = Random.insideUnitCircle * 29f;
-                float z = p.y + 5f;
-                if (KeepClear(p.x, z)) continue;
-                VisualFactory.FallenLeaf(environment, At(p.x, z, .035f),
-                    new Vector3(Random.Range(.8f, 1.65f), 1, Random.Range(.75f, 1.35f)), i);
+                new(11.7f, 10.9f), new(-13.5f, 8.8f), new(9.1f, 19.35f),
+                new(-18f, -2f), new(17f, 3f), new(-8f, 24f)
+            };
+            int placedLeaves = 0;
+            int leafAttempts = 0;
+            while (placedLeaves < leafCount && leafAttempts++ < leafCount * 6)
+            {
+                Vector2 p;
+                if (Random.value < .74f)
+                {
+                    Vector2 shelter = litterShelters[Random.Range(0, litterShelters.Length)];
+                    Vector2 offset = Random.insideUnitCircle * Random.Range(1.3f, 5.8f);
+                    offset.y *= .62f;
+                    p = shelter + offset;
+                }
+                else
+                {
+                    Vector2 circle = Random.insideUnitCircle * 29f;
+                    p = new Vector2(circle.x, circle.y + 5f);
+                }
+                if (KeepClear(p.x, p.y)) continue;
+                VisualFactory.FallenLeaf(environment, At(p.x, p.y, .035f),
+                    new Vector3(Random.Range(.8f, 1.65f), 1, Random.Range(.75f, 1.35f)),
+                    placedLeaves);
+                placedLeaves++;
             }
 
             Color[] petals = { new(.52f, .31f, .72f), new(.82f, .3f, .44f), new(.78f, .7f, .18f) };

@@ -114,6 +114,11 @@ namespace CanopyKin
 
         void Update()
         {
+            Shader.SetGlobalVector("_CanopyKinPlayerPosition", new Vector4(
+                transform.position.x,
+                transform.position.y + .26f,
+                transform.position.z,
+                1f));
             Keyboard keyboard = Keyboard.current;
             Mouse mouse = Mouse.current;
             if (keyboard == null || WorldBootstrap.Instance == null) return;

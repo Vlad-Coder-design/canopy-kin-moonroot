@@ -539,7 +539,7 @@ namespace CanopyKin
                 mesh,
                 Vector3.zero,
                 Vector3.one,
-                PbrMaterial("Bark", new Color(.68f, .61f, .54f), .12f, 1.2f, new Vector2(2.2f, 5.5f)),
+                ProductionBarkMaterial(),
                 collider);
         }
 
@@ -563,10 +563,15 @@ namespace CanopyKin
             bool collider = true,
             bool moss = true)
         {
-            Material material = moss
-                ? PbrMaterial("Moss", new Color(.83f, .9f, .78f), .12f, 1.15f, new Vector2(1.7f, 1.7f))
-                : PbrMaterial("Soil", new Color(.55f, .55f, .56f), .08f, .8f);
-            GameObject stone = MeshObject(name, parent, OrganicMeshFactory.Stone(variant % 7), position, scale, material, collider);
+            Material material = HeroStoneMaterial(moss);
+            GameObject stone = MeshObject(
+                name,
+                parent,
+                EnvironmentMeshFactory.HeroStone(variant % 9),
+                position,
+                scale,
+                material,
+                collider);
             stone.transform.localRotation = Quaternion.Euler(variant * 13f, variant * 47f, variant * 7f);
             return stone;
         }
@@ -824,8 +829,12 @@ namespace CanopyKin
             root.transform.position = position;
             root.transform.localScale = new Vector3(.82f, height, .82f);
 
-            var high = MeshObject("Detailed leaves", root.transform, OrganicMeshFactory.BladeCluster(variant % 8), Vector3.zero, Vector3.one, VegetationMaterial(color));
-            var low = MeshObject("Distant leaves", root.transform, OrganicMeshFactory.BladeCluster(variant % 8, true), Vector3.zero, Vector3.one, VegetationMaterial(color));
+            var high = MeshObject("Detailed leaves", root.transform,
+                EnvironmentMeshFactory.HeroGrassCluster(variant % 11),
+                Vector3.zero, Vector3.one, HeroVegetationMaterial(color));
+            var low = MeshObject("Distant leaves", root.transform,
+                EnvironmentMeshFactory.HeroGrassCluster(variant % 11, true),
+                Vector3.zero, Vector3.one, HeroVegetationMaterial(color));
             low.GetComponent<Renderer>().shadowCastingMode =
                 UnityEngine.Rendering.ShadowCastingMode.Off;
             var lod = root.AddComponent<LODGroup>();
@@ -881,19 +890,23 @@ namespace CanopyKin
             GameObject leaf = MeshObject(
                 "Curled rain-dark leaf",
                 parent,
-                OrganicMeshFactory.FallenLeaf(variant),
+                EnvironmentMeshFactory.HeroFallenLeaf(variant),
                 position,
                 scale,
-                PbrMaterial("LeafLitter", new Color(.82f, .73f, .58f), .08f, .65f, new Vector2(.8f, 1.2f)));
-            leaf.GetComponent<Renderer>().shadowCastingMode =
-                UnityEngine.Rendering.ShadowCastingMode.Off;
+                HeroLeafMaterial());
             leaf.transform.localRotation = Quaternion.Euler(0, variant * 47f, (variant % 5 - 2) * 4f);
             return leaf;
         }
 
         public static GameObject Water(Transform parent, Vector3 position, Vector3 scale)
         {
-            GameObject water = MeshObject("Reflective rain pool", parent, UnitBox(), position, scale, WaterMaterial());
+            GameObject water = MeshObject(
+                "Reflective rain pool",
+                parent,
+                EnvironmentMeshFactory.IrregularPuddle(3),
+                position,
+                scale,
+                HeroWaterMaterial());
             return water;
         }
 

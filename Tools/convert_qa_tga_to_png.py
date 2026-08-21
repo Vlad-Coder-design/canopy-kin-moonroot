@@ -1,6 +1,7 @@
 """Convert generated QA TGA frames to reviewable PNG files."""
 
 from pathlib import Path
+import glob
 import sys
 
 from PIL import Image
@@ -11,14 +12,19 @@ SCREENSHOTS = ROOT / "QA" / "Screenshots"
 
 
 def main() -> None:
-    pattern = sys.argv[1] if len(sys.argv) > 1 else "*.tga"
+    patterns = sys.argv[1:] or [str(SCREENSHOTS / "*.tga")]
     converted = 0
-    for source in sorted(SCREENSHOTS.glob(pattern)):
-        target = source.with_suffix(".png")
-        with Image.open(source) as image:
-            image.save(target, format="PNG", optimize=True)
-        converted += 1
-        print(f"CANOPY_KIN_QA_PNG path={target}")
+    for pattern in patterns:
+        candidate = Path(pattern)
+        if not candidate.is_absolute():
+            candidate = ROOT / candidate
+        for match in sorted(glob.glob(str(candidate))):
+            source = Path(match)
+            target = source.with_suffix(".png")
+            with Image.open(source) as image:
+                image.save(target, format="PNG", optimize=True)
+            converted += 1
+            print(f"CANOPY_KIN_QA_PNG path={target}")
     print(f"CANOPY_KIN_QA_PNG_OK converted={converted}")
 
 

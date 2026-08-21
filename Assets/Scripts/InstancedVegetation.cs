@@ -38,7 +38,7 @@ namespace CanopyKin
         {
             if (completed) return;
 
-            Material material = VisualFactory.VegetationMaterial(color);
+            Material material = VisualFactory.HeroVegetationMaterial(color);
             int cellX = Mathf.FloorToInt(position.x / ChunkSize);
             int cellZ = Mathf.FloorToInt(position.z / ChunkSize);
             string key = $"{cellX}:{cellZ}:{material.GetInstanceID()}";
@@ -50,8 +50,8 @@ namespace CanopyKin
 
             batch.Instances.Add(new Instance
             {
-                High = OrganicMeshFactory.BladeCluster(variant % 8),
-                Low = OrganicMeshFactory.BladeCluster(variant % 8, true),
+                High = EnvironmentMeshFactory.HeroGrassCluster(variant % 11),
+                Low = EnvironmentMeshFactory.HeroGrassCluster(variant % 11, true),
                 Matrix = Matrix4x4.TRS(position, rotation, scale)
             });
         }
