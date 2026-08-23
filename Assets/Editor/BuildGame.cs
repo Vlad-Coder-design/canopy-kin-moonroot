@@ -39,7 +39,7 @@ namespace CanopyKin.Editor
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
         const string RootNetworkPath =
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
-        const string ProductVersion = "0.8.0";
+        const string ProductVersion = "0.9.0";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
@@ -157,6 +157,14 @@ namespace CanopyKin.Editor
             PlayerSettings.WebGL.template = "PROJECT:CanopyKin";
             PlayerSettings.enableFrameTimingStats = true;
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.WebGL, ScriptingImplementation.IL2CPP);
+            // The speed preset generated a wasm large enough to crash the
+            // Unity 6.0.78 Binaryen wasm-opt process (0xC0000409) on Windows.
+            // Size-oriented IL2CPP is the appropriate browser preset: it keeps
+            // the same assets and gameplay while reducing executable code and
+            // the amount of WebAssembly that must be downloaded/optimized.
+            PlayerSettings.SetIl2CppCodeGeneration(
+                NamedBuildTarget.WebGL,
+                Il2CppCodeGeneration.OptimizeSize);
             QualitySettings.SetQualityLevel(3, true);
             QualitySettings.vSyncCount = 0;
         }

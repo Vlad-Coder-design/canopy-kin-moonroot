@@ -30,6 +30,43 @@ namespace CanopyKin
         public Vector3 UndergroundPlayerSpawn => UndergroundCenter + new Vector3(0, .28f, .9f);
         public Vector3 PlayerRespawn => IsUnderground ? UndergroundPlayerSpawn : SurfacePlayerSpawn;
 
+        public Vector3 ConstrainCameraPosition(Vector3 position)
+        {
+            if (IsUnderground)
+            {
+                position.y = Mathf.Clamp(
+                    position.y,
+                    UndergroundCenter.y + .28f,
+                    UndergroundCenter.y + 1.68f);
+                Vector2 fromCenter = new(
+                    position.x - UndergroundCenter.x,
+                    position.z - UndergroundCenter.z);
+                if (fromCenter.magnitude > 5.05f)
+                {
+                    fromCenter = fromCenter.normalized * 5.05f;
+                    position.x = UndergroundCenter.x + fromCenter.x;
+                    position.z = UndergroundCenter.z + fromCenter.y;
+                }
+                return position;
+            }
+
+            // The gameplay camera uses a 0.19 m collision sphere.  Keep its
+            // centre farther than that from the sampled ground/floor so the
+            // near plane cannot start inside a bank between height samples.
+            position.y = Mathf.Max(position.y, CameraSurfaceHeight(position.x, position.z) + .28f);
+            return position;
+        }
+
+        float CameraSurfaceHeight(float x, float z)
+        {
+            float sampledHeight = GroundHeight(x, z);
+            if (!layeredTerrainCollider) return sampledHeight;
+            var ray = new Ray(new Vector3(x, 16f, z), Vector3.down);
+            if (layeredTerrainCollider.Raycast(ray, out RaycastHit hit, 40f))
+                sampledHeight = hit.point.y;
+            return sampledHeight;
+        }
+
         readonly List<ResourceNode> resources = new();
         readonly List<Creature> creatures = new();
         readonly List<Renderer> surfaceRenderers = new();
@@ -37,6 +74,7 @@ namespace CanopyKin
         SquadController squads;
         Transform environment;
         Transform underground;
+        Collider layeredTerrainCollider;
         Transform rivalColony;
         GameObject nestUpgrade;
         GameObject undergroundUpgrade;
@@ -168,6 +206,27 @@ namespace CanopyKin
                          arguments,
                          argument => string.Equals(
                              argument,
+                             "-physical-world-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginPhysicalWorldQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-physical-world-video-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginPhysicalWorldVideoQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-camera-containment-smoke",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginCameraContainmentSmoke());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
                              "-environment-traversal-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginEnvironmentTraversalSmoke());
@@ -277,7 +336,7 @@ namespace CanopyKin
             yield return CaptureQaScreenshot("environment-080-veined-grass-wind.tga");
             Debug.Log(
                 "MOONROOT_ENVIRONMENT_SLICE_QA_OK screenshots=8 " +
-                "ground=PBR-blended grass=atlas-reactive roots=collidable puddle=physical");
+                "ground=PBR-blended grass=solid-geometry roots=collidable puddle=physical");
             if (!Application.isEditor)
                 Application.Quit(0);
         }
@@ -395,9 +454,353 @@ namespace CanopyKin
 
             Debug.Log(
                 "MOONROOT_WORLD_ASSET_QA_OK screenshots=5 " +
-                "brood=egg-larva-pupa cargo=seed-resin-protein nest=connected-berms");
+                "brood=egg-larva-pupa cargo=seed-resin-protein nest=modeled-chambers-tunnels");
             if (!Application.isEditor)
                 Application.Quit(0);
+        }
+
+        IEnumerator BeginPhysicalWorldQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            foreach (Creature creature in creatures)
+                if (creature) creature.gameObject.SetActive(false);
+            IsCinematic = true;
+            yield return new WaitForSecondsRealtime(.8f);
+
+            Renderer[] renderers = environment.GetComponentsInChildren<Renderer>(true);
+            MeshFilter[] filters = environment.GetComponentsInChildren<MeshFilter>(true);
+            int forbiddenBackdropCount = renderers.Count(renderer =>
+                renderer.name.IndexOf("photographic", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                renderer.name.IndexOf("backdrop", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                (renderer.sharedMaterial && renderer.sharedMaterial.shader &&
+                 renderer.sharedMaterial.shader.name.IndexOf(
+                     "ForestBackdrop", System.StringComparison.OrdinalIgnoreCase) >= 0));
+            int modeledTrees = filters.Count(filter =>
+                filter.name == "Irregular modeled trunk" && filter.sharedMesh);
+            int solidGrass = filters.Count(filter =>
+                filter.sharedMesh && filter.sharedMesh.name.IndexOf(
+                    "Solid curved", System.StringComparison.OrdinalIgnoreCase) >= 0);
+            int solidLeaves = filters.Count(filter =>
+                filter.sharedMesh && filter.sharedMesh.name.IndexOf(
+                    "Solid", System.StringComparison.OrdinalIgnoreCase) >= 0 &&
+                filter.sharedMesh.name.IndexOf(
+                    "leaf", System.StringComparison.OrdinalIgnoreCase) >= 0);
+            int transparentVegetation = renderers.Count(renderer =>
+                renderer.name.IndexOf("foliage", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                renderer.name.IndexOf("leaf", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                renderer.name.IndexOf("botanical", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    ? renderer.sharedMaterial &&
+                      (renderer.sharedMaterial.renderQueue >= 2450 ||
+                       renderer.sharedMaterial.shader.name.IndexOf(
+                           "Transparent", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                       renderer.sharedMaterial.shader.name.IndexOf(
+                           "Cutout", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                    : false);
+
+            Vector3 forestFocus = At(8.9f, 16.1f, .42f);
+            SetQaCamera(forestFocus, new Vector3(6.4f, 2.75f, -7.2f), 49f);
+            yield return CaptureQaScreenshot("physical-090-forest-no-photo-wall.png");
+            yield return CaptureQaWireframeScreenshot("physical-090-forest-wireframe.png");
+            SetQaCamera(At(11.2f, 15.55f, .58f), new Vector3(1.45f, .74f, -2.05f), 36f);
+            yield return CaptureQaWireframeScreenshot("physical-090-solid-grass-wireframe.png");
+            SetQaCamera(At(6.4f, 14.5f, .48f), new Vector3(1.35f, .82f, -1.9f), 34f);
+            yield return CaptureQaWireframeScreenshot("physical-090-solid-plants-wireframe.png");
+            Transform nearestTree = environment.GetComponentsInChildren<Transform>(true)
+                .Where(candidate => candidate.name.StartsWith("Modeled forest tree"))
+                .OrderBy(candidate => Vector3.Distance(candidate.position, forestFocus))
+                .FirstOrDefault();
+            if (nearestTree)
+            {
+                SetQaCamera(nearestTree.position + Vector3.up * 2.2f,
+                    new Vector3(6.2f, 2.6f, -6.4f), 45f);
+                yield return CaptureQaWireframeScreenshot(
+                    "physical-090-tree-roots-wireframe.png");
+            }
+
+            IsUnderground = true;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            Player.Teleport(UndergroundPlayerSpawn);
+            Vector3 queenFocus = UndergroundCenter + new Vector3(-2.9f, .72f, -1.75f);
+            SetQaCamera(queenFocus, new Vector3(1.05f, .52f, .8f), 46f);
+            yield return CaptureQaScreenshot("physical-090-queen-chamber-gameplay.png");
+            yield return CaptureQaWireframeScreenshot("physical-090-queen-chamber-wireframe.png");
+            SetQaCamera(UndergroundCenter + new Vector3(-1.32f, .48f, -.48f),
+                new Vector3(.62f, .08f, .48f), 52f);
+            yield return CaptureQaWireframeScreenshot("physical-090-nest-tunnel-wireframe.png");
+            SetQaCamera(UndergroundCenter + new Vector3(-3.0f, .45f, -1.56f),
+                new Vector3(1.02f, .44f, .72f), 43f);
+            yield return CaptureQaWireframeScreenshot("physical-090-resources-brood-wireframe.png");
+
+            int chamberShells = filters.Count(filter =>
+                filter.sharedMesh && filter.sharedMesh.name.StartsWith(
+                    "Organic closed chamber shell"));
+            int tunnelShells = filters.Count(filter =>
+                filter.sharedMesh && filter.sharedMesh.name.StartsWith(
+                    "Curved excavated tunnel shell"));
+            bool passed = forbiddenBackdropCount == 0 && modeledTrees >= 16 &&
+                          solidGrass > 0 && solidLeaves > 0 &&
+                          transparentVegetation == 0 && chamberShells >= 5 &&
+                          tunnelShells >= 4;
+            string result =
+                $"backdrops={forbiddenBackdropCount} modeledTrees={modeledTrees} " +
+                $"solidGrassMeshes={solidGrass} solidLeafMeshes={solidLeaves} " +
+                $"transparentVegetation={transparentVegetation} chamberShells={chamberShells} " +
+                $"tunnelShells={tunnelShells}";
+            if (passed)
+                Debug.Log("MOONROOT_PHYSICAL_WORLD_QA_OK " + result);
+            else
+                Debug.LogError("MOONROOT_PHYSICAL_WORLD_QA_FAILED " + result);
+            if (!Application.isEditor)
+                Application.Quit(passed ? 0 : 2);
+        }
+
+        IEnumerator BeginPhysicalWorldVideoQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            foreach (Creature creature in creatures)
+                if (creature) creature.gameObject.SetActive(false);
+
+            string projectRoot = Path.GetFullPath(
+                Path.Combine(Application.dataPath, "..", "..", ".."));
+            string directory = Path.Combine(
+                projectRoot, "QA", "VideoFrames", "physical-090-walkthrough");
+            Directory.CreateDirectory(directory);
+            foreach (string oldFrame in Directory.GetFiles(directory, "frame-*.tga"))
+                File.Delete(oldFrame);
+
+            const float frameRate = 15f;
+            const int surfaceFrames = 105;
+            const int nestFrames = 75;
+            const int exitFrames = 30;
+            const int totalFrames = surfaceFrames + nestFrames + exitFrames;
+            int frameNumber = 0;
+            AntVisual visual = Player.GetComponentInChildren<AntVisual>(true);
+            IsCinematic = true;
+
+            Vector3 surfaceStart = At(5.55f, 14.1f, .06f);
+            Vector3 surfaceEnd = At(12.25f, 17.05f, .06f);
+            for (int frame = 0; frame < surfaceFrames; frame++)
+            {
+                float t = frame / (float)(surfaceFrames - 1);
+                float eased = Mathf.SmoothStep(0f, 1f, t);
+                Vector3 position = Vector3.Lerp(surfaceStart, surfaceEnd, eased);
+                position.z += Mathf.Sin(t * Mathf.PI * 2f) * .72f;
+                position.y = GroundHeight(position.x, position.z) + .06f;
+                Vector3 next = position + new Vector3(.3f, 0, .13f +
+                    Mathf.Cos(t * Mathf.PI * 2f) * .16f);
+                Player.Teleport(position);
+                Player.Face(next);
+                visual.SetPlayerMotion(2.35f, .62f, true,
+                    QaGroundNormal(position.x, position.z));
+                Player.SnapCamera();
+                Camera.main.fieldOfView = 44f;
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            ToggleNest(Player, false);
+            yield return new WaitForSecondsRealtime(.35f);
+            Vector3 nestStart = UndergroundPlayerSpawn;
+            Vector3 nestEnd = UndergroundCenter + new Vector3(-3.1f, .08f, -1.55f);
+            for (int frame = 0; frame < nestFrames; frame++)
+            {
+                float t = frame / (float)(nestFrames - 1);
+                Vector3 position = Vector3.Lerp(nestStart, nestEnd,
+                    Mathf.SmoothStep(0f, 1f, t));
+                position.y = UndergroundCenter.y + .09f + Mathf.Sin(t * Mathf.PI) * .025f;
+                Vector3 next = Vector3.Lerp(position, nestEnd, .18f) + Vector3.forward * .08f;
+                Player.Teleport(position);
+                Player.Face(next, 5f);
+                visual.SetPlayerMotion(1.7f, .46f, true, Vector3.up);
+                Player.SnapCamera();
+                Camera.main.fieldOfView = 46f;
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            ToggleNest(Player, true);
+            for (int frame = 0; frame < exitFrames; frame++)
+            {
+                float t = frame / (float)(exitFrames - 1);
+                Vector3 position = Player.transform.position;
+                float angle = Mathf.Lerp(-28f, 18f, t) * Mathf.Deg2Rad;
+                Player.Face(position + new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle)));
+                Player.SnapCamera();
+                Camera.main.fieldOfView = 44f;
+                visual.SetPlayerMotion(0f, 0f, true,
+                    QaGroundNormal(position.x, position.z));
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            Debug.Log(
+                $"MOONROOT_PHYSICAL_WORLD_VIDEO_QA_OK frames={totalFrames} " +
+                $"fps={frameRate} surface={surfaceFrames} nest={nestFrames} " +
+                $"exit={exitFrames} directory={directory}");
+            if (!Application.isEditor)
+                Application.Quit(0);
+        }
+
+        static IEnumerator CapturePhysicalVideoFrame(
+            string directory,
+            int frame,
+            float frameRate)
+        {
+            yield return new WaitForSecondsRealtime(1f / frameRate);
+            yield return new WaitForEndOfFrame();
+            WriteQaTga(Path.Combine(directory, $"frame-{frame:D4}.tga"), 960, 540);
+        }
+
+        IEnumerator BeginCameraContainmentSmoke()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            int samples = 0;
+            int failures = 0;
+            int solidOverlaps = 0;
+            int tooClose = 0;
+            Camera camera = Camera.main;
+
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            Vector3[] surfacePoints =
+            {
+                SurfacePlayerSpawn,
+                At(0, -1.8f, .06f),
+                At(7.2f, 14.8f, .06f),
+                At(9.1f, 16.1f, .06f),
+                At(11.6f, 18.1f, .06f),
+                At(-8.2f, 7.5f, .06f)
+            };
+            for (int pointIndex = 0; pointIndex < surfacePoints.Length; pointIndex++)
+            for (int directionIndex = 0; directionIndex < 8; directionIndex++)
+            {
+                Vector3 point = surfacePoints[pointIndex];
+                float angle = directionIndex / 8f * Mathf.PI * 2f;
+                Player.Teleport(point);
+                Player.Face(point + new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle)));
+                camera.transform.position = point - Vector3.up * 3f;
+                Player.SnapCamera();
+                yield return null;
+                samples++;
+                float minimum = CameraSurfaceHeight(
+                    camera.transform.position.x,
+                    camera.transform.position.z) + .16f;
+                if (camera.transform.position.y < minimum) failures++;
+                if (Vector3.Distance(
+                        camera.transform.position,
+                        Player.transform.position + Vector3.up * .38f) < .82f)
+                {
+                    tooClose++;
+                    failures++;
+                }
+                if (CameraOverlapsSolid(camera.transform.position, .15f))
+                {
+                    solidOverlaps++;
+                    failures++;
+                }
+            }
+
+            ToggleNest(Player, false);
+            for (int directionIndex = 0; directionIndex < 12; directionIndex++)
+            {
+                float angle = directionIndex / 12f * Mathf.PI * 2f;
+                Player.Face(Player.transform.position +
+                            new Vector3(Mathf.Sin(angle), 0, Mathf.Cos(angle)));
+                camera.transform.position = UndergroundCenter - Vector3.up * 3f;
+                Player.SnapCamera();
+                yield return null;
+                samples++;
+                float localY = camera.transform.position.y - UndergroundCenter.y;
+                if (localY < .16f || localY > 1.84f) failures++;
+                if (Vector3.Distance(
+                        camera.transform.position,
+                        Player.transform.position + Vector3.up * .38f) < .82f)
+                {
+                    tooClose++;
+                    failures++;
+                }
+                if (CameraOverlapsSolid(camera.transform.position, .15f))
+                {
+                    solidOverlaps++;
+                    failures++;
+                }
+            }
+
+            ToggleNest(Player, true);
+            yield return null;
+            samples++;
+            float transitionMinimum = CameraSurfaceHeight(
+                camera.transform.position.x,
+                camera.transform.position.z) + .16f;
+            if (camera.transform.position.y < transitionMinimum) failures++;
+            if (Vector3.Distance(
+                    camera.transform.position,
+                    Player.transform.position + Vector3.up * .38f) < .82f)
+            {
+                tooClose++;
+                failures++;
+            }
+            if (CameraOverlapsSolid(camera.transform.position, .15f))
+            {
+                solidOverlaps++;
+                failures++;
+            }
+
+            string result =
+                $"samples={samples} failures={failures} solidOverlaps={solidOverlaps} " +
+                $"tooClose={tooClose} finalLocation=" +
+                (IsUnderground ? "underground" : "surface") +
+                $" camera={camera.transform.position:F3}";
+            if (failures == 0 && !IsUnderground)
+                Debug.Log("MOONROOT_CAMERA_CONTAINMENT_OK " + result);
+            else
+                Debug.LogError("MOONROOT_CAMERA_CONTAINMENT_FAILED " + result);
+            if (!Application.isEditor)
+                Application.Quit(failures == 0 && !IsUnderground ? 0 : 2);
+        }
+
+        bool CameraOverlapsSolid(Vector3 position, float radius)
+        {
+            foreach (Collider collider in Physics.OverlapSphere(
+                         position,
+                         radius,
+                         ~0,
+                         QueryTriggerInteraction.Ignore))
+            {
+                if (!collider || collider.isTrigger) continue;
+                // An open terrain MeshCollider is reported as an enclosing
+                // half-space by overlap queries on some PhysX backends.  Its
+                // clearance is tested directly against CameraSurfaceHeight.
+                if (collider == layeredTerrainCollider) continue;
+                Transform candidate = collider.transform;
+                if (candidate == Player.transform || candidate.IsChildOf(Player.transform))
+                    continue;
+                if (collider.GetComponentInParent<SquadUnit>() ||
+                    collider.GetComponentInParent<Creature>())
+                    continue;
+                return true;
+            }
+            return false;
         }
 
         IEnumerator BeginEnvironmentTraversalSmoke()
@@ -692,6 +1095,27 @@ namespace CanopyKin
             yield return new WaitForSecondsRealtime(.5f);
         }
 
+        static IEnumerator CaptureQaWireframeScreenshot(string fileName)
+        {
+            yield return new WaitForEndOfFrame();
+            string projectRoot = Path.GetFullPath(
+                Path.Combine(Application.dataPath, "..", "..", ".."));
+            string directory = Path.Combine(projectRoot, "QA", "Screenshots");
+            Directory.CreateDirectory(directory);
+            string path = Path.Combine(directory, fileName);
+            GL.wireframe = true;
+            try
+            {
+                WriteQaTga(path, 1600, 900);
+            }
+            finally
+            {
+                GL.wireframe = false;
+            }
+            Debug.Log($"MOONROOT_WIREFRAME_QA_SCREENSHOT path={path}");
+            yield return new WaitForSecondsRealtime(.5f);
+        }
+
         static void WriteQaTga(string path, int width, int height)
         {
             Camera camera = Camera.main;
@@ -721,6 +1145,13 @@ namespace CanopyKin
                 RenderTexture.ReleaseTemporary(target);
             }
             Color32[] pixels = texture.GetPixels32();
+            if (string.Equals(Path.GetExtension(path), ".png",
+                    System.StringComparison.OrdinalIgnoreCase))
+            {
+                File.WriteAllBytes(path, texture.EncodeToPNG());
+                Object.Destroy(texture);
+                return;
+            }
             byte[] tga = new byte[18 + pixels.Length * 3];
             tga[2] = 2;
             tga[12] = (byte)(width & 0xff);
@@ -1114,13 +1545,14 @@ namespace CanopyKin
             Mission.StepChanged += _ => RefreshWorldForMission();
 
             ConfigureLighting();
-            VisualFactory.Terrain(
+            GameObject layeredTerrain = VisualFactory.Terrain(
                 "Layered loam terrain",
                 environment,
                 110f,
                 RuntimeQualityProfile.TerrainResolution(GameSettings.Quality),
                 GroundHeight,
                 new Color(.82f, .76f, .65f));
+            layeredTerrainCollider = layeredTerrain.GetComponent<Collider>();
             BuildDistantEnclosure();
             BuildNest();
             BuildForageRoute();
@@ -1238,79 +1670,90 @@ namespace CanopyKin
 
         void BuildDistantEnclosure()
         {
-            var enclosure = new GameObject("Forest horizon enclosure").transform;
+            var enclosure = new GameObject("Layered modeled forest enclosure").transform;
             enclosure.SetParent(environment, false);
-            VisualFactory.ForestHorizonBackdrop(enclosure);
-            int treeCount = RuntimeQualityProfile.IsFullQuality ? 18 : 12;
+            int treeCount = RuntimeQualityProfile.DistantTreeCount(GameSettings.Quality);
             for (int i = 0; i < treeCount; i++)
             {
-                float angle = i / (float)treeCount * Mathf.PI * 2f;
-                float radius = 45.5f + Mathf.Sin(i * 3.2f) * 3.1f;
-                Vector3 basePoint = new(Mathf.Cos(angle) * radius, GroundHeight(Mathf.Cos(angle) * radius, Mathf.Sin(angle) * radius) - .8f, Mathf.Sin(angle) * radius);
-                Vector3 top = basePoint + new Vector3(
-                    Mathf.Sin(angle) * 3.2f,
-                    Random.Range(30f, 43f),
-                    Mathf.Cos(angle) * 3.2f);
-                GameObject distantTree = VisualFactory.TexturedRoot(
-                    "Distant mature trunk extending beyond camera frame",
-                    enclosure,
-                    new[]
-                    {
-                        basePoint - Vector3.up * .7f,
-                        Vector3.Lerp(basePoint, top, .12f),
-                        Vector3.Lerp(basePoint, top, .29f) + RingTangent(angle) * .7f,
-                        Vector3.Lerp(basePoint, top, .48f) - RingTangent(angle) * .65f,
-                        Vector3.Lerp(basePoint, top, .72f) + RingTangent(angle) * .5f,
-                        top
-                    },
-                    new[]
-                    {
-                        Random.Range(2.5f, 3.8f), Random.Range(2.25f, 3.05f),
-                        Random.Range(1.85f, 2.55f), Random.Range(1.42f, 2.05f),
-                        Random.Range(1.05f, 1.55f), Random.Range(.72f, 1.08f)
-                    },
-                    false);
-                distantTree.GetComponent<Renderer>().shadowCastingMode =
-                    UnityEngine.Rendering.ShadowCastingMode.Off;
-                if (i % 2 == 0)
+                int layer = i % 3;
+                float angle = i * 2.399963f + layer * .37f;
+                float radius = layer switch
                 {
-                    Vector3 inward = new Vector3(-Mathf.Cos(angle), 0, -Mathf.Sin(angle));
-                    Vector3 tangent = new Vector3(-Mathf.Sin(angle), 0, Mathf.Cos(angle));
-                    VisualFactory.TexturedRoot(
-                        "Root-flared distant trunk base",
-                        enclosure,
-                        new[]
-                        {
-                            basePoint + tangent * 1.35f + Vector3.up * 1.45f,
-                            basePoint + tangent * 2.15f + inward * 1.3f + Vector3.up * .34f,
-                            basePoint + tangent * 3.6f + inward * 2.2f + Vector3.up * .05f
-                        },
-                        new[] { .86f, .58f, .12f },
-                        false);
-                    float branchT = .31f + (i % 5) * .035f;
-                    Vector3 branchBase = Vector3.Lerp(basePoint, top, branchT);
-                    VisualFactory.TexturedRoot(
-                        "High background branch",
-                        enclosure,
-                        new[]
-                        {
-                            branchBase,
-                            branchBase + tangent * 3.8f + Vector3.up * 1.1f,
-                            branchBase + tangent * 7f + Vector3.up * .2f
-                        },
-                        new[] { 1.05f, .58f, .16f },
-                        false);
-                }
-            }
-            for (int i = 0; i < 22; i++)
-            {
-                float angle = i / 14f * Mathf.PI * 2f + .17f;
-                Vector3 position = new(Mathf.Cos(angle) * 42f, GroundHeight(Mathf.Cos(angle) * 42f, Mathf.Sin(angle) * 42f), Mathf.Sin(angle) * 42f);
-                VisualFactory.GrassTuft(enclosure, position, Random.Range(4.6f, 7.4f), Color.Lerp(new Color(.15f, .31f, .07f), new Color(.31f, .51f, .13f), Random.value), i);
+                    0 => 27.5f + Mathf.Sin(i * 2.7f) * 2.8f,
+                    1 => 38.5f + Mathf.Sin(i * 3.1f) * 3.4f,
+                    _ => 49f + Mathf.Sin(i * 2.3f) * 3.2f
+                };
+                float x = Mathf.Cos(angle) * radius;
+                float z = Mathf.Sin(angle) * radius + 3f;
+                Vector3 basePoint = new(x, GroundHeight(x, z) - .35f, z);
+                float height = layer switch
+                {
+                    0 => Random.Range(15f, 22f),
+                    1 => Random.Range(20f, 29f),
+                    _ => Random.Range(25f, 36f)
+                };
+                float trunkRadius = Mathf.Lerp(.72f, 1.55f, height / 36f) *
+                                    Random.Range(.88f, 1.18f);
+                VisualFactory.ModeledForestTree(
+                    enclosure,
+                    basePoint,
+                    height,
+                    trunkRadius,
+                    i,
+                    layer == 0);
             }
 
-            static Vector3 RingTangent(float angle) =>
-                new(-Mathf.Sin(angle), 0, Mathf.Cos(angle));
+            int understoryCount = RuntimeQualityProfile.IsFullQuality ? 72 : 34;
+            for (int i = 0; i < understoryCount; i++)
+            {
+                float angle = i * 2.399963f + .19f;
+                float radius = Random.Range(25f, 52f);
+                float x = Mathf.Cos(angle) * radius;
+                float z = Mathf.Sin(angle) * radius + 3f;
+                Vector3 position = new(x, GroundHeight(x, z), z);
+                if ((i & 1) == 0)
+                    VisualFactory.GroundcoverPatch(
+                        enclosure,
+                        position,
+                        Random.Range(1.35f, 2.8f),
+                        Color.Lerp(new Color(.19f, .37f, .08f),
+                            new Color(.45f, .58f, .17f), Random.value),
+                        1400 + i);
+                else
+                    VisualFactory.GrassTuft(
+                        enclosure,
+                        position,
+                        Random.Range(1.6f, 3.2f),
+                        Color.Lerp(new Color(.16f, .32f, .065f),
+                            new Color(.39f, .52f, .15f), Random.value),
+                        1500 + i);
+            }
+
+            // Uneven modeled banks overlap the outer edge of the sculpted
+            // terrain.  They are geometry, not an inaccessible image wall.
+            for (int i = 0; i < 24; i++)
+            {
+                float angle = i / 24f * Mathf.PI * 2f;
+                float radius = 51.5f;
+                float x = Mathf.Cos(angle) * radius;
+                float z = Mathf.Sin(angle) * radius;
+                GameObject bank = VisualFactory.Stone(
+                    "Modeled outer soil ridge",
+                    enclosure,
+                    new Vector3(x, GroundHeight(x, z) - .55f, z),
+                    new Vector3(4.8f, 2.2f + i % 4 * .38f, 7.2f),
+                    1700 + i,
+                    false,
+                    i % 3 == 0);
+                bank.transform.localRotation = Quaternion.Euler(
+                    0,
+                    -angle * Mathf.Rad2Deg,
+                    (i % 5 - 2) * 2f);
+            }
+
+            Debug.Log(
+                $"MOONROOT_MODELED_FOREST_READY trees={treeCount} understory={understoryCount} " +
+                "boundaryBanks=24 photographicBackdrops=0 billboards=0");
         }
 
         void BuildNest()
@@ -1385,34 +1828,7 @@ namespace CanopyKin
             underground.SetParent(environment, false);
             underground.position = UndergroundCenter;
 
-            GameObject floor = VisualFactory.Terrain("Compacted chamber floor", underground, 11.5f, 28,
-                (x, z) => Mathf.PerlinNoise((x + 9f) * .3f, (z + 13f) * .3f) * .11f,
-                new Color(.58f, .43f, .31f));
-            floor.GetComponent<Renderer>().sharedMaterial = VisualFactory.NestSoilMaterial();
-
-            VisualFactory.MeshObject(
-                "Continuous earthen chamber shell",
-                underground,
-                OrganicMeshFactory.CaveShell(),
-                Vector3.zero,
-                Vector3.one,
-                VisualFactory.NestSoilMaterial(),
-                true);
-
-            // Four overlapping work zones make the colony read as connected
-            // chambers and galleries, rather than one circular room.
-            WorldAssetVisualFactory.ChamberBerm(
-                underground, "Central traffic chamber berm", new Vector3(0, .03f, .45f),
-                new Vector3(1.45f, .38f, 1.2f), 1);
-            WorldAssetVisualFactory.ChamberBerm(
-                underground, "Queen nursery chamber berm", new Vector3(-2.9f, .04f, -1.75f),
-                new Vector3(1.32f, .42f, .8f), 2);
-            WorldAssetVisualFactory.ChamberBerm(
-                underground, "Food storage chamber berm", new Vector3(-3.35f, .04f, .95f),
-                new Vector3(.78f, .3f, .68f), 3);
-            WorldAssetVisualFactory.ChamberBerm(
-                underground, "Worker nursery chamber berm", new Vector3(2.9f, .04f, -.25f),
-                new Vector3(.88f, .34f, .72f), 4);
+            BuildModeledNestNetwork();
 
             for (int i = 0; i < 6; i++)
             {
@@ -1456,6 +1872,219 @@ namespace CanopyKin
             nurseryFillLight.range = 7f;
             nurseryFillLight.intensity = .82f;
             nurseryFillLight.color = new Color(.78f, .51f, .34f);
+        }
+
+        void BuildModeledNestNetwork()
+        {
+            BuildModeledChamber(
+                "Modeled central traffic excavation",
+                new Vector3(0, 0, .45f),
+                new Vector3(2.45f, 2.25f, 2.25f),
+                1,
+                -143f, 171f, -9f, 90f);
+            BuildModeledChamber(
+                "Modeled queen and brood excavation",
+                new Vector3(-2.9f, 0, -1.75f),
+                new Vector3(2.22f, 2.05f, 1.72f),
+                2,
+                37f);
+            BuildModeledChamber(
+                "Modeled food storage excavation",
+                new Vector3(-3.35f, 0, .95f),
+                new Vector3(1.72f, 1.65f, 1.5f),
+                3,
+                -9f);
+            BuildModeledChamber(
+                "Modeled worker nursery excavation",
+                new Vector3(2.9f, 0, -.25f),
+                new Vector3(1.9f, 1.78f, 1.58f),
+                4,
+                166f);
+            BuildModeledChamber(
+                "Modeled defensive entrance vestibule",
+                new Vector3(0, 0, 3.18f),
+                new Vector3(1.62f, 1.68f, 1.48f),
+                5,
+                -90f, 90f);
+
+            BuildModeledTunnel(
+                "Queen chamber connecting tunnel",
+                11,
+                new[]
+                {
+                    new Vector3(-2.12f, .02f, -1.15f),
+                    new Vector3(-1.62f, .015f, -.72f),
+                    new Vector3(-.92f, .02f, -.18f),
+                    new Vector3(-.35f, .015f, .26f)
+                },
+                .68f,
+                1.05f);
+            BuildModeledTunnel(
+                "Food storage connecting tunnel",
+                12,
+                new[]
+                {
+                    new Vector3(-2.55f, .02f, .84f),
+                    new Vector3(-1.85f, .01f, .73f),
+                    new Vector3(-1.05f, .018f, .61f),
+                    new Vector3(-.38f, .012f, .5f)
+                },
+                .62f,
+                .94f);
+            BuildModeledTunnel(
+                "Worker nursery connecting tunnel",
+                13,
+                new[]
+                {
+                    new Vector3(2.15f, .02f, -.05f),
+                    new Vector3(1.55f, .012f, .08f),
+                    new Vector3(.88f, .02f, .24f),
+                    new Vector3(.34f, .012f, .4f)
+                },
+                .66f,
+                1f);
+            BuildModeledTunnel(
+                "Sloped entrance passage",
+                14,
+                new[]
+                {
+                    new Vector3(0, .015f, 1.85f),
+                    new Vector3(.08f, .035f, 2.28f),
+                    new Vector3(-.06f, .09f, 2.78f),
+                    new Vector3(0, .18f, 3.42f)
+                },
+                .72f,
+                1.1f);
+
+            Debug.Log(
+                "MOONROOT_MODELED_NEST_READY chambers=5 tunnels=4 " +
+                "floors=solid shells=closed colliders=enabled");
+        }
+
+        void BuildModeledChamber(
+            string name,
+            Vector3 localPosition,
+            Vector3 radii,
+            int variant,
+            params float[] portalAngles)
+        {
+            var chamber = new GameObject(name).transform;
+            chamber.SetParent(underground, false);
+            chamber.localPosition = localPosition;
+            Material soil = VisualFactory.NestSoilMaterial();
+            VisualFactory.MeshObject(
+                "Uneven excavated chamber floor",
+                chamber,
+                NestGeometryFactory.ChamberFloor(variant,
+                    new Vector2(radii.x * .96f, radii.z * .96f)),
+                Vector3.zero,
+                Vector3.one,
+                soil,
+                true).AddComponent<MovementSurface>().Initialize("Packed nest soil", .94f);
+            VisualFactory.MeshObject(
+                "Curved chamber walls and ceiling",
+                chamber,
+                NestGeometryFactory.ChamberShell(variant, radii, portalAngles),
+                Vector3.zero,
+                Vector3.one,
+                soil,
+                true);
+
+            // Embedded clods and pebbles protrude from the wall so their depth
+            // remains visible during lateral camera movement.
+            for (int i = 0; i < 11; i++)
+            {
+                float angle = i / 11f * Mathf.PI * 2f + variant * .47f;
+                float y = .32f + (i % 4) * radii.y * .16f;
+                float elevation = Mathf.Asin(Mathf.Clamp01(y / radii.y));
+                float radial = Mathf.Cos(elevation) * .9f;
+                Vector3 position = new(
+                    Mathf.Cos(angle) * radii.x * radial,
+                    y,
+                    Mathf.Sin(angle) * radii.z * radial);
+                GameObject clod = VisualFactory.MeshObject(
+                    i % 3 == 0 ? "Embedded nest pebble" : "Excavation soil clod",
+                    chamber,
+                    i % 3 == 0
+                        ? EnvironmentMeshFactory.HeroStone(variant * 17 + i)
+                        : WorldAssetMeshFactory.SoilClod(variant * 19 + i),
+                    position,
+                    new Vector3(.28f + i % 3 * .07f, .19f + i % 2 * .055f,
+                        .25f + i % 4 * .045f),
+                    i % 3 == 0
+                        ? VisualFactory.PbrMaterial("Stone", new Color(.64f, .58f, .47f), .04f, 1.1f,
+                            new Vector2(1.7f, 1.7f))
+                        : soil,
+                    false);
+                clod.transform.localRotation = Quaternion.Euler(
+                    i * 13f,
+                    -angle * Mathf.Rad2Deg,
+                    i * 29f);
+            }
+
+            for (int rootIndex = 0; rootIndex < 3; rootIndex++)
+            {
+                float angle = variant * .63f + rootIndex * 1.91f;
+                Vector3 side = new(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+                Vector3 tangent = new(-side.z, 0, side.x);
+                VisualFactory.TexturedRoot(
+                    "Root penetrating modeled wall and ceiling",
+                    chamber,
+                    new[]
+                    {
+                        Vector3.Scale(side, new Vector3(radii.x * .94f, 0, radii.z * .94f)) +
+                            Vector3.up * .48f,
+                        Vector3.Scale(side, new Vector3(radii.x * .78f, 0, radii.z * .78f)) +
+                            tangent * .18f + Vector3.up * radii.y * .62f,
+                        side * .2f + tangent * .32f + Vector3.up * radii.y * .92f
+                    },
+                    new[] { .16f + rootIndex * .025f, .12f, .055f },
+                    true);
+            }
+        }
+
+        void BuildModeledTunnel(
+            string name,
+            int variant,
+            IReadOnlyList<Vector3> path,
+            float radius,
+            float height)
+        {
+            var tunnel = new GameObject(name).transform;
+            tunnel.SetParent(underground, false);
+            Material soil = VisualFactory.NestSoilMaterial();
+            VisualFactory.MeshObject(
+                "Solid worn tunnel floor",
+                tunnel,
+                NestGeometryFactory.TunnelFloor(variant, path, radius * .88f),
+                Vector3.zero,
+                Vector3.one,
+                soil,
+                true).AddComponent<MovementSurface>().Initialize("Packed tunnel soil", .96f);
+            VisualFactory.MeshObject(
+                "Curved tunnel walls and ceiling",
+                tunnel,
+                NestGeometryFactory.TunnelShell(variant, path, radius, height),
+                Vector3.zero,
+                Vector3.one,
+                soil,
+                true);
+
+            int middle = path.Count / 2;
+            Vector3 tangent = (path[Mathf.Min(path.Count - 1, middle + 1)] -
+                               path[Mathf.Max(0, middle - 1)]).normalized;
+            Vector3 side = Vector3.Cross(Vector3.up, tangent).normalized;
+            VisualFactory.TexturedRoot(
+                "Exposed tunnel support root",
+                tunnel,
+                new[]
+                {
+                    path[middle] - side * radius + Vector3.up * .24f,
+                    path[middle] + Vector3.up * height * .92f,
+                    path[middle] + side * radius + Vector3.up * .24f
+                },
+                new[] { .115f, .082f, .115f },
+                true);
         }
 
         void BuildQueenChamber()
@@ -1914,7 +2543,7 @@ namespace CanopyKin
                 if (KeepClear(x, z)) continue;
                 float exposure = Mathf.PerlinNoise(x * .075f + 17f, z * .075f + 41f);
                 if (exposure < .24f && Random.value > .32f) continue;
-                float height = Random.Range(1.05f, 3.45f);
+                float height = Random.Range(.72f, 2.3f);
                 float age = Mathf.Clamp01(Random.value * .78f + (1f - exposure) * .25f);
                 Color grass = Color.Lerp(
                     new Color(.27f, .45f, .11f),
@@ -2119,7 +2748,7 @@ namespace CanopyKin
                 GameObject grass = VisualFactory.GrassTuft(
                     route,
                     At(side * (.72f + (i % 3) * .18f), z),
-                    1.25f + (i % 4) * .24f,
+                    .88f + (i % 4) * .18f,
                     Color.Lerp(new Color(.17f, .38f, .08f), new Color(.47f, .65f, .2f), i / 13f),
                     120 + i);
                 grass.name = "Reactive route grass";
@@ -2346,7 +2975,7 @@ namespace CanopyKin
             cameraObject.tag = "MainCamera";
             Camera camera = cameraObject.AddComponent<Camera>();
             camera.fieldOfView = GameSettings.FieldOfView;
-            camera.nearClipPlane = .025f;
+            camera.nearClipPlane = .018f;
             camera.farClipPlane = RuntimeQualityProfile.IsFullQuality ? 180f : 125f;
             camera.allowHDR = RuntimeQualityProfile.IsFullQuality;
             camera.allowMSAA = GameSettings.Quality > 0;

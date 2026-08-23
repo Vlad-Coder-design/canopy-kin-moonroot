@@ -50,8 +50,8 @@ namespace CanopyKin
 
             batch.Instances.Add(new Instance
             {
-                High = EnvironmentMeshFactory.HeroGrassCluster(variant % 11),
-                Low = EnvironmentMeshFactory.HeroGrassCluster(variant % 11, true),
+                High = VolumetricVegetationMeshFactory.GrassCluster(variant % 11),
+                Low = VolumetricVegetationMeshFactory.GrassCluster(variant % 11, true),
                 Matrix = Matrix4x4.TRS(position, rotation, scale)
             });
         }

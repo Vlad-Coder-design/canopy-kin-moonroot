@@ -154,21 +154,21 @@ for provenance even though attribution is not required.
 
 ## Project-owned generated environment textures (not third-party)
 
-- Assets: `moonroot_packed_soil_albedo_v1.png`,
-  `moonroot_groundcover_atlas_v2.png`,
-  `moonroot_forest_horizon_panorama_v1.png`, and
+- Active assets: `moonroot_packed_soil_albedo_v1.png` and
   `moonroot_weathered_stone_albedo_v1.png`
 - Creator: OpenAI image generation, directed and integrated by the Canopy Kin
   development team on 2026-08-21
 - Source/license: original project-owned generated assets; no commercial-game
   material or third-party asset was copied
-- Modifications: transparent-background extraction for the groundcover atlas;
-  Unity mip generation and platform compression; cylindrical fog integration
-  for the panorama; existing project normal/roughness detail combined with the
-  stone base colour
-- Use: packed underground soil, mixed botanical groundcover, distant forest
-  closure, and forest stones
-- Exact prompts and original-output paths:
+- Modifications: Unity mip generation and platform compression; existing
+  project normal/roughness detail is combined with each base colour
+- Use: packed underground soil and forest stones
+- Removed in 0.9.0: the generated forest panorama and all generated
+  grass/groundcover/dead-leaf atlases. Their PNG files, Unity metadata,
+  backdrop shader and image-card vegetation shaders were deleted. They are not
+  loaded or instantiated by the current game. The 0.9.0 forest, canopy,
+  groundcover, grass and fallen leaves use opaque project-authored 3D meshes.
+- Source, ownership and retirement records:
   `Assets/Resources/HighQuality/Original/Nest/SOURCE.md`,
   `Assets/Resources/HighQuality/Original/Vegetation/SOURCE.md`, and
   `Assets/Resources/HighQuality/Original/Environment/SOURCE.md`

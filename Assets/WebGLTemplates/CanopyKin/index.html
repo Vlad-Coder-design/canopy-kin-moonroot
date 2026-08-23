@@ -91,11 +91,26 @@
       fullscreen: Boolean(document.fullscreenElement)
     });
 
+    let revealed = false;
+    function revealGame(instance) {
+      if (instance) window.game = instance;
+      if (revealed) return;
+      revealed = true;
+      clearTimeout(watchdog);
+      shell.style.display = 'none';
+      canvas.style.display = 'block';
+      focusCanvas();
+    }
+
     const record = (level, message) => {
       const line = level + ': ' + String(message);
       diagnostics.push(line);
       if (diagnostics.length > 200) diagnostics.shift();
       (level === 'error' ? console.error : console.log)(message);
+      // Unity 6 can finish running the scene before createUnityInstance's
+      // promise resolves when decompressionFallback is active. The runtime
+      // marker is emitted only after the real mission world has been built.
+      if (String(message).includes('MOONROOT_SLICE_READY')) revealGame();
     };
 
     const root = 'Build';
@@ -117,6 +132,10 @@
 
     let watchdog;
     function fail(message) {
+      if (revealed) {
+        record('error', message);
+        return;
+      }
       clearTimeout(watchdog);
       status.style.display = 'none';
       document.querySelector('.bar').style.display = 'none';
@@ -142,11 +161,7 @@
         ? 'Downloading game... ' + percent + '%'
         : 'Starting colony simulation...';
     }).then(instance => {
-      clearTimeout(watchdog);
-      window.game = instance;
-      shell.style.display = 'none';
-      canvas.style.display = 'block';
-      focusCanvas();
+      revealGame(instance);
       if (query.get('movementDiagnostics') === '1')
         instance.SendMessage('Player scout ant', 'SetMovementDiagnostics', '1');
     }).catch(error => fail(error.message || String(error)));

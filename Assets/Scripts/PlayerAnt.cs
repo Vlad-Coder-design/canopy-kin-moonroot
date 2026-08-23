@@ -41,6 +41,8 @@ namespace CanopyKin
         bool pointerWasLocked;
         bool dying;
         readonly RaycastHit[] castHits = new RaycastHit[32];
+        readonly Collider[] cameraOverlapHits = new Collider[48];
+        SphereCollider cameraCollisionProbe;
 
         public float Health { get; private set; } = 100;
         public float Stamina { get; private set; } = 100;
@@ -79,7 +81,13 @@ namespace CanopyKin
             if (viewCamera)
             {
                 viewCamera.fieldOfView = GameSettings.FieldOfView;
-                viewCamera.nearClipPlane = .025f;
+                viewCamera.nearClipPlane = .018f;
+                cameraCollisionProbe = viewCamera.GetComponent<SphereCollider>();
+                if (!cameraCollisionProbe)
+                    cameraCollisionProbe = viewCamera.gameObject.AddComponent<SphereCollider>();
+                cameraCollisionProbe.radius = .19f;
+                cameraCollisionProbe.center = Vector3.zero;
+                cameraCollisionProbe.isTrigger = true;
             }
             SnapCamera();
         }
@@ -514,18 +522,16 @@ namespace CanopyKin
             float height = Mathf.Lerp(.36f, 3.4f, tacticalBlend);
             Quaternion orbit = Quaternion.Euler(tacticalPitch, yaw, 0);
             Vector3 wanted = target + orbit * new Vector3(0, height, -distance);
-            Vector3 direction = wanted - target;
-            if (TryFilteredSphereCast(
-                    target,
-                    .13f,
-                    direction,
-                    direction.magnitude,
-                    out RaycastHit hit))
-                wanted = hit.point - direction.normalized * .16f;
+            wanted = ResolveCameraPlacement(target, wanted);
             cameraShake = Mathf.MoveTowards(cameraShake, 0, Time.unscaledDeltaTime * .8f);
             if (cameraShake > 0) wanted += UnityEngine.Random.insideUnitSphere * cameraShake;
             float smoothing = WorldBootstrap.Instance.IsPlaying ? 16f : 5f;
-            viewCamera.transform.position = Vector3.Lerp(viewCamera.transform.position, wanted, smoothing * Time.unscaledDeltaTime);
+            Vector3 next = Vector3.Lerp(
+                viewCamera.transform.position,
+                wanted,
+                smoothing * Time.unscaledDeltaTime);
+            next = ResolveCameraPlacement(target, next);
+            viewCamera.transform.position = next;
             viewCamera.transform.rotation = Quaternion.Slerp(
                 viewCamera.transform.rotation,
                 Quaternion.LookRotation(target - viewCamera.transform.position, Vector3.up),
@@ -538,8 +544,103 @@ namespace CanopyKin
             if (!viewCamera) viewCamera = Camera.main;
             if (!viewCamera) return;
             Vector3 target = transform.position + Vector3.up * .38f;
-            viewCamera.transform.position = target + Quaternion.Euler(pitch, yaw, 0) * new Vector3(0, .36f, -2.72f);
+            Vector3 wanted = target + Quaternion.Euler(pitch, yaw, 0) *
+                             new Vector3(0, .36f, -2.72f);
+            viewCamera.transform.position = ResolveCameraPlacement(target, wanted);
             viewCamera.transform.rotation = Quaternion.LookRotation(target - viewCamera.transform.position);
+        }
+
+        Vector3 ResolveCameraPlacement(Vector3 target, Vector3 wanted)
+        {
+            WorldBootstrap world = WorldBootstrap.Instance;
+            if (world != null)
+            {
+                target = world.ConstrainCameraPosition(target);
+                wanted = world.ConstrainCameraPosition(wanted);
+            }
+
+            Vector3 direction = wanted - target;
+            float distance = direction.magnitude;
+            if (distance > .001f && TryFilteredSphereCast(
+                    target,
+                    .19f,
+                    direction,
+                    distance,
+                    out RaycastHit hit))
+                wanted = hit.point - direction.normalized * .22f;
+
+            if (world != null)
+                wanted = world.ConstrainCameraPosition(wanted);
+            Vector3 resolved = ResolveCameraOverlaps(target, wanted, world);
+            if (Vector3.Distance(resolved, target) < .9f)
+            {
+                // A very close collision response can be physically valid but
+                // still put the near plane inside the ant's rendered body.
+                // Prefer a compact elevated shoulder view in narrow tunnels.
+                Vector3 elevated = target + Vector3.up * 1.08f -
+                                   transform.forward * .72f;
+                if (world != null)
+                    elevated = world.ConstrainCameraPosition(elevated);
+                resolved = ResolveCameraOverlaps(target, elevated, world);
+            }
+            return resolved;
+        }
+
+        Vector3 ResolveCameraOverlaps(
+            Vector3 target,
+            Vector3 wanted,
+            WorldBootstrap world)
+        {
+            if (!cameraCollisionProbe) return wanted;
+            for (int pass = 0; pass < 12; pass++)
+            {
+                int count = Physics.OverlapSphereNonAlloc(
+                    wanted,
+                    cameraCollisionProbe.radius,
+                    cameraOverlapHits,
+                    ~0,
+                    QueryTriggerInteraction.Ignore);
+                bool separated = false;
+                bool usedFallback = false;
+                for (int i = 0; i < count; i++)
+                {
+                    Collider obstacle = cameraOverlapHits[i];
+                    if (!obstacle || IgnoreMovementCollider(obstacle) ||
+                        obstacle.GetComponentInParent<Creature>())
+                        continue;
+                    if (Physics.ComputePenetration(
+                            cameraCollisionProbe,
+                            wanted,
+                            Quaternion.identity,
+                            obstacle,
+                            obstacle.transform.position,
+                            obstacle.transform.rotation,
+                            out Vector3 direction,
+                            out float distance))
+                    {
+                        wanted += direction * (distance + .025f);
+                        separated = true;
+                        continue;
+                    }
+
+                    // Open and non-convex authored meshes can reject
+                    // ComputePenetration even while their broad phase reports
+                    // a contact.  Lift the boom and shorten it toward the ant;
+                    // repeated passes find a clear cinematic line without
+                    // tunnelling through the object.
+                    if (!usedFallback)
+                    {
+                        Vector3 towardTarget = (target - wanted).normalized;
+                        wanted += Vector3.up * .2f + towardTarget * .13f;
+                        usedFallback = true;
+                    }
+                    separated = true;
+                }
+                if (world != null)
+                    wanted = world.ConstrainCameraPosition(wanted);
+                if (!separated) break;
+            }
+            return wanted;
         }
 
         public void Teleport(Vector3 position)

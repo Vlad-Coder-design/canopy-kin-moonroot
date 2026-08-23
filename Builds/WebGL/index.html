@@ -91,23 +91,38 @@
       fullscreen: Boolean(document.fullscreenElement)
     });
 
+    let revealed = false;
+    function revealGame(instance) {
+      if (instance) window.game = instance;
+      if (revealed) return;
+      revealed = true;
+      clearTimeout(watchdog);
+      shell.style.display = 'none';
+      canvas.style.display = 'block';
+      focusCanvas();
+    }
+
     const record = (level, message) => {
       const line = level + ': ' + String(message);
       diagnostics.push(line);
       if (diagnostics.length > 200) diagnostics.shift();
       (level === 'error' ? console.error : console.log)(message);
+      // Unity 6 can finish running the scene before createUnityInstance's
+      // promise resolves when decompressionFallback is active. The runtime
+      // marker is emitted only after the real mission world has been built.
+      if (String(message).includes('MOONROOT_SLICE_READY')) revealGame();
     };
 
     const root = 'Build';
-    const loader = root + '/39a67cbdc8df273dd18ac29da7d5ae65.loader.js';
+    const loader = root + '/f3210878d452d3d33123015a4ad6a719.loader.js';
     const config = {
-      dataUrl: root + '/00e1d2c29ca7c26522966dfe6f71536a.data.unityweb',
-      frameworkUrl: root + '/2ac2880846713e1a05101c3484808634.framework.js.unityweb',
-      codeUrl: root + '/df278ba1d594b3173aa0b97ebf085735.wasm.unityweb',
+      dataUrl: root + '/74cc288a33f8b9f899121cf5cd7d6cfe.data.unityweb',
+      frameworkUrl: root + '/141c6445d863ce7242f4e27212c95515.framework.js.unityweb',
+      codeUrl: root + '/aa2e235d9696954cb37cd82ce1654bf4.wasm.unityweb',
       streamingAssetsUrl: 'StreamingAssets',
       companyName: 'Moonroot Studio',
       productName: 'Canopy Kin Moonroot',
-      productVersion: '0.8.0',
+      productVersion: '0.9.0',
       devicePixelRatio: Math.min(window.devicePixelRatio || 1, 2),
       matchWebGLToCanvasSize: true,
       autoSyncPersistentDataPath: true,
@@ -117,6 +132,10 @@
 
     let watchdog;
     function fail(message) {
+      if (revealed) {
+        record('error', message);
+        return;
+      }
       clearTimeout(watchdog);
       status.style.display = 'none';
       document.querySelector('.bar').style.display = 'none';
@@ -142,11 +161,7 @@
         ? 'Downloading game... ' + percent + '%'
         : 'Starting colony simulation...';
     }).then(instance => {
-      clearTimeout(watchdog);
-      window.game = instance;
-      shell.style.display = 'none';
-      canvas.style.display = 'block';
-      focusCanvas();
+      revealGame(instance);
       if (query.get('movementDiagnostics') === '1')
         instance.SendMessage('Player scout ant', 'SetMovementDiagnostics', '1');
     }).catch(error => fail(error.message || String(error)));

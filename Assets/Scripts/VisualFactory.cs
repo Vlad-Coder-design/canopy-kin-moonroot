@@ -204,29 +204,27 @@ namespace CanopyKin
             c.g = (byte)Mathf.Min(255, Mathf.RoundToInt(c.g / 32f) * 32);
             c.b = (byte)Mathf.Min(255, Mathf.RoundToInt(c.b / 32f) * 32);
             c.a = 255;
-            string key = $"hero-vegetation-{c.r:X2}{c.g:X2}{c.b:X2}";
+            string key = $"solid-vegetation-{c.r:X2}{c.g:X2}{c.b:X2}";
             if (Materials.TryGetValue(key, out Material cached)) return cached;
-            Shader shader = Resources.Load<Shader>("CanopyKinHeroVegetation") ??
-                            Shader.Find("Transparent/Cutout/Diffuse");
+            Shader shader = Resources.Load<Shader>("CanopyKinSolidVegetation") ??
+                            Resources.Load<Shader>("CanopyKinLit") ??
+                            Shader.Find("Diffuse");
             var material = new Material(shader)
             {
-                name = "Moonroot close-up veined grass",
+                name = "Moonroot opaque solid vegetation",
                 color = c,
                 enableInstancing = true
             };
             material.SetColor("_Color", c);
-            Texture2D atlas = Resources.Load<Texture2D>(
-                "HighQuality/Original/Vegetation/moonroot_grass_atlas_v1");
-            if (atlas)
+            Texture2D surface = Resources.Load<Texture2D>("Textures/Moss/albedo");
+            if (surface)
             {
-                atlas.wrapMode = TextureWrapMode.Clamp;
-                atlas.filterMode = FilterMode.Trilinear;
-                atlas.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
-                material.SetTexture("_MainTex", atlas);
+                ConfigureTexture(surface);
+                material.SetTexture("_MainTex", surface);
             }
-            if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", .3f);
             if (material.HasProperty("_WindStrength"))
                 material.SetFloat("_WindStrength", RuntimeQualityProfile.IsFullQuality ? .075f : .045f);
+            ConfigureOpaque(material);
             Materials[key] = material;
             return material;
         }
@@ -238,28 +236,26 @@ namespace CanopyKin
             c.g = (byte)Mathf.Min(255, Mathf.RoundToInt(c.g / 32f) * 32);
             c.b = (byte)Mathf.Min(255, Mathf.RoundToInt(c.b / 32f) * 32);
             c.a = 255;
-            string key = $"groundcover-v2-{c.r:X2}{c.g:X2}{c.b:X2}";
+            string key = $"solid-groundcover-{c.r:X2}{c.g:X2}{c.b:X2}";
             if (Materials.TryGetValue(key, out Material cached)) return cached;
-            Shader shader = Resources.Load<Shader>("CanopyKinHeroVegetation") ??
-                            Shader.Find("Transparent/Cutout/Diffuse");
+            Shader shader = Resources.Load<Shader>("CanopyKinSolidVegetation") ??
+                            Resources.Load<Shader>("CanopyKinLit") ??
+                            Shader.Find("Diffuse");
             var material = new Material(shader)
             {
-                name = "Moonroot mixed woodland groundcover",
+                name = "Moonroot modeled woodland groundcover",
                 color = c,
                 enableInstancing = true
             };
             material.SetColor("_Color", c);
-            Texture2D atlas = Resources.Load<Texture2D>(
-                "HighQuality/Original/Vegetation/moonroot_groundcover_atlas_v2");
-            if (atlas)
+            Texture2D surface = Resources.Load<Texture2D>("Textures/Moss/albedo");
+            if (surface)
             {
-                atlas.wrapMode = TextureWrapMode.Clamp;
-                atlas.filterMode = FilterMode.Trilinear;
-                atlas.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
-                material.SetTexture("_MainTex", atlas);
+                ConfigureTexture(surface);
+                material.SetTexture("_MainTex", surface);
             }
-            if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", .2f);
             if (material.HasProperty("_WindStrength")) material.SetFloat("_WindStrength", .035f);
+            ConfigureOpaque(material);
             Materials[key] = material;
             return material;
         }
@@ -333,32 +329,29 @@ namespace CanopyKin
 
         static Material HeroLeafMaterial()
         {
-            const string key = "hero-dead-leaf-atlas-v1";
+            const string key = "solid-dead-leaf-v2";
             if (Materials.TryGetValue(key, out Material cached)) return cached;
-            Shader shader = Resources.Load<Shader>("CanopyKinHeroLeaf") ??
-                            Shader.Find("Transparent/Cutout/Diffuse");
+            Shader shader = Resources.Load<Shader>("CanopyKinSolidVegetation") ??
+                            Resources.Load<Shader>("CanopyKinLit") ??
+                            Shader.Find("Diffuse");
             var material = new Material(shader)
             {
-                name = "Moonroot photoreal dead leaves",
-                color = Color.white,
+                name = "Moonroot solid curled leaf material",
+                color = new Color(.56f, .24f, .065f),
                 enableInstancing = true
             };
-            Texture2D atlas = Resources.Load<Texture2D>(
-                "HighQuality/Original/Vegetation/moonroot_dead_leaf_atlas_v1");
+            material.SetColor("_Color", material.color);
+            Texture2D albedo = Resources.Load<Texture2D>("Textures/LeafLitter/albedo");
             Texture2D normal = Resources.Load<Texture2D>("Textures/LeafLitter/normal");
             Texture2D roughness = Resources.Load<Texture2D>("Textures/LeafLitter/roughness");
-            if (atlas)
-            {
-                atlas.wrapMode = TextureWrapMode.Clamp;
-                atlas.filterMode = FilterMode.Trilinear;
-                atlas.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 16 : 4;
-                material.SetTexture("_MainTex", atlas);
-            }
+            ConfigureTexture(albedo);
             ConfigureTexture(normal);
             ConfigureTexture(roughness);
+            if (albedo) material.SetTexture("_MainTex", albedo);
             if (normal) material.SetTexture("_BumpMap", normal);
             if (roughness) material.SetTexture("_RoughnessMap", roughness);
-            if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", .22f);
+            if (material.HasProperty("_WindStrength")) material.SetFloat("_WindStrength", .012f);
+            ConfigureOpaque(material);
             Materials[key] = material;
             return material;
         }
@@ -756,14 +749,14 @@ namespace CanopyKin
             var high = MeshObject(
                 "Close leaf geometry",
                 root.transform,
-                EnvironmentMeshFactory.HeroGrassCluster(variant),
+                VolumetricVegetationMeshFactory.GrassCluster(variant),
                 Vector3.zero,
                 Vector3.one,
                 HeroVegetationMaterial(color));
             var low = MeshObject(
                 "Distant leaf geometry",
                 root.transform,
-                EnvironmentMeshFactory.HeroGrassCluster(variant, true),
+                VolumetricVegetationMeshFactory.GrassCluster(variant, true),
                 Vector3.zero,
                 Vector3.one,
                 HeroVegetationMaterial(color));
@@ -794,16 +787,16 @@ namespace CanopyKin
             root.transform.position = position;
             root.transform.localScale = Vector3.one * scale;
             var high = MeshObject(
-                "Close botanical cutouts on curved supports",
+                "Close solid botanical stems and leaves",
                 root.transform,
-                EnvironmentMeshFactory.GroundcoverCluster(variant),
+                VolumetricVegetationMeshFactory.GroundcoverCluster(variant),
                 Vector3.zero,
                 Vector3.one,
                 GroundcoverMaterial(color));
             var low = MeshObject(
                 "Distant groundcover",
                 root.transform,
-                EnvironmentMeshFactory.GroundcoverCluster(variant, true),
+                VolumetricVegetationMeshFactory.GroundcoverCluster(variant, true),
                 Vector3.zero,
                 Vector3.one,
                 GroundcoverMaterial(color));
@@ -884,7 +877,7 @@ namespace CanopyKin
             GameObject leaf = MeshObject(
                 "Detailed curled and damaged leaf",
                 parent,
-                EnvironmentMeshFactory.HeroFallenLeaf(variant),
+                VolumetricVegetationMeshFactory.FallenLeaf(variant),
                 position,
                 scale,
                 HeroLeafMaterial());
@@ -960,37 +953,127 @@ namespace CanopyKin
             return puddle;
         }
 
-        public static GameObject ForestHorizonBackdrop(Transform parent)
+        public static GameObject ModeledForestTree(
+            Transform parent,
+            Vector3 position,
+            float height,
+            float trunkRadius,
+            int variant,
+            bool collider)
         {
-            Shader shader = Resources.Load<Shader>("CanopyKinForestBackdrop") ?? Shader.Find("Diffuse");
-            var material = new Material(shader)
+            var tree = new GameObject($"Modeled forest tree {variant:D2}");
+            tree.transform.SetParent(parent, false);
+            tree.transform.position = position;
+
+            float bend = Mathf.Sin(variant * 1.73f) * height * .045f;
+            Vector3[] trunkPath =
             {
-                name = "Photographic distant forest closure",
-                color = new Color(.86f, .88f, .82f)
+                new(0, -.45f, 0),
+                new(bend * .18f, height * .16f, -.08f * trunkRadius),
+                new(-bend * .22f, height * .38f, .12f * trunkRadius),
+                new(bend * .68f, height * .66f, -.18f * trunkRadius),
+                new(bend, height, .1f * trunkRadius)
             };
-            if (material.HasProperty("_Color")) material.SetColor("_Color", material.color);
-            Texture2D panorama = Resources.Load<Texture2D>(
-                "HighQuality/Original/Environment/moonroot_forest_horizon_panorama_v1");
-            if (panorama)
+            TexturedRoot("Irregular modeled trunk", tree.transform, trunkPath,
+                new[]
+                {
+                    trunkRadius * 1.28f, trunkRadius, trunkRadius * .78f,
+                    trunkRadius * .52f, trunkRadius * .24f
+                }, collider);
+
+            for (int rootIndex = 0; rootIndex < 5; rootIndex++)
             {
-                // Mirroring removes the hard left/right seam while allowing the
-                // 2D plate to cover the full 360-degree enclosure without smear.
-                panorama.wrapMode = TextureWrapMode.Mirror;
-                panorama.filterMode = FilterMode.Trilinear;
-                panorama.anisoLevel = RuntimeQualityProfile.IsFullQuality ? 8 : 2;
-                material.SetTexture("_MainTex", panorama);
+                float angle = (rootIndex / 5f * Mathf.PI * 2f) + variant * .39f;
+                Vector3 direction = new(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+                float length = trunkRadius * (2.7f + rootIndex % 3 * .48f);
+                TexturedRoot(
+                    "Volumetric spreading buttress root",
+                    tree.transform,
+                    new[]
+                    {
+                        direction * trunkRadius * .18f + Vector3.up * trunkRadius * 1.15f,
+                        direction * trunkRadius * 1.25f + Vector3.up * trunkRadius * .34f,
+                        direction * length + Vector3.down * trunkRadius * .08f
+                    },
+                    new[] { trunkRadius * .48f, trunkRadius * .31f, trunkRadius * .075f },
+                    collider && rootIndex < 3);
             }
-            GameObject bank = MeshObject(
-                "Fogged photographic forest horizon",
-                parent,
-                EnvironmentMeshFactory.ForestHorizonBank(17),
+
+            int branchCount = RuntimeQualityProfile.IsFullQuality ? 4 : 3;
+            Color foliage = Color.Lerp(
+                new Color(.18f, .36f, .075f),
+                new Color(.43f, .58f, .17f),
+                (variant % 7) / 6f);
+            for (int branch = 0; branch < branchCount; branch++)
+            {
+                float angle = branch / (float)branchCount * Mathf.PI * 2f + variant * .61f;
+                Vector3 radial = new(Mathf.Cos(angle), 0, Mathf.Sin(angle));
+                float y = height * (.5f + branch * .105f);
+                float length = height * (.18f + (branch % 2) * .045f);
+                Vector3 start = new(bend * y / height, y, 0);
+                Vector3 tip = start + radial * length + Vector3.up * height * (.08f - branch * .012f);
+                TexturedRoot(
+                    "Modeled branching limb",
+                    tree.transform,
+                    new[] { start, Vector3.Lerp(start, tip, .55f) + Vector3.up * .32f, tip },
+                    new[] { trunkRadius * .31f, trunkRadius * .19f, trunkRadius * .055f },
+                    false);
+                CanopyVolume(tree.transform,
+                    tip + Vector3.up * height * .035f,
+                    new Vector3(height * .085f, height * .065f, height * .085f),
+                    foliage,
+                    variant * 7 + branch);
+            }
+
+            CanopyVolume(tree.transform,
+                trunkPath[^1] - Vector3.up * height * .015f,
+                new Vector3(height * .1f, height * .08f, height * .1f),
+                Color.Lerp(foliage, new Color(.55f, .65f, .22f), .18f),
+                variant * 13 + 5);
+            return tree;
+        }
+
+        public static GameObject CanopyVolume(
+            Transform parent,
+            Vector3 localPosition,
+            Vector3 localScale,
+            Color color,
+            int variant)
+        {
+            var root = new GameObject("Individual solid leaves canopy volume");
+            root.transform.SetParent(parent, false);
+            root.transform.localPosition = localPosition;
+            root.transform.localScale = localScale;
+            root.transform.localRotation = Quaternion.Euler(
+                variant * 7f % 18f - 9f,
+                variant * 47f,
+                variant * 11f % 14f - 7f);
+            GameObject high = MeshObject(
+                "Close individual leaf geometry",
+                root.transform,
+                VolumetricVegetationMeshFactory.CanopyCluster(variant),
                 Vector3.zero,
                 Vector3.one,
-                material);
-            bank.GetComponent<Renderer>().shadowCastingMode =
+                HeroVegetationMaterial(color));
+            GameObject low = MeshObject(
+                "Reduced solid leaf geometry",
+                root.transform,
+                VolumetricVegetationMeshFactory.CanopyCluster(variant, true),
+                Vector3.zero,
+                Vector3.one,
+                HeroVegetationMaterial(color));
+            low.GetComponent<Renderer>().shadowCastingMode =
                 UnityEngine.Rendering.ShadowCastingMode.Off;
-            bank.GetComponent<Renderer>().receiveShadows = false;
-            return bank;
+            var lod = root.AddComponent<LODGroup>();
+            lod.fadeMode = LODFadeMode.CrossFade;
+            lod.animateCrossFading = true;
+            lod.SetLODs(new[]
+            {
+                new LOD(.12f, new Renderer[] { high.GetComponent<Renderer>() }),
+                new LOD(.018f, new Renderer[] { low.GetComponent<Renderer>() })
+            });
+            lod.RecalculateBounds();
+            return root;
         }
 
         public static GameObject GrassTuft(Transform parent, Vector3 position, float height, Color color, int variant = 0)
@@ -1001,10 +1084,10 @@ namespace CanopyKin
             root.transform.localScale = new Vector3(.82f, height, .82f);
 
             var high = MeshObject("Detailed leaves", root.transform,
-                EnvironmentMeshFactory.HeroGrassCluster(variant % 11),
+                VolumetricVegetationMeshFactory.GrassCluster(variant % 11),
                 Vector3.zero, Vector3.one, HeroVegetationMaterial(color));
             var low = MeshObject("Distant leaves", root.transform,
-                EnvironmentMeshFactory.HeroGrassCluster(variant % 11, true),
+                VolumetricVegetationMeshFactory.GrassCluster(variant % 11, true),
                 Vector3.zero, Vector3.one, HeroVegetationMaterial(color));
             low.GetComponent<Renderer>().shadowCastingMode =
                 UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -1061,7 +1144,7 @@ namespace CanopyKin
             GameObject leaf = MeshObject(
                 "Curled rain-dark leaf",
                 parent,
-                EnvironmentMeshFactory.HeroFallenLeaf(variant),
+                VolumetricVegetationMeshFactory.FallenLeaf(variant),
                 position,
                 scale,
                 HeroLeafMaterial());
