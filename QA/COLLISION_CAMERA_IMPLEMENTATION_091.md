@@ -104,6 +104,8 @@ The source is an actual Windows player run captured at 960x540 and 15 FPS:
 - `QA/Video/collision-091-anti-stuck.mp4`
 - `QA/Video/collision-091-tunnel.mp4`
 - `QA/Video/collision-091-proof.mp4` (combined recording)
+- `QA/Video/webgl-public-091-gameplay.mp4` (captured directly from the deployed
+  `github.io` build with movement diagnostics visible)
 
 ## Honest limitations
 
