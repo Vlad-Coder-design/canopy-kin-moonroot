@@ -39,7 +39,9 @@ namespace CanopyKin.Editor
             "Assets/Resources/HighQuality/PolyHaven/DeadTreeTrunk/dead_tree_trunk_4k.fbx";
         const string RootNetworkPath =
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
-        const string ProductVersion = "0.9.0";
+        const string PlayerPrefabPath =
+            "Assets/Resources/Prefabs/PlayerScoutAnt.prefab";
+        const string ProductVersion = "0.9.1";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
@@ -93,12 +95,42 @@ namespace CanopyKin.Editor
         static void ConfigureShared()
         {
             if (!File.Exists(ScenePath)) throw new FileNotFoundException("Gameplay scene is missing", ScenePath);
+            EnsurePlayerPrefab();
             ValidateProductionAssets();
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             PlayerSettings.productName = "Canopy Kin: Moonroot";
             PlayerSettings.companyName = "Moonroot Studio";
             PlayerSettings.bundleVersion = ProductVersion;
             PlayerSettings.colorSpace = ColorSpace.Linear;
+        }
+
+        static void EnsurePlayerPrefab()
+        {
+            GameObject existing = AssetDatabase.LoadAssetAtPath<GameObject>(PlayerPrefabPath);
+            if (existing && existing.GetComponent<CharacterController>() &&
+                existing.GetComponent<PlayerAnt>())
+                return;
+
+            if (!AssetDatabase.IsValidFolder("Assets/Resources/Prefabs"))
+            {
+                if (!AssetDatabase.IsValidFolder("Assets/Resources"))
+                    AssetDatabase.CreateFolder("Assets", "Resources");
+                AssetDatabase.CreateFolder("Assets/Resources", "Prefabs");
+            }
+            var player = new GameObject("Player scout ant");
+            CharacterController controller = player.AddComponent<CharacterController>();
+            controller.height = .68f;
+            controller.radius = .23f;
+            controller.center = new Vector3(0, .34f, 0);
+            controller.skinWidth = .025f;
+            controller.stepOffset = .22f;
+            controller.slopeLimit = 54f;
+            controller.minMoveDistance = 0;
+            controller.enableOverlapRecovery = true;
+            player.AddComponent<PlayerAnt>();
+            PrefabUtility.SaveAsPrefabAsset(player, PlayerPrefabPath);
+            UnityEngine.Object.DestroyImmediate(player);
+            AssetDatabase.ImportAsset(PlayerPrefabPath, ImportAssetOptions.ForceSynchronousImport);
         }
 
         static void ConfigureWindows()

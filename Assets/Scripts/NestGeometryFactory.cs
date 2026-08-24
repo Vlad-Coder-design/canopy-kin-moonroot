@@ -146,9 +146,12 @@ namespace CanopyKin
             int variant,
             IReadOnlyList<Vector3> path,
             float radius,
-            float height)
+            float height,
+            int trimmedEndSegments = 0)
         {
-            string key = $"nest-tunnel-shell-{variant}-{path.Count}-{radius:F2}-{height:F2}";
+            trimmedEndSegments = Mathf.Clamp(trimmedEndSegments, 0,
+                Mathf.Max(0, (path.Count - 2) / 2));
+            string key = $"nest-tunnel-shell-{variant}-{path.Count}-{radius:F2}-{height:F2}-trim{trimmedEndSegments}";
             if (Cache.TryGetValue(key, out Mesh cached)) return cached;
             const int crossSegments = 18;
             var vertices = new List<Vector3>();
@@ -177,7 +180,9 @@ namespace CanopyKin
                 }
             }
             int row = crossSegments + 1;
-            for (int pointIndex = 0; pointIndex < path.Count - 1; pointIndex++)
+            for (int pointIndex = trimmedEndSegments;
+                 pointIndex < path.Count - 1 - trimmedEndSegments;
+                 pointIndex++)
             for (int cross = 0; cross < crossSegments; cross++)
             {
                 int a = pointIndex * row + cross;
@@ -187,7 +192,10 @@ namespace CanopyKin
                 triangles.Add(a); triangles.Add(b); triangles.Add(a + 1);
                 triangles.Add(a + 1); triangles.Add(b); triangles.Add(b + 1);
             }
-            return Store(key, Finish($"Curved excavated tunnel shell {variant}",
+            return Store(key, Finish(
+                trimmedEndSegments > 0
+                    ? $"Curved excavated tunnel shell collision {variant}"
+                    : $"Curved excavated tunnel shell {variant}",
                 vertices, uv, colors, triangles));
         }
 

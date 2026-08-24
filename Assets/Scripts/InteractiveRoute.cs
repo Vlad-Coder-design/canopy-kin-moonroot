@@ -102,9 +102,15 @@ namespace CanopyKin
             }
 
             direction.Normalize();
-            Vector3 next = transform.position + direction * speed * Time.deltaTime;
-            next.y = WorldBootstrap.GroundHeight(next.x, next.z) + .035f;
-            transform.position = next;
+            Collider body = GetComponent<Collider>();
+            CollisionSafety.MoveSphere(
+                transform,
+                body,
+                direction,
+                speed * Time.deltaTime,
+                .22f,
+                .15f);
+            transform.position = world.ConstrainActorPosition(transform.position, .15f);
             transform.rotation = Quaternion.RotateTowards(
                 transform.rotation,
                 Quaternion.LookRotation(direction, Vector3.up),

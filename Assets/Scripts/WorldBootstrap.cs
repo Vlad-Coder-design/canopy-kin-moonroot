@@ -16,6 +16,27 @@ namespace CanopyKin
         public static readonly Vector3 NestPoint = new(0, 0, -7);
         public static readonly Vector2 HeroMicrohabitatCenter = new(9.1f, 16.1f);
         static readonly Vector3 UndergroundCenter = new(0, -5.45f, -7);
+        static readonly Vector3[] UndergroundChamberCenters =
+        {
+            new(0, 0, .45f), new(-2.9f, 0, -1.75f),
+            new(-3.35f, 0, .95f), new(2.9f, 0, -.25f),
+            new(0, 0, 3.18f)
+        };
+        static readonly Vector3[] UndergroundChamberRadii =
+        {
+            new(2.45f, 2.25f, 2.25f), new(2.22f, 2.05f, 1.72f),
+            new(1.72f, 1.65f, 1.5f), new(1.9f, 1.78f, 1.58f),
+            new(1.62f, 1.68f, 1.48f)
+        };
+        static readonly Vector3[][] UndergroundTunnelPaths =
+        {
+            new[] { new Vector3(-2.12f,.02f,-1.15f), new Vector3(-1.62f,.015f,-.72f), new Vector3(-.92f,.02f,-.18f), new Vector3(-.35f,.015f,.26f) },
+            new[] { new Vector3(-2.55f,.02f,.84f), new Vector3(-1.85f,.01f,.73f), new Vector3(-1.05f,.018f,.61f), new Vector3(-.38f,.012f,.5f) },
+            new[] { new Vector3(2.15f,.02f,-.05f), new Vector3(1.55f,.012f,.08f), new Vector3(.88f,.02f,.24f), new Vector3(.34f,.012f,.4f) },
+            new[] { new Vector3(0,.015f,1.85f), new Vector3(.08f,.035f,2.28f), new Vector3(-.06f,.09f,2.78f), new Vector3(0,.18f,3.42f) }
+        };
+        static readonly float[] UndergroundTunnelRadii = { .68f, .62f, .66f, .72f };
+        static readonly float[] UndergroundTunnelHeights = { 1.05f, .94f, 1f, 1.1f };
 
         public PlayerAnt Player { get; private set; }
         public ColonyState Colony { get; private set; }
@@ -34,19 +55,11 @@ namespace CanopyKin
         {
             if (IsUnderground)
             {
-                position.y = Mathf.Clamp(
-                    position.y,
-                    UndergroundCenter.y + .28f,
-                    UndergroundCenter.y + 1.68f);
-                Vector2 fromCenter = new(
-                    position.x - UndergroundCenter.x,
-                    position.z - UndergroundCenter.z);
-                if (fromCenter.magnitude > 5.05f)
-                {
-                    fromCenter = fromCenter.normalized * 5.05f;
-                    position.x = UndergroundCenter.x + fromCenter.x;
-                    position.z = UndergroundCenter.z + fromCenter.y;
-                }
+                Vector3 local = position - UndergroundCenter;
+                local = ConstrainUndergroundHorizontal(local, .2f);
+                float ceiling = UndergroundCeilingAt(local);
+                local.y = Mathf.Clamp(local.y, .2f, Mathf.Max(.24f, ceiling - .21f));
+                position = UndergroundCenter + local;
                 return position;
             }
 
@@ -65,6 +78,226 @@ namespace CanopyKin
             if (layeredTerrainCollider.Raycast(ray, out RaycastHit hit, 40f))
                 sampledHeight = hit.point.y;
             return sampledHeight;
+        }
+
+        public bool IsPlayerPositionValid(PlayerAnt player, Vector3 position)
+        {
+            if (!player) return false;
+            if (IsUnderground)
+            {
+                Vector3 local = position - UndergroundCenter;
+                float margin = player.Body ? player.Body.radius + .035f : .27f;
+                if (local.y < -.08f || local.y > 1.02f ||
+                    !InsideUndergroundHorizontal(local, margin))
+                    return false;
+                float ceiling = UndergroundCeilingAt(local);
+                if (local.y + (player.Body ? player.Body.height : .68f) > ceiling - .025f)
+                    return false;
+            }
+            else
+            {
+                if (Mathf.Abs(position.x) > 53.5f || Mathf.Abs(position.z) > 53.5f)
+                    return false;
+                float floor = CameraSurfaceHeight(position.x, position.z);
+                if (position.y < floor - .035f || position.y > floor + 3.2f)
+                    return false;
+            }
+            return !player.HasBlockingOverlapAt(position, .012f);
+        }
+
+        public bool TryResolvePlayerPosition(
+            PlayerAnt player,
+            Vector3 requested,
+            Vector3 fallback,
+            out Vector3 resolved)
+        {
+            if (!player)
+            {
+                resolved = requested;
+                return false;
+            }
+
+            Vector3 Project(Vector3 value)
+            {
+                if (IsUnderground)
+                {
+                    Vector3 local = value - UndergroundCenter;
+                    local = ConstrainUndergroundHorizontal(
+                        local,
+                        player.Body.radius + .04f);
+                    local.y = Mathf.Clamp(local.y, .025f, .82f);
+                    value = UndergroundCenter + local;
+                }
+                else
+                {
+                    value.x = Mathf.Clamp(value.x, -53f, 53f);
+                    value.z = Mathf.Clamp(value.z, -53f, 53f);
+                    value.y = CameraSurfaceHeight(value.x, value.z) + .035f;
+                }
+                return value;
+            }
+
+            requested = Project(requested);
+            if (IsPlayerPositionValid(player, requested))
+            {
+                resolved = requested;
+                return true;
+            }
+
+            for (int ring = 1; ring <= 7; ring++)
+            for (int directionIndex = 0; directionIndex < 16; directionIndex++)
+            {
+                float angle = directionIndex / 16f * Mathf.PI * 2f;
+                Vector3 candidate = requested + new Vector3(
+                    Mathf.Cos(angle), 0, Mathf.Sin(angle)) * (.16f * ring);
+                candidate = Project(candidate);
+                if (!IsPlayerPositionValid(player, candidate)) continue;
+                resolved = candidate;
+                return true;
+            }
+
+            fallback = Project(fallback == Vector3.zero ? PlayerRespawn : fallback);
+            if (IsPlayerPositionValid(player, fallback))
+            {
+                resolved = fallback;
+                return true;
+            }
+
+            resolved = Project(PlayerRespawn);
+            return IsPlayerPositionValid(player, resolved);
+        }
+
+        public Vector3 ConstrainActorPosition(Vector3 position, float margin = .19f)
+        {
+            if (IsUnderground)
+            {
+                Vector3 local = position - UndergroundCenter;
+                local = ConstrainUndergroundHorizontal(local, margin);
+                local.y = .035f;
+                return UndergroundCenter + local;
+            }
+            position.x = Mathf.Clamp(position.x, -53f, 53f);
+            position.z = Mathf.Clamp(position.z, -53f, 53f);
+            position.y = CameraSurfaceHeight(position.x, position.z) + .035f;
+            return position;
+        }
+
+        static bool InsideUndergroundHorizontal(Vector3 local, float margin)
+        {
+            Vector2 point = new(local.x, local.z);
+            for (int i = 0; i < UndergroundChamberCenters.Length; i++)
+            {
+                Vector3 center = UndergroundChamberCenters[i];
+                Vector3 radii = UndergroundChamberRadii[i];
+                float rx = Mathf.Max(.2f, radii.x - margin);
+                float rz = Mathf.Max(.2f, radii.z - margin);
+                float x = (point.x - center.x) / rx;
+                float z = (point.y - center.z) / rz;
+                if (x * x + z * z <= 1f) return true;
+            }
+
+            for (int pathIndex = 0; pathIndex < UndergroundTunnelPaths.Length; pathIndex++)
+            {
+                Vector3[] path = UndergroundTunnelPaths[pathIndex];
+                float radius = Mathf.Max(.16f, UndergroundTunnelRadii[pathIndex] - margin);
+                for (int segment = 0; segment < path.Length - 1; segment++)
+                    if (DistanceToSegment(point,
+                            new Vector2(path[segment].x, path[segment].z),
+                            new Vector2(path[segment + 1].x, path[segment + 1].z)) <= radius)
+                        return true;
+            }
+            return false;
+        }
+
+        static Vector3 ConstrainUndergroundHorizontal(Vector3 local, float margin)
+        {
+            if (InsideUndergroundHorizontal(local, margin)) return local;
+            Vector2 point = new(local.x, local.z);
+            Vector2 best = point;
+            float bestDistance = float.MaxValue;
+
+            for (int i = 0; i < UndergroundChamberCenters.Length; i++)
+            {
+                Vector3 center3 = UndergroundChamberCenters[i];
+                Vector2 center = new(center3.x, center3.z);
+                Vector3 radii3 = UndergroundChamberRadii[i];
+                Vector2 radii = new(
+                    Mathf.Max(.2f, radii3.x - margin),
+                    Mathf.Max(.2f, radii3.z - margin));
+                Vector2 delta = point - center;
+                float normalized = Mathf.Sqrt(
+                    delta.x * delta.x / (radii.x * radii.x) +
+                    delta.y * delta.y / (radii.y * radii.y));
+                Vector2 candidate = normalized <= 1f || normalized < .0001f
+                    ? point
+                    : center + delta / normalized;
+                float distance = (candidate - point).sqrMagnitude;
+                if (distance < bestDistance) { bestDistance = distance; best = candidate; }
+            }
+
+            for (int pathIndex = 0; pathIndex < UndergroundTunnelPaths.Length; pathIndex++)
+            {
+                Vector3[] path = UndergroundTunnelPaths[pathIndex];
+                float radius = Mathf.Max(.16f, UndergroundTunnelRadii[pathIndex] - margin);
+                for (int segment = 0; segment < path.Length - 1; segment++)
+                {
+                    Vector2 closest = ClosestPointOnSegment(point,
+                        new Vector2(path[segment].x, path[segment].z),
+                        new Vector2(path[segment + 1].x, path[segment + 1].z));
+                    Vector2 offset = point - closest;
+                    Vector2 candidate = offset.sqrMagnitude <= radius * radius
+                        ? point
+                        : closest + offset.normalized * radius;
+                    float distance = (candidate - point).sqrMagnitude;
+                    if (distance < bestDistance) { bestDistance = distance; best = candidate; }
+                }
+            }
+            local.x = best.x;
+            local.z = best.y;
+            return local;
+        }
+
+        static float UndergroundCeilingAt(Vector3 local)
+        {
+            Vector2 point = new(local.x, local.z);
+            float ceiling = .72f;
+            for (int i = 0; i < UndergroundChamberCenters.Length; i++)
+            {
+                Vector3 center = UndergroundChamberCenters[i];
+                Vector3 radii = UndergroundChamberRadii[i];
+                float x = (point.x - center.x) / radii.x;
+                float z = (point.y - center.z) / radii.z;
+                float radial = x * x + z * z;
+                if (radial <= 1f)
+                    ceiling = Mathf.Max(ceiling, radii.y * Mathf.Sqrt(1f - radial));
+            }
+            for (int pathIndex = 0; pathIndex < UndergroundTunnelPaths.Length; pathIndex++)
+            {
+                Vector3[] path = UndergroundTunnelPaths[pathIndex];
+                float radius = UndergroundTunnelRadii[pathIndex];
+                for (int segment = 0; segment < path.Length - 1; segment++)
+                {
+                    float distance = DistanceToSegment(point,
+                        new Vector2(path[segment].x, path[segment].z),
+                        new Vector2(path[segment + 1].x, path[segment + 1].z));
+                    if (distance <= radius)
+                        ceiling = Mathf.Max(ceiling,
+                            UndergroundTunnelHeights[pathIndex] *
+                            Mathf.Sqrt(Mathf.Clamp01(1f - distance * distance / (radius * radius))));
+                }
+            }
+            return ceiling;
+        }
+
+        static float DistanceToSegment(Vector2 point, Vector2 a, Vector2 b)
+            => Vector2.Distance(point, ClosestPointOnSegment(point, a, b));
+
+        static Vector2 ClosestPointOnSegment(Vector2 point, Vector2 a, Vector2 b)
+        {
+            Vector2 segment = b - a;
+            float length = segment.sqrMagnitude;
+            if (length <= .000001f) return a;
+            return a + segment * Mathf.Clamp01(Vector2.Dot(point - a, segment) / length);
         }
 
         readonly List<ResourceNode> resources = new();
@@ -106,6 +339,7 @@ namespace CanopyKin
         Texture2D panelTexture;
         Texture2D accentTexture;
         Texture2D dangerTexture;
+        string collisionQaCaption;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         static void Spawn()
@@ -223,6 +457,20 @@ namespace CanopyKin
                              "-camera-containment-smoke",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginCameraContainmentSmoke());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-collision-safety-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginCollisionSafetyQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-collision-safety-video-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginCollisionSafetyVideoQa());
             else if (System.Array.Exists(
                          arguments,
                          argument => string.Equals(
@@ -779,6 +1027,420 @@ namespace CanopyKin
                 Application.Quit(failures == 0 && !IsUnderground ? 0 : 2);
         }
 
+        IEnumerator BeginCollisionSafetyQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            foreach (Creature creature in creatures)
+                if (creature) creature.gameObject.SetActive(false);
+
+            int tests = 0;
+            int failures = 0;
+            void Check(bool passed, string name)
+            {
+                tests++;
+                if (passed) Debug.Log($"MOONROOT_COLLISION_CASE_OK {name}");
+                else
+                {
+                    failures++;
+                    Debug.LogError($"MOONROOT_COLLISION_CASE_FAILED {name} position={Player.transform.position:F3}");
+                }
+            }
+
+            Transform[] all = environment.GetComponentsInChildren<Transform>(true);
+            Transform tree = all.FirstOrDefault(candidate =>
+                candidate.name.StartsWith("Modeled forest tree"));
+            CapsuleCollider trunk = tree
+                ? tree.GetComponentsInChildren<CapsuleCollider>(true)
+                    .FirstOrDefault(collider => collider.transform.parent &&
+                        collider.transform.parent.name == "Irregular modeled trunk")
+                : null;
+            Transform heroRoot = all.FirstOrDefault(candidate =>
+                candidate.name == "Fine feeder root beside the ant path");
+            CapsuleCollider root = heroRoot
+                ? heroRoot.GetComponentsInChildren<CapsuleCollider>(true).FirstOrDefault()
+                : null;
+            int solidTrees = all.Count(candidate =>
+                candidate.name.StartsWith("Modeled forest tree") &&
+                candidate.GetComponentsInChildren<CapsuleCollider>(true).Length >= 6);
+            int nestShells = underground.GetComponentsInChildren<MeshCollider>(true).Count(collider =>
+                collider.name.Contains("walls and ceiling") || collider.name.Contains("floor"));
+            Check(tree && trunk, "tree-trunk-collider-present");
+            Check(heroRoot && root && root.GetComponent<SolidWorldGeometry>(),
+                "root-compound-collider-present");
+            Check(solidTrees == RuntimeQualityProfile.DistantTreeCount(GameSettings.Quality),
+                "every-modeled-tree-solid");
+            Check(nestShells >= 18, "nest-floors-walls-ceilings-continuous");
+            Check(Player.Body && Mathf.Abs(Player.Body.radius - .23f) < .001f &&
+                  Mathf.Abs(Player.Body.height - .68f) < .001f &&
+                  Player.Body.center == new Vector3(0, .34f, 0),
+                "player-collider-dimensions");
+
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            if (trunk)
+            {
+                Vector3 away = new Vector3(trunk.bounds.center.x, 0, trunk.bounds.center.z).normalized;
+                if (away.sqrMagnitude < .1f) away = Vector3.right;
+                Vector3 start = QaOutsideCollider(trunk, away);
+                Player.Teleport(start);
+                QaPushPlayer(-away, 2.55f, 1f / 60f, 110);
+                Check(IsPlayerPositionValid(Player, Player.transform.position) &&
+                      !Player.HasBlockingOverlapAt(Player.transform.position, .018f) &&
+                      Vector3.Dot(Player.transform.position - trunk.bounds.center, away) > -.08f,
+                    "walk-directly-into-tree");
+
+                Player.Teleport(start);
+                bool safeAtEveryLowFpsStep = true;
+                for (int step = 0; step < 36; step++)
+                {
+                    Player.MoveForQa(-away, 4.25f, .12f);
+                    Physics.SyncTransforms();
+                    safeAtEveryLowFpsStep &=
+                        IsPlayerPositionValid(Player, Player.transform.position) &&
+                        !Player.HasBlockingOverlapAt(Player.transform.position, .018f);
+                }
+                Check(safeAtEveryLowFpsStep,
+                    "low-fps-sprint-into-tree-no-tunneling");
+
+                Vector3 blocked = Player.transform.position;
+                Vector3 firstCamera = Vector3.zero;
+                float cameraTravel = 0;
+                int clearCameraSamples = 0;
+                for (int directionIndex = 0; directionIndex < 12; directionIndex++)
+                {
+                    Player.SetCameraOrbitForQa(directionIndex * 30f, 18f);
+                    Physics.SyncTransforms();
+                    Vector3 cameraPosition = Camera.main.transform.position;
+                    if (directionIndex == 0) firstCamera = cameraPosition;
+                    else cameraTravel += Vector3.Distance(firstCamera, cameraPosition);
+                    if (!CameraOverlapsSolid(cameraPosition, .19f)) clearCameraSamples++;
+                }
+                Check(Vector3.Distance(blocked, Player.transform.position) < .001f &&
+                      cameraTravel > 1.2f, "camera-rotates-while-tree-blocks-player");
+                Check(clearCameraSamples == 12, "camera-never-enters-tree-or-ground");
+
+            }
+
+            Vector3 rootSafePosition = Player.transform.position;
+            if (root)
+            {
+                Vector3 segment = Vector3.ProjectOnPlane(root.transform.up, Vector3.up);
+                Vector3 away = Vector3.Cross(Vector3.up,
+                    segment.sqrMagnitude > .05f ? segment.normalized : Vector3.forward).normalized;
+                Vector3 start = QaOutsideCollider(root, away);
+                Player.Teleport(start);
+                QaPushPlayer(-away, 2.55f, 1f / 60f, 100);
+                rootSafePosition = Player.transform.position;
+                Check(IsPlayerPositionValid(Player, rootSafePosition) &&
+                      !Player.HasBlockingOverlapAt(rootSafePosition, .018f),
+                    "walk-into-root-stops-outside");
+
+                Player.Teleport(start);
+                QaPushPlayer((-away + root.transform.up * .72f).normalized, 4.25f, .1f, 42);
+                Check(IsPlayerPositionValid(Player, Player.transform.position) &&
+                      !Player.HasBlockingOverlapAt(Player.transform.position, .018f),
+                    "diagonal-root-contact-slides-without-wedging");
+
+                Player.SetCameraOrbitForQa(35f, 14f);
+                Vector3 cameraA = Camera.main.transform.position;
+                Player.SetCameraOrbitForQa(145f, 24f);
+                Vector3 cameraB = Camera.main.transform.position;
+                Check(Vector3.Distance(cameraA, cameraB) > .35f &&
+                      !CameraOverlapsSolid(cameraB, .19f),
+                    "camera-rotates-while-root-blocks-player");
+            }
+
+            Vector3 seamStart = new(
+                HeroMicrohabitatCenter.x - 6.35f,
+                0,
+                HeroMicrohabitatCenter.y);
+            seamStart.y = CameraSurfaceHeight(seamStart.x, seamStart.z) + .035f;
+            Player.Teleport(seamStart);
+            QaPushPlayer(Vector3.right, 4.25f, .1f, 32);
+            Check(IsPlayerPositionValid(Player, Player.transform.position) &&
+                  Player.transform.position.x > HeroMicrohabitatCenter.x - 4.2f,
+                "surface-terrain-seam-low-fps");
+
+            Player.Teleport(rootSafePosition);
+            SaveSystem.Delete(7);
+            bool rootSaved = SaveSystem.Save(7, this);
+            if (trunk) Player.ForceUnsafePositionForQa(trunk.bounds.center);
+            bool rootLoaded = SaveSystem.Load(7, this);
+            Check(rootSaved && rootLoaded && IsPlayerPositionValid(Player, Player.transform.position),
+                "save-near-root-loads-valid-position");
+
+            ToggleNest(Player, false);
+            Vector3 queenCenter = UndergroundCenter + new Vector3(-2.9f, .035f, -1.75f);
+            Vector3 wallDirection = new Vector3(-1f, 0, -.18f).normalized;
+            Player.Teleport(queenCenter);
+            QaPushPlayer(wallDirection, 2.55f, 1f / 60f, 120);
+            Check(IsPlayerPositionValid(Player, Player.transform.position) &&
+                  !Player.HasBlockingOverlapAt(Player.transform.position, .018f),
+                "walk-directly-into-nest-wall");
+
+            Player.Teleport(queenCenter);
+            QaPushPlayer(wallDirection, 4.25f, .12f, 40);
+            Check(IsPlayerPositionValid(Player, Player.transform.position) &&
+                  !Player.HasBlockingOverlapAt(Player.transform.position, .018f),
+                "run-directly-into-nest-wall-low-fps");
+
+            Player.Teleport(queenCenter);
+            QaPushPlayer(new Vector3(-1f, 0, -1f), 4.25f, .1f, 44);
+            Check(IsPlayerPositionValid(Player, Player.transform.position) &&
+                  !Player.HasBlockingOverlapAt(Player.transform.position, .018f),
+                "diagonal-nest-corner-no-escape");
+
+            Vector3 invalidCorner = UndergroundCenter + new Vector3(-5.35f, .035f, -2.45f);
+            Player.ForceUnsafePositionForQa(invalidCorner);
+            bool beganOutsideNest = !IsPlayerPositionValid(Player, invalidCorner);
+            bool recoveredFromCorner = Player.RecoverNowForQa(Vector3.right);
+            Check(beganOutsideNest && recoveredFromCorner &&
+                  IsPlayerPositionValid(Player, Player.transform.position) &&
+                  !Player.HasBlockingOverlapAt(Player.transform.position, .012f),
+                "anti-stuck-recovers-from-intentional-nest-corner");
+
+            Vector3 blockedAtWall = Player.transform.position;
+            Player.SetCameraOrbitForQa(15f, 12f);
+            Vector3 nestCameraA = Camera.main.transform.position;
+            Player.SetCameraOrbitForQa(215f, 28f);
+            Vector3 nestCameraB = Camera.main.transform.position;
+            Check(Vector3.Distance(blockedAtWall, Player.transform.position) < .001f &&
+                  Vector3.Distance(nestCameraA, nestCameraB) > .25f,
+                "camera-independent-while-nest-wall-blocks-player");
+            Check(!CameraOverlapsSolid(nestCameraA, .19f) &&
+                  !CameraOverlapsSolid(nestCameraB, .19f),
+                "camera-outside-nest-walls-and-ceiling");
+
+            Vector3 tunnelStart = UndergroundCenter + UndergroundTunnelPaths[0][^1] + Vector3.up * .035f;
+            Vector3 tunnelEnd = UndergroundCenter + UndergroundTunnelPaths[0][0] + Vector3.up * .035f;
+            Player.Teleport(tunnelStart);
+            Vector3 beforeTunnel = Player.transform.position;
+            Vector3[] tunnelPath = UndergroundTunnelPaths[0];
+            for (int pointIndex = tunnelPath.Length - 2; pointIndex >= 0; pointIndex--)
+            {
+                Vector3 target = UndergroundCenter + tunnelPath[pointIndex] + Vector3.up * .035f;
+                for (int step = 0; step < 28; step++)
+                {
+                    Vector3 toward = target - Player.transform.position;
+                    toward.y = 0;
+                    if (toward.sqrMagnitude < .06f) break;
+                    Player.MoveForQa(toward, 2.2f, .05f);
+                    Physics.SyncTransforms();
+                }
+            }
+            Debug.Log(
+                $"MOONROOT_TUNNEL_DIAGNOSTIC start={beforeTunnel:F3} " +
+                $"end={Player.transform.position:F3} target={tunnelEnd:F3} " +
+                $"valid={IsPlayerPositionValid(Player, Player.transform.position)} " +
+                Player.CollisionProbeForQa(tunnelEnd - Player.transform.position));
+            Check(IsPlayerPositionValid(Player, Player.transform.position) &&
+                  Vector3.Distance(beforeTunnel, Player.transform.position) > 1.25f &&
+                  Vector3.Distance(Player.transform.position, tunnelEnd) < .9f,
+                "narrow-curved-tunnel-traversal");
+            Player.SetCameraOrbitForQa(310f, 32f);
+            Check(!CameraOverlapsSolid(Camera.main.transform.position, .19f),
+                "narrow-tunnel-camera-clearance");
+
+            bool wallSaved = SaveSystem.Save(7, this);
+            Player.ForceUnsafePositionForQa(UndergroundCenter + new Vector3(-7f, .05f, -5f));
+            bool wallLoaded = SaveSystem.Load(7, this);
+            Check(wallSaved && wallLoaded && IsPlayerPositionValid(Player, Player.transform.position),
+                "save-beside-wall-loads-inside-nest");
+
+            Camera.main.transform.position = UndergroundCenter + Vector3.up * 4f;
+            Player.SnapCamera();
+            Check(!CameraOverlapsSolid(Camera.main.transform.position, .19f) &&
+                  Camera.main.transform.position.y < UndergroundCenter.y + 1.9f,
+                "forced-camera-ceiling-resolves-inside");
+
+            Vector3 pauseCamera = Camera.main.transform.position;
+            TogglePause();
+            TogglePause();
+            Player.SetCameraOrbitForQa(82f, 18f);
+            Check(!IsPaused && Vector3.Distance(pauseCamera, Camera.main.transform.position) > .18f,
+                "camera-resumes-after-pause");
+
+            for (int transition = 0; transition < 3; transition++)
+            {
+                ToggleNest(Player, true);
+                Check(!IsUnderground && IsPlayerPositionValid(Player, Player.transform.position),
+                    $"nest-exit-{transition + 1}-valid");
+                ToggleNest(Player, false);
+                Check(IsUnderground && IsPlayerPositionValid(Player, Player.transform.position),
+                    $"nest-entry-{transition + 1}-valid");
+            }
+
+            ToggleNest(Player, true);
+            Camera.main.transform.position = Player.transform.position + Vector3.down * 2f;
+            Player.SnapCamera();
+            float floorHeight = CameraSurfaceHeight(
+                Camera.main.transform.position.x,
+                Camera.main.transform.position.z);
+            Check(Camera.main.transform.position.y >= floorHeight + .19f &&
+                  !CameraOverlapsSolid(Camera.main.transform.position, .19f),
+                "forced-camera-ground-resolves-above-terrain");
+
+            int squadBodies = FindObjectsByType<SquadUnit>(FindObjectsInactive.Include,
+                FindObjectsSortMode.None).Count(unit => unit.BodyCollider != null);
+            int solidMarkers = FindObjectsByType<SolidWorldGeometry>(FindObjectsInactive.Include,
+                FindObjectsSortMode.None).Length;
+            Check(squadBodies >= 8, "npc-ant-colliders-present");
+            Check(solidMarkers >= 120, "solid-world-collider-audit-count");
+            SaveSystem.Delete(7);
+
+            string result =
+                $"tests={tests} failures={failures} solidMarkers={solidMarkers} " +
+                $"solidTrees={solidTrees} nestMeshes={nestShells} squadBodies={squadBodies} " +
+                $"recoveries={Player.AntiStuckRecoveries} collider=CharacterController " +
+                $"radius={Player.Body.radius:F2} height={Player.Body.height:F2} " +
+                $"center={Player.Body.center:F2}";
+            if (failures == 0)
+                Debug.Log("MOONROOT_COLLISION_SAFETY_QA_OK " + result);
+            else
+                Debug.LogError("MOONROOT_COLLISION_SAFETY_QA_FAILED " + result);
+            if (!Application.isEditor)
+                Application.Quit(failures == 0 ? 0 : 2);
+        }
+
+        Vector3 QaOutsideCollider(Collider collider, Vector3 away)
+        {
+            away = Vector3.ProjectOnPlane(away, Vector3.up).normalized;
+            if (away.sqrMagnitude < .1f) away = Vector3.right;
+            Vector3 reference = collider.bounds.center;
+            reference.y = CameraSurfaceHeight(reference.x, reference.z) + .28f;
+            Vector3 closest = collider.ClosestPoint(reference + away * 8f);
+            Vector3 start = closest + away * (Player.Body.radius + .075f);
+            start.y = CameraSurfaceHeight(start.x, start.z) + .035f;
+            return start;
+        }
+
+        void QaPushPlayer(Vector3 direction, float speed, float deltaTime, int steps)
+        {
+            direction = Vector3.ProjectOnPlane(direction, Vector3.up).normalized;
+            for (int step = 0; step < steps; step++)
+            {
+                Player.MoveForQa(direction, speed, deltaTime);
+                Physics.SyncTransforms();
+            }
+        }
+
+        IEnumerator BeginCollisionSafetyVideoQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            foreach (Creature creature in creatures)
+                if (creature) creature.gameObject.SetActive(false);
+
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "..", ".."));
+            string directory = Path.Combine(projectRoot, "QA", "VideoFrames", "collision-091-proof");
+            Directory.CreateDirectory(directory);
+            foreach (string oldFrame in Directory.GetFiles(directory, "frame-*.tga"))
+                File.Delete(oldFrame);
+            const float frameRate = 15f;
+            int frameNumber = 0;
+
+            IsUnderground = false;
+            RefreshWorldForMission();
+            ApplyLocationLighting();
+            Transform tree = environment.GetComponentsInChildren<Transform>(true)
+                .First(candidate => candidate.name.StartsWith("Modeled forest tree"));
+            CapsuleCollider trunk = tree.GetComponentsInChildren<CapsuleCollider>(true)
+                .First(collider => collider.transform.parent &&
+                                   collider.transform.parent.name == "Irregular modeled trunk");
+            Vector3 treeAway = new Vector3(trunk.bounds.center.x, 0, trunk.bounds.center.z).normalized;
+            if (treeAway.sqrMagnitude < .1f) treeAway = Vector3.right;
+            Player.Teleport(QaOutsideCollider(trunk, treeAway));
+            Player.Face(new Vector3(trunk.bounds.center.x, Player.transform.position.y,
+                trunk.bounds.center.z), 16f);
+            collisionQaCaption = "1/6  TREE TRUNK — sprint collision, no tunnelling";
+            for (int frame = 0; frame < 48; frame++)
+            {
+                Player.MoveForQa(-treeAway, 4.25f, 1f / frameRate);
+                Player.SetCameraOrbitForQa(35f + frame * .18f, 17f);
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            Transform heroRoot = environment.GetComponentsInChildren<Transform>(true)
+                .First(candidate => candidate.name == "Fine feeder root beside the ant path");
+            CapsuleCollider root = heroRoot.GetComponentsInChildren<CapsuleCollider>(true).First();
+            Vector3 segment = Vector3.ProjectOnPlane(root.transform.up, Vector3.up);
+            Vector3 rootAway = Vector3.Cross(Vector3.up,
+                segment.sqrMagnitude > .05f ? segment.normalized : Vector3.forward).normalized;
+            Player.Teleport(QaOutsideCollider(root, rootAway));
+            Player.Face(Player.transform.position - rootAway, 14f);
+            collisionQaCaption = "2/6  BRANCHING ROOT — wall slide stays outside mesh";
+            for (int frame = 0; frame < 48; frame++)
+            {
+                Player.MoveForQa((-rootAway + root.transform.up * .62f).normalized,
+                    3.2f, 1f / frameRate);
+                Player.SetCameraOrbitForQa(118f + frame * .22f, 16f);
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            ToggleNest(Player, false);
+            Vector3 queen = UndergroundCenter + new Vector3(-2.9f, .035f, -1.75f);
+            Vector3 wall = new Vector3(-1f, 0, -.18f).normalized;
+            Player.Teleport(queen);
+            Player.Face(queen + wall, 13f);
+            collisionQaCaption = "3/6  NEST WALL — continuous floor, wall and ceiling";
+            for (int frame = 0; frame < 48; frame++)
+            {
+                Player.MoveForQa(wall, 4.25f, 1f / frameRate);
+                Player.SetCameraOrbitForQa(198f, 14f);
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            collisionQaCaption = "4/6  BLOCKED ANT — camera remains independently controllable";
+            for (int frame = 0; frame < 54; frame++)
+            {
+                Player.SetCameraOrbitForQa(Mathf.Lerp(198f, 518f, frame / 53f),
+                    Mathf.Lerp(9f, 31f, Mathf.PingPong(frame / 26f, 1f)));
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            collisionQaCaption = "5/6  ANTI-STUCK — intentional overlap returns to safe ground";
+            Player.ForceUnsafePositionForQa(UndergroundCenter + new Vector3(-5.02f, .04f, -1.95f));
+            Player.RecoverNowForQa(-wall);
+            for (int frame = 0; frame < 42; frame++)
+            {
+                Player.SetCameraOrbitForQa(75f + frame * 1.1f, 18f);
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            collisionQaCaption = "6/6  NARROW TUNNEL — camera, player and save position contained";
+            Vector3 tunnelStart = UndergroundCenter + UndergroundTunnelPaths[0][^1] + Vector3.up * .035f;
+            Vector3 tunnelEnd = UndergroundCenter + UndergroundTunnelPaths[0][0] + Vector3.up * .035f;
+            Player.Teleport(tunnelStart);
+            Player.Face(tunnelEnd, 18f);
+            for (int frame = 0; frame < 54; frame++)
+            {
+                Player.MoveForQa(tunnelEnd - Player.transform.position,
+                    1.85f, 1f / frameRate);
+                Player.SetCameraOrbitForQa(310f + Mathf.Sin(frame * .09f) * 42f, 21f);
+                yield return CapturePhysicalVideoFrame(directory, frameNumber++, frameRate);
+            }
+
+            collisionQaCaption = null;
+            bool safe = IsPlayerPositionValid(Player, Player.transform.position) &&
+                        !Player.HasBlockingOverlapAt(Player.transform.position, .018f) &&
+                        !CameraOverlapsSolid(Camera.main.transform.position, .19f);
+            Debug.Log($"MOONROOT_COLLISION_VIDEO_QA_{(safe ? "OK" : "FAILED")} " +
+                      $"frames={frameNumber} fps={frameRate} directory={directory}");
+            if (!Application.isEditor) Application.Quit(safe ? 0 : 2);
+        }
+
         bool CameraOverlapsSolid(Vector3 position, float radius)
         {
             foreach (Collider collider in Physics.OverlapSphere(
@@ -824,9 +1486,10 @@ namespace CanopyKin
                 yield break;
             }
 
-            MeshCollider[] meshColliders = habitat.GetComponentsInChildren<MeshCollider>(true);
-            int rootColliders = meshColliders.Count(collider =>
-                collider.name.IndexOf("root", System.StringComparison.OrdinalIgnoreCase) >= 0);
+            CapsuleCollider[] capsuleColliders = habitat.GetComponentsInChildren<CapsuleCollider>(true);
+            int rootColliderSegments = capsuleColliders.Count(collider =>
+                collider.GetComponentsInParent<Transform>(true).Any(candidate =>
+                    candidate.name.IndexOf("root", System.StringComparison.OrdinalIgnoreCase) >= 0));
             MovementSurface[] surfaces = habitat.GetComponentsInChildren<MovementSurface>(true);
             bool hasSoil = surfaces.Any(surface => surface.DisplayName == "Layered forest soil");
             bool hasPuddle = surfaces.Any(surface => surface.DisplayName == "Shallow water");
@@ -865,10 +1528,10 @@ namespace CanopyKin
                 Player.transform.position - laneStart,
                 Vector3.up).magnitude;
             float displacement = maximumHeight - minimumHeight;
-            bool passed = hasSoil && hasPuddle && rootColliders >= 3 &&
+            bool passed = hasSoil && hasPuddle && rootColliderSegments >= 9 &&
                           terrainHits >= 25 && displacement >= .12f && laneProgress >= 1.8f;
             string result =
-                $"terrainHits={terrainHits}/30 rootColliders={rootColliders} " +
+                $"terrainHits={terrainHits}/30 rootColliderSegments={rootColliderSegments} " +
                 $"surfaces={surfaces.Length} displacement={displacement:F3} " +
                 $"laneProgress={laneProgress:F3} soil={hasSoil} puddle={hasPuddle}";
             if (passed)
@@ -1536,6 +2199,9 @@ namespace CanopyKin
         void BuildWorld()
         {
             var timer = Stopwatch.StartNew();
+            Physics.queriesHitBackfaces = true;
+            Physics.queriesHitTriggers = true;
+            Physics.defaultContactOffset = .012f;
             environment = new GameObject("Moonroot forest-floor region").transform;
             Colony = gameObject.AddComponent<ColonyState>();
             Mission = gameObject.AddComponent<MissionDirector>();
@@ -1700,7 +2366,7 @@ namespace CanopyKin
                     height,
                     trunkRadius,
                     i,
-                    layer == 0);
+                    true);
             }
 
             int understoryCount = RuntimeQualityProfile.IsFullQuality ? 72 : 34;
@@ -1743,7 +2409,7 @@ namespace CanopyKin
                     new Vector3(x, GroundHeight(x, z) - .55f, z),
                     new Vector3(4.8f, 2.2f + i % 4 * .38f, 7.2f),
                     1700 + i,
-                    false,
+                    true,
                     i % 3 == 0);
                 bank.transform.localRotation = Quaternion.Euler(
                     0,
@@ -1784,7 +2450,7 @@ namespace CanopyKin
                     new Vector3(Mathf.Cos(angle) * radius, .24f + (i % 3) * .025f, Mathf.Sin(angle) * radius - .48f),
                     new Vector3(.72f + i % 4 * .12f, .4f + i % 2 * .1f, .62f),
                     i,
-                    false,
+                    true,
                     i % 3 == 0);
             }
 
@@ -2068,7 +2734,16 @@ namespace CanopyKin
                 Vector3.zero,
                 Vector3.one,
                 soil,
+                false);
+            GameObject tunnelCollision = VisualFactory.MeshObject(
+                "Simplified tunnel walls and ceiling collision",
+                tunnel,
+                NestGeometryFactory.TunnelShell(variant, path, radius, height, 1),
+                Vector3.zero,
+                Vector3.one,
+                soil,
                 true);
+            tunnelCollision.GetComponent<Renderer>().enabled = false;
 
             int middle = path.Count / 2;
             Vector3 tangent = (path[Mathf.Min(path.Count - 1, middle + 1)] -
@@ -2079,11 +2754,11 @@ namespace CanopyKin
                 tunnel,
                 new[]
                 {
-                    path[middle] - side * radius + Vector3.up * .24f,
-                    path[middle] + Vector3.up * height * .92f,
-                    path[middle] + side * radius + Vector3.up * .24f
+                    path[middle] - side * radius * .96f + Vector3.up * height * .88f,
+                    path[middle] + Vector3.up * height * 1.12f,
+                    path[middle] + side * radius * .96f + Vector3.up * height * .88f
                 },
-                new[] { .115f, .082f, .115f },
+                new[] { .075f, .055f, .075f },
                 true);
         }
 
@@ -2361,7 +3036,7 @@ namespace CanopyKin
                     stones[i],
                     new Vector3(size * 1.25f, size * .62f, size),
                     260 + i,
-                    i < 4 || i == 7);
+                    true);
             }
 
             Vector3[] mossPositions =
@@ -2981,11 +3656,20 @@ namespace CanopyKin
             camera.allowMSAA = GameSettings.Quality > 0;
             cameraObject.AddComponent<AudioListener>();
 
-            var playerObject = new GameObject("Player scout ant");
-            playerObject.transform.SetParent(environment, false);
+            GameObject playerPrefab = Resources.Load<GameObject>("Prefabs/PlayerScoutAnt");
+            GameObject playerObject;
+            if (playerPrefab)
+                playerObject = Instantiate(playerPrefab, environment, false);
+            else
+            {
+                playerObject = new GameObject("Player scout ant");
+                playerObject.transform.SetParent(environment, false);
+                playerObject.AddComponent<CharacterController>();
+                playerObject.AddComponent<PlayerAnt>();
+            }
+            playerObject.name = "Player scout ant";
             playerObject.transform.position = UndergroundPlayerSpawn;
-            playerObject.AddComponent<CharacterController>();
-            Player = playerObject.AddComponent<PlayerAnt>();
+            Player = playerObject.GetComponent<PlayerAnt>();
 
             UnitRole[] roles =
             {
@@ -3266,6 +3950,14 @@ namespace CanopyKin
             DrawVitals(width);
             DrawSquadPanel(width, height);
             DrawCreatureStatus(width);
+
+            if (!string.IsNullOrEmpty(collisionQaCaption))
+            {
+                GUI.Box(new Rect(width * .5f - 330, 82, 660, 48), "");
+                GUI.Label(new Rect(width * .5f - 318, 86, 636, 38),
+                    collisionQaCaption,
+                    centered);
+            }
 
             if (IsPlaying && !IsPaused && !IsCinematic)
             {

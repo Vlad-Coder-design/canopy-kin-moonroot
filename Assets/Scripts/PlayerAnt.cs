@@ -23,6 +23,8 @@ namespace CanopyKin
         float cameraShake;
         float tacticalBlend;
         float blockedTimer;
+        float recoveryCooldown;
+        float safePositionTimer;
         float diagnosticTimer;
         float surfaceSpeedMultiplier = 1f;
         float bufferedW;
@@ -34,6 +36,8 @@ namespace CanopyKin
         Vector3 processedMovement;
         Vector3 actualVelocity;
         Vector3 groundNormal = Vector3.up;
+        Vector3 lastBlockingNormal;
+        Vector3 lastSafeGroundedPosition;
         float slopeAngle;
         string currentSurface = "Soil";
         bool diagnosticsVisible;
@@ -42,7 +46,10 @@ namespace CanopyKin
         bool dying;
         readonly RaycastHit[] castHits = new RaycastHit[32];
         readonly Collider[] cameraOverlapHits = new Collider[48];
+        readonly Collider[] playerOverlapHits = new Collider[64];
         SphereCollider cameraCollisionProbe;
+        CapsuleCollider recoveryProbe;
+        int antiStuckRecoveries;
 
         public float Health { get; private set; } = 100;
         public float Stamina { get; private set; } = 100;
@@ -61,6 +68,9 @@ namespace CanopyKin
              Cursor.lockState == CursorLockMode.Locked);
         public string LocomotionState { get; private set; } = "Idle";
         public string AnimationState => visual ? visual.AnimationState : "Unavailable";
+        public Vector3 LastSafeGroundedPosition => lastSafeGroundedPosition;
+        public int AntiStuckRecoveries => antiStuckRecoveries;
+        public CharacterController Body => body;
 
         void Awake()
         {
@@ -72,6 +82,15 @@ namespace CanopyKin
             body.slopeLimit = 54f;
             body.skinWidth = .025f;
             body.minMoveDistance = 0;
+            body.detectCollisions = true;
+            body.enableOverlapRecovery = true;
+            recoveryProbe = gameObject.AddComponent<CapsuleCollider>();
+            recoveryProbe.height = body.height;
+            recoveryProbe.radius = body.radius;
+            recoveryProbe.center = body.center;
+            recoveryProbe.direction = 1;
+            recoveryProbe.isTrigger = true;
+            recoveryProbe.enabled = false;
             visual = AntVisual.Create(transform, new Color(.16f, .035f, .012f), .92f, AntCaste.Player);
         }
 
@@ -89,6 +108,7 @@ namespace CanopyKin
                 cameraCollisionProbe.center = Vector3.zero;
                 cameraCollisionProbe.isTrigger = true;
             }
+            lastSafeGroundedPosition = transform.position;
             SnapCamera();
         }
 
@@ -243,7 +263,8 @@ namespace CanopyKin
             }
 
             Vector3 before = transform.position;
-            CollisionFlags collision = body.Move((planarVelocity + Vector3.up * vertical) * Time.deltaTime);
+            CollisionFlags collision = MoveWithSweptSubsteps(
+                (planarVelocity + Vector3.up * vertical) * Time.deltaTime);
             Vector3 moved = transform.position - before;
             actualVelocity = moved / Mathf.Max(Time.deltaTime, .0001f);
             Vector3 actualPlanar = Vector3.ProjectOnPlane(actualVelocity, Vector3.up);
@@ -253,15 +274,25 @@ namespace CanopyKin
             if ((collision & CollisionFlags.Above) != 0 && vertical > 0)
                 vertical = 0;
 
-            if (input.sqrMagnitude > .1f && actualSpeed < .08f)
+            recoveryCooldown = Mathf.Max(0, recoveryCooldown - Time.deltaTime);
+            if (input.sqrMagnitude > .1f && actualSpeed < .08f &&
+                (collision & CollisionFlags.Sides) != 0)
                 blockedTimer += Time.deltaTime;
             else
-                blockedTimer = 0;
-            if (blockedTimer > .22f && Grounded)
+                blockedTimer = Mathf.Max(0, blockedTimer - Time.deltaTime * 2f);
+            if (blockedTimer > .18f && lastBlockingNormal.sqrMagnitude > .1f)
             {
-                Vector3 escape = Vector3.ProjectOnPlane(wishDirection, groundNormal);
-                planarVelocity = Vector3.Lerp(planarVelocity, escape * speed * .65f, .55f);
+                Vector3 slide = Vector3.ProjectOnPlane(wishDirection, lastBlockingNormal);
+                if (Grounded) slide = Vector3.ProjectOnPlane(slide, groundNormal);
+                if (slide.sqrMagnitude > .01f)
+                    planarVelocity = Vector3.Lerp(
+                        planarVelocity,
+                        slide.normalized * speed * .72f,
+                        .68f);
             }
+            if (blockedTimer > .72f && recoveryCooldown <= 0)
+                TryAntiStuckRecovery(wishDirection);
+            RecordSafeGroundedPosition();
 
             footstepTravel += new Vector2(moved.x, moved.z).magnitude;
             if (footstepTravel > (sprint ? .42f : .58f))
@@ -290,6 +321,214 @@ namespace CanopyKin
                     ? "Idle"
                     : sprint && actualSpeed > 2.85f ? "Run" : "Walk";
             EmitDiagnostics();
+        }
+
+        CollisionFlags MoveWithSweptSubsteps(Vector3 displacement)
+        {
+            if (displacement.sqrMagnitude <= .00000001f) return CollisionFlags.None;
+            float maximumStep = Mathf.Max(.055f, body.radius * .34f);
+            int steps = Mathf.Clamp(
+                Mathf.CeilToInt(displacement.magnitude / maximumStep),
+                1,
+                18);
+            Vector3 step = displacement / steps;
+            CollisionFlags flags = CollisionFlags.None;
+            WorldBootstrap world = WorldBootstrap.Instance;
+
+            for (int index = 0; index < steps; index++)
+            {
+                Vector3 before = transform.position;
+                Vector3 planar = Vector3.ProjectOnPlane(step, Vector3.up);
+                Vector3 verticalStep = step - planar;
+                if (planar.sqrMagnitude > .0000001f &&
+                    TryFilteredCapsuleCast(planar, out RaycastHit hit) &&
+                    Vector3.Dot(hit.normal, Vector3.up) < .72f)
+                {
+                    float length = planar.magnitude;
+                    float travel = Mathf.Max(0, hit.distance - body.skinWidth * .65f);
+                    Vector3 first = planar.normalized * Mathf.Min(length, travel);
+                    Vector3 remainder = planar - first;
+                    Vector3 slide = Vector3.ProjectOnPlane(remainder, hit.normal);
+                    planar = first + slide;
+                    lastBlockingNormal = hit.normal;
+                }
+
+                flags |= body.Move(planar + verticalStep);
+                if (world != null && !world.IsPlayerPositionValid(this, transform.position))
+                {
+                    SetPositionImmediate(before);
+                    planarVelocity = Vector3.ProjectOnPlane(planarVelocity, lastBlockingNormal);
+                    flags |= CollisionFlags.Sides;
+                    break;
+                }
+            }
+            return flags;
+        }
+
+        bool TryFilteredCapsuleCast(Vector3 displacement, out RaycastHit best)
+        {
+            best = default;
+            float distance = displacement.magnitude;
+            if (distance <= .00001f) return false;
+            CapsuleAt(transform.position, body.radius * .94f, out Vector3 top, out Vector3 bottom);
+            int count = Physics.CapsuleCastNonAlloc(
+                top,
+                bottom,
+                body.radius * .94f,
+                displacement / distance,
+                castHits,
+                distance + body.skinWidth,
+                ~0,
+                QueryTriggerInteraction.Ignore);
+            float nearest = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit candidate = castHits[i];
+                if (!candidate.collider || IgnoreMovementCollider(candidate.collider)) continue;
+                if (candidate.distance >= nearest) continue;
+                nearest = candidate.distance;
+                best = candidate;
+            }
+            return best.collider != null;
+        }
+
+        void CapsuleAt(Vector3 position, float radius, out Vector3 top, out Vector3 bottom)
+        {
+            Vector3 center = position + transform.rotation * body.center;
+            float halfSegment = Mathf.Max(0, body.height * .5f - radius);
+            top = center + Vector3.up * halfSegment;
+            bottom = center - Vector3.up * halfSegment;
+        }
+
+        void RecordSafeGroundedPosition()
+        {
+            safePositionTimer -= Time.deltaTime;
+            if (safePositionTimer > 0 || !Grounded) return;
+            safePositionTimer = .18f;
+            WorldBootstrap world = WorldBootstrap.Instance;
+            if (world != null && world.IsPlayerPositionValid(this, transform.position) &&
+                !HasBlockingOverlapAt(transform.position, .012f))
+                lastSafeGroundedPosition = transform.position;
+        }
+
+        void TryAntiStuckRecovery(Vector3 intendedDirection)
+        {
+            blockedTimer = 0;
+            recoveryCooldown = 1.15f;
+            WorldBootstrap world = WorldBootstrap.Instance;
+            if (world == null) return;
+
+            Vector3 start = transform.position;
+            if (TrySeparateFromOverlaps(out Vector3 separated) &&
+                world.IsPlayerPositionValid(this, separated))
+            {
+                SetPositionImmediate(separated);
+                antiStuckRecoveries++;
+                return;
+            }
+
+            Vector3 forward = intendedDirection.sqrMagnitude > .01f
+                ? intendedDirection.normalized
+                : transform.forward;
+            for (int ring = 1; ring <= 4; ring++)
+            for (int directionIndex = 0; directionIndex < 12; directionIndex++)
+            {
+                float angle = directionIndex / 12f * Mathf.PI * 2f;
+                Vector3 direction = Quaternion.AngleAxis(angle * Mathf.Rad2Deg, Vector3.up) * forward;
+                Vector3 candidate = start + direction * (.16f * ring);
+                if (!world.TryResolvePlayerPosition(this, candidate, lastSafeGroundedPosition,
+                        out Vector3 valid) ||
+                    !world.IsPlayerPositionValid(this, valid) ||
+                    HasBlockingOverlapAt(valid, .008f))
+                    continue;
+                SetPositionImmediate(valid);
+                antiStuckRecoveries++;
+                return;
+            }
+
+            if (world.TryResolvePlayerPosition(
+                    this,
+                    lastSafeGroundedPosition,
+                    world.PlayerRespawn,
+                    out Vector3 fallback))
+            {
+                SetPositionImmediate(fallback);
+                antiStuckRecoveries++;
+            }
+        }
+
+        bool TrySeparateFromOverlaps(out Vector3 separated)
+        {
+            separated = transform.position;
+            bool moved = false;
+            for (int pass = 0; pass < 6; pass++)
+            {
+                CapsuleAt(separated, body.radius * .96f, out Vector3 top, out Vector3 bottom);
+                int count = Physics.OverlapCapsuleNonAlloc(
+                    top,
+                    bottom,
+                    body.radius * .96f,
+                    playerOverlapHits,
+                    ~0,
+                    QueryTriggerInteraction.Ignore);
+                Vector3 correction = Vector3.zero;
+                int contacts = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    Collider obstacle = playerOverlapHits[i];
+                    if (!obstacle || IgnoreRecoveryCollider(obstacle)) continue;
+                    if (!Physics.ComputePenetration(
+                            recoveryProbe,
+                            separated,
+                            transform.rotation,
+                            obstacle,
+                            obstacle.transform.position,
+                            obstacle.transform.rotation,
+                            out Vector3 direction,
+                            out float distance) || distance <= .004f)
+                        continue;
+                    correction += direction * (distance + .012f);
+                    contacts++;
+                }
+                if (contacts == 0) break;
+                separated += correction / contacts;
+                moved = true;
+            }
+            return moved;
+        }
+
+        bool IgnoreRecoveryCollider(Collider collider)
+        {
+            if (IgnoreMovementCollider(collider)) return true;
+            return collider.GetComponentInParent<Creature>() != null;
+        }
+
+        public bool HasBlockingOverlapAt(Vector3 position, float tolerance = .006f)
+        {
+            CapsuleAt(position, body.radius * .96f, out Vector3 top, out Vector3 bottom);
+            int count = Physics.OverlapCapsuleNonAlloc(
+                top,
+                bottom,
+                body.radius * .96f,
+                playerOverlapHits,
+                ~0,
+                QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < count; i++)
+            {
+                Collider obstacle = playerOverlapHits[i];
+                if (!obstacle || IgnoreRecoveryCollider(obstacle)) continue;
+                if (Physics.ComputePenetration(
+                        recoveryProbe,
+                        position,
+                        transform.rotation,
+                        obstacle,
+                        obstacle.transform.position,
+                        obstacle.transform.rotation,
+                        out _,
+                        out float distance) && distance > tolerance)
+                    return true;
+            }
+            return false;
         }
 
         static float DigitalValue(KeyControl key, float buffered)
@@ -350,6 +589,37 @@ namespace CanopyKin
             {
                 RaycastHit candidate = castHits[i];
                 if (!candidate.collider || IgnoreMovementCollider(candidate.collider)) continue;
+                if (candidate.distance >= nearest) continue;
+                nearest = candidate.distance;
+                best = candidate;
+            }
+            return best.collider != null;
+        }
+
+        bool TryFilteredCameraSphereCast(
+            Vector3 origin,
+            float radius,
+            Vector3 direction,
+            float distance,
+            out RaycastHit best)
+        {
+            best = default;
+            int count = Physics.SphereCastNonAlloc(
+                origin,
+                radius,
+                direction.normalized,
+                castHits,
+                distance,
+                ~0,
+                QueryTriggerInteraction.Ignore);
+            float nearest = float.MaxValue;
+            for (int i = 0; i < count; i++)
+            {
+                RaycastHit candidate = castHits[i];
+                Collider collider = candidate.collider;
+                if (!collider || IgnoreMovementCollider(collider) ||
+                    collider.GetComponentInParent<Creature>() != null)
+                    continue;
                 if (candidate.distance >= nearest) continue;
                 nearest = candidate.distance;
                 best = candidate;
@@ -553,15 +823,11 @@ namespace CanopyKin
         Vector3 ResolveCameraPlacement(Vector3 target, Vector3 wanted)
         {
             WorldBootstrap world = WorldBootstrap.Instance;
-            if (world != null)
-            {
-                target = world.ConstrainCameraPosition(target);
-                wanted = world.ConstrainCameraPosition(wanted);
-            }
+            if (world != null) wanted = world.ConstrainCameraPosition(wanted);
 
             Vector3 direction = wanted - target;
             float distance = direction.magnitude;
-            if (distance > .001f && TryFilteredSphereCast(
+            if (distance > .001f && TryFilteredCameraSphereCast(
                     target,
                     .19f,
                     direction,
@@ -577,8 +843,8 @@ namespace CanopyKin
                 // A very close collision response can be physically valid but
                 // still put the near plane inside the ant's rendered body.
                 // Prefer a compact elevated shoulder view in narrow tunnels.
-                Vector3 elevated = target + Vector3.up * 1.08f -
-                                   transform.forward * .72f;
+                Vector3 orbitBack = Quaternion.Euler(0, yaw, 0) * Vector3.back;
+                Vector3 elevated = target + Vector3.up * 1.08f + orbitBack * .72f;
                 if (world != null)
                     elevated = world.ConstrainCameraPosition(elevated);
                 resolved = ResolveCameraOverlaps(target, elevated, world);
@@ -645,14 +911,117 @@ namespace CanopyKin
 
         public void Teleport(Vector3 position)
         {
+            WorldBootstrap world = WorldBootstrap.Instance;
+            if (world != null && world.TryResolvePlayerPosition(
+                    this,
+                    position,
+                    lastSafeGroundedPosition == Vector3.zero
+                        ? world.PlayerRespawn
+                        : lastSafeGroundedPosition,
+                    out Vector3 resolved))
+                position = resolved;
+            SetPositionImmediate(position);
+            planarVelocity = Vector3.zero;
+            actualVelocity = Vector3.zero;
+            vertical = 0;
+            blockedTimer = 0;
+            if (world != null && world.IsPlayerPositionValid(this, position))
+                lastSafeGroundedPosition = position;
+            SnapCamera();
+        }
+
+        void SetPositionImmediate(Vector3 position)
+        {
             bool enabledBefore = body.enabled;
             body.enabled = false;
             transform.position = position;
             body.enabled = enabledBefore;
-            planarVelocity = Vector3.zero;
-            actualVelocity = Vector3.zero;
-            vertical = 0;
+        }
+
+        public Vector3 GetValidatedSavePosition()
+        {
+            WorldBootstrap world = WorldBootstrap.Instance;
+            if (world != null && world.TryResolvePlayerPosition(
+                    this,
+                    transform.position,
+                    lastSafeGroundedPosition,
+                    out Vector3 valid) &&
+                world.IsPlayerPositionValid(this, valid))
+                return valid;
+            return lastSafeGroundedPosition;
+        }
+
+        public void SetCameraOrbitForQa(float horizontal, float verticalAngle)
+        {
+            yaw = horizontal;
+            pitch = Mathf.Clamp(verticalAngle, 6f, 39f);
             SnapCamera();
+        }
+
+        public void ForceUnsafePositionForQa(Vector3 position)
+        {
+            SetPositionImmediate(position);
+            blockedTimer = 1f;
+            recoveryCooldown = 0;
+        }
+
+        public bool RecoverNowForQa(Vector3 intendedDirection)
+        {
+            int before = antiStuckRecoveries;
+            TryAntiStuckRecovery(intendedDirection);
+            SnapCamera();
+            return antiStuckRecoveries > before;
+        }
+
+        public CollisionFlags MoveForQa(Vector3 worldDirection, float speed, float deltaTime)
+        {
+            if (worldDirection.sqrMagnitude <= .00001f) return CollisionFlags.None;
+            Vector3 before = transform.position;
+            CollisionFlags flags = MoveWithSweptSubsteps(
+                worldDirection.normalized * speed * Mathf.Max(.001f, deltaTime));
+            Vector3 moved = transform.position - before;
+            actualVelocity = moved / Mathf.Max(.001f, deltaTime);
+            float planarSpeed = Vector3.ProjectOnPlane(actualVelocity, Vector3.up).magnitude;
+            if (planarSpeed > .015f)
+                transform.rotation = Quaternion.RotateTowards(
+                    transform.rotation,
+                    Quaternion.LookRotation(Vector3.ProjectOnPlane(actualVelocity, Vector3.up)),
+                    520f * deltaTime);
+            Grounded = ProbeGround(out RaycastHit hit);
+            if (Grounded) groundNormal = hit.normal;
+            visual?.SetPlayerMotion(planarSpeed,
+                Mathf.InverseLerp(0, 4.25f, planarSpeed), Grounded, groundNormal);
+            return flags;
+        }
+
+        public string CollisionProbeForQa(Vector3 direction, float distance = .8f)
+        {
+            if (direction.sqrMagnitude < .001f) return "cast=none(direction)";
+            Vector3 displacement = direction.normalized * distance;
+            return TryFilteredCapsuleCast(displacement, out RaycastHit hit)
+                ? $"cast={hit.collider.name} parent={hit.collider.transform.parent?.name} " +
+                  $"distance={hit.distance:F3} normal={hit.normal:F3}"
+                : "cast=clear";
+        }
+
+        public string OverlapProbeForQa(Vector3 position)
+        {
+            CapsuleAt(position, body.radius * .96f, out Vector3 top, out Vector3 bottom);
+            int count = Physics.OverlapCapsuleNonAlloc(
+                top, bottom, body.radius * .96f, playerOverlapHits, ~0,
+                QueryTriggerInteraction.Ignore);
+            string result = $"broad={count}";
+            for (int i = 0; i < count; i++)
+            {
+                Collider obstacle = playerOverlapHits[i];
+                if (!obstacle || IgnoreRecoveryCollider(obstacle)) continue;
+                if (Physics.ComputePenetration(
+                        recoveryProbe, position, transform.rotation,
+                        obstacle, obstacle.transform.position, obstacle.transform.rotation,
+                        out Vector3 direction, out float distance))
+                    result += $" | {obstacle.name}:{distance:F3}:{direction:F2}";
+            }
+            return result;
         }
 
         public void Face(Vector3 target, float cameraPitch = 10f)
@@ -762,6 +1131,11 @@ namespace CanopyKin
 
         void OnControllerColliderHit(ControllerColliderHit hit)
         {
+            if (Mathf.Abs(hit.normal.y) < .72f)
+            {
+                lastBlockingNormal = hit.normal;
+                planarVelocity = Vector3.ProjectOnPlane(planarVelocity, hit.normal);
+            }
             Rigidbody rigidbody = hit.collider.attachedRigidbody;
             if (!rigidbody || rigidbody.isKinematic || hit.moveDirection.y < -.25f) return;
             Vector3 force = new(hit.moveDirection.x, .06f, hit.moveDirection.z);

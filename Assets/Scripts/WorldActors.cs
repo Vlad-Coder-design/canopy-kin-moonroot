@@ -296,7 +296,9 @@ namespace CanopyKin
         GameObject selectionMarker;
         GameObject injuryMarker;
         GameObject cargoVisual;
+        SphereCollider bodyCollider;
         bool recovering;
+        public Collider BodyCollider => bodyCollider;
 
         public void Initialize(UnitRole role)
         {
@@ -305,6 +307,10 @@ namespace CanopyKin
             MaxHealth = definition.maxHealth;
             Health = MaxHealth;
             Visual = AntVisual.Create(transform, definition.shell, definition.visualScale, definition.caste);
+            bodyCollider = gameObject.AddComponent<SphereCollider>();
+            bodyCollider.center = new Vector3(0, .23f, 0);
+            bodyCollider.radius = role == UnitRole.HeavySoldier ? .23f : .18f;
+            bodyCollider.contactOffset = .012f;
             BuildStateMarkers();
         }
 
@@ -383,7 +389,10 @@ namespace CanopyKin
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>()) renderer.enabled = false;
             yield return new WaitForSeconds(7f);
             Health = MaxHealth;
-            transform.position = WorldBootstrap.Instance.NestPosition + Vector3.up * .05f;
+            WorldBootstrap world = WorldBootstrap.Instance;
+            transform.position = world.ConstrainActorPosition(
+                world.IsUnderground ? world.PlayerRespawn : world.NestPosition,
+                bodyCollider ? bodyCollider.radius : .18f);
             foreach (Renderer renderer in GetComponentsInChildren<Renderer>()) renderer.enabled = true;
             if (injuryMarker) injuryMarker.SetActive(false);
             recovering = false;
@@ -540,7 +549,8 @@ namespace CanopyKin
 
         void MoveTowards(Vector3 target, float speed)
         {
-            target.y = WorldBootstrap.GroundHeight(target.x, target.z) + .035f;
+            WorldBootstrap world = WorldBootstrap.Instance;
+            target = world.ConstrainActorPosition(target, .22f);
             Vector3 direction = target - transform.position;
             direction.y = 0;
             if (direction.sqrMagnitude < .06f) return;
@@ -553,9 +563,17 @@ namespace CanopyKin
                 if (Vector3.Dot(side, direction) < 0) side = -side;
                 direction = Vector3.Slerp(direction, side, .72f);
             }
-            Vector3 next = transform.position + direction * speed * Time.deltaTime;
-            next.y = WorldBootstrap.GroundHeight(next.x, next.z) + .035f;
-            transform.position = next;
+            SphereCollider sphere = bodyCollider as SphereCollider;
+            float radius = sphere ? sphere.radius * .86f : .24f;
+            float center = sphere ? sphere.center.y : .32f;
+            CollisionSafety.MoveSphere(
+                transform,
+                bodyCollider,
+                direction,
+                speed * Time.deltaTime,
+                center,
+                radius);
+            transform.position = world.ConstrainActorPosition(transform.position, radius);
             transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(direction), 6.5f * Time.deltaTime);
         }
 
@@ -590,7 +608,19 @@ namespace CanopyKin
             lastPosition = transform.position;
             if (stuckTimer > 1.1f)
             {
-                transform.position += transform.right * (Random.value > .5f ? .35f : -.35f);
+                SphereCollider sphere = bodyCollider as SphereCollider;
+                float radius = sphere ? sphere.radius * .86f : .24f;
+                float center = sphere ? sphere.center.y : .32f;
+                CollisionSafety.MoveSphere(
+                    transform,
+                    bodyCollider,
+                    transform.right * (Random.value > .5f ? 1f : -1f),
+                    .35f,
+                    center,
+                    radius);
+                transform.position = WorldBootstrap.Instance.ConstrainActorPosition(
+                    transform.position,
+                    radius);
                 stuckTimer = 0;
             }
         }
@@ -740,9 +770,10 @@ namespace CanopyKin
                 {
                     WorldBootstrap world = WorldBootstrap.Instance;
                     if (!wasActive && world && world.Player)
-                        unit.Actor.transform.position =
+                        unit.Actor.transform.position = world.ConstrainActorPosition(
                             world.Player.transform.position +
-                            FormationOffset(units.IndexOf(unit), unit.Actor.Role);
+                            FormationOffset(units.IndexOf(unit), unit.Actor.Role),
+                            .19f);
                 }
             }
             if (!unlocked) SelectWorkers();
@@ -783,13 +814,13 @@ namespace CanopyKin
 
         public void Teleport(Vector3 center)
         {
+            WorldBootstrap world = WorldBootstrap.Instance;
             for (int i = 0; i < units.Count; i++)
             {
                 Unit unit = units[i];
                 if (!unit.Actor) continue;
                 Vector3 position = center + FormationOffset(i, unit.Actor.Role) * 1.15f;
-                if (position.y > -2f)
-                    position.y = WorldBootstrap.GroundHeight(position.x, position.z) + .025f;
+                position = world.ConstrainActorPosition(position, .19f);
                 unit.Actor.transform.position = position;
                 unit.Last = position;
                 unit.Stuck = 0;
@@ -894,7 +925,8 @@ namespace CanopyKin
         void MoveUnit(Unit unit, Vector3 goal, int index)
         {
             SquadUnit actor = unit.Actor;
-            goal.y = WorldBootstrap.GroundHeight(goal.x, goal.z) + .025f;
+            WorldBootstrap world = WorldBootstrap.Instance;
+            goal = world.ConstrainActorPosition(goal, .19f);
             Vector3 direction = goal - actor.transform.position;
             direction.y = 0;
             if (direction.sqrMagnitude < .045f) return;
@@ -922,9 +954,17 @@ namespace CanopyKin
 
             float speed = GameDefinitions.Ant(actor.Role).speed;
             Vector3 before = actor.transform.position;
-            Vector3 next = before + direction * speed * Time.deltaTime;
-            next.y = WorldBootstrap.GroundHeight(next.x, next.z) + .025f;
-            actor.transform.position = next;
+            SphereCollider sphere = actor.BodyCollider as SphereCollider;
+            float radius = sphere ? sphere.radius * .84f : .15f;
+            float center = sphere ? sphere.center.y : .23f;
+            CollisionSafety.MoveSphere(
+                actor.transform,
+                actor.BodyCollider,
+                direction,
+                speed * Time.deltaTime,
+                center,
+                radius);
+            actor.transform.position = world.ConstrainActorPosition(actor.transform.position, radius);
             actor.transform.rotation = Quaternion.Slerp(actor.transform.rotation, Quaternion.LookRotation(direction), Time.deltaTime * 9f);
 
             if ((actor.transform.position - unit.Last).sqrMagnitude < .00008f) unit.Stuck += Time.deltaTime;
@@ -932,7 +972,14 @@ namespace CanopyKin
             unit.Last = actor.transform.position;
             if (unit.Stuck > 1f)
             {
-                actor.transform.position += actor.transform.right * ((index & 1) == 0 ? .38f : -.38f);
+                CollisionSafety.MoveSphere(
+                    actor.transform,
+                    actor.BodyCollider,
+                    actor.transform.right * ((index & 1) == 0 ? 1f : -1f),
+                    .38f,
+                    center,
+                    radius);
+                actor.transform.position = world.ConstrainActorPosition(actor.transform.position, radius);
                 unit.Stuck = 0;
             }
         }

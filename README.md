@@ -5,6 +5,17 @@ articulated ant, explores a rolling forest-floor region and an underground nurse
 gathers and carries resources, commands worker and soldier squads, fights multiple
 insect castes, upgrades the colony, and completes the Moonroot tutorial mission.
 
+Version 0.9.1 hardens the complete playable slice against geometry tunnelling and
+camera clipping. The player is now loaded from
+`Assets/Resources/Prefabs/PlayerScoutAnt.prefab`, moves through swept substeps,
+slides along collision planes, records safe grounded positions and recovers from
+invalid overlaps. Roots use overlapping compound capsule colliders, every modeled
+tree is solid, nest tunnel collision shells are trimmed at junctions, NPC ants use
+swept movement, and saving records a validated position. The packaged Windows
+build passes 34 collision cases, 61 camera-containment samples, all 30 terrain
+probes and the full 15-step mission smoke test. See
+`QA/COLLISION_CAMERA_IMPLEMENTATION_091.md` and `QA/Video` for exact evidence.
+
 Version 0.9.0 gives the player a separately authored close-camera Formica rufa
 model derived from Msassasa's legally verified CC BY 4.0 Game-Ready Worker Ant.
 The production export has 53,390 triangles, 67 anatomical/animation bones and
@@ -49,9 +60,12 @@ browser has not captured the mouse.
 Public build: https://vlad-coder-design.github.io/canopy-kin-moonroot/
 
 `Builds/WebGL` is deployed by `.github/workflows/pages.yml` on pushes to `main`.
-Version 0.9.0 uses hash-named gzip WebGL artifacts with Unity's JavaScript
+Version 0.9.1 uses hash-named gzip WebGL artifacts with Unity's JavaScript
 decompression fallback. This keeps the data file below GitHub's per-file limit
 while still loading correctly from GitHub Pages without custom response headers.
+The page restores keyboard focus and requests pointer lock from a click or
+fullscreen gesture; if the browser releases the mouse, an on-page prompt explains
+how to capture it again.
 
 ## Development
 

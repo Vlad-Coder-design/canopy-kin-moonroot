@@ -1,0 +1,87 @@
+Mono path[0] = 'D:/Рабочий Стол/Empire of the Ants/Builds/Windows/CanopyKin_Data/Managed'
+Mono config path = 'D:/Рабочий Стол/Empire of the Ants/Builds/Windows/MonoBleedingEdge/etc'
+Input System module state changed to: Initialized.
+[Physics::Module] Initialized fallback backend.
+[Physics::Module] Id: 0xdecafbad
+Initialize engine version: 6000.0.78f1 (ec8a99a872be)
+[Subsystems] Discovering subsystems at path D:/Рабочий Стол/Empire of the Ants/Builds/Windows/CanopyKin_Data/UnitySubsystems
+Forcing GfxDevice: Null
+GfxDevice: creating device client; kGfxThreadingModeNonThreaded
+NullGfxDevice:
+    Version:  NULL 1.0 [1.0]
+    Renderer: Null Device
+    Vendor:   Unity Technologies
+Begin MonoManager ReloadAssembly
+- Loaded All Assemblies, in  0.119 seconds
+- Finished resetting the current domain, in  0.003 seconds
+[Physics::Module] Selected backend.
+[Physics::Module] Name: PhysX
+[Physics::Module] Id: 0xf2b8ea05
+[Physics::Module] SDK Version: 4.1.2
+[Physics::Module] Integration Version: 1.0.0
+[Physics::Module] Threading Mode: Multi-Threaded
+Microsoft Media Foundation video decoding to texture disabled: graphics device is Null, only Direct3D 11 and Direct3D 12 (only on desktop) are supported for hardware-accelerated video decoding.
+UnloadTime: 0.437500 ms
+MOONROOT_MODELED_FOREST_READY trees=44 understory=72 boundaryBanks=24 photographicBackdrops=0 billboards=0
+MOONROOT_MODELED_NEST_READY chambers=5 tunnels=4 floors=solid shells=closed colliders=enabled
+MOONROOT_ANT_FAMILY_READY caste=Queen path=Models/Ant/Family/CanopyKinAnt_Queen legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,144 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=Nurse path=Models/Ant/Family/CanopyKinAnt_Nurse legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,147 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=Nurse path=Models/Ant/Family/CanopyKinAnt_Nurse legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,147 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=Worker path=Models/Ant/Family/CanopyKinAnt_Worker legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,150 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=Worker path=Models/Ant/Family/CanopyKinAnt_Worker legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,150 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=Worker path=Models/Ant/Family/CanopyKinAnt_Worker legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,150 opaque=1 authoredClips=0
+MOONROOT_HERO_MICROHABITAT_READY ground=96x80 grass=34 groundcover=10 leaves=27 stones=8 moss=8 roots=3 puddles=1
+MOONROOT_VEGETATION_CHUNKS_READY chunks=0 tufts=0 highTriangles=0 lowTriangles=0
+MOONROOT_ANT_FAMILY_READY caste=Scout path=Models/Ant/Family/CanopyKinAnt_Scout legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,156 opaque=1 authoredClips=0
+MOONROOT_PLAYER_AUTHORED_ANIMATION_READY clips=24 renderer=CanopyKin_FormicaRufa_Player_Prototype_LOD0
+MOONROOT_ANT_FAMILY_READY caste=Player path=Models/Ant/Prototype/CanopyKin_FormicaRufa_Player_Prototype legs=6 lod0=1 lod1=0 forwardDot=0,995 upSpan=0,154 opaque=1 authoredClips=24
+MOONROOT_ANT_FAMILY_READY caste=Worker path=Models/Ant/Family/CanopyKinAnt_Worker legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,150 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=Worker path=Models/Ant/Family/CanopyKinAnt_Worker legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,150 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=Worker path=Models/Ant/Family/CanopyKinAnt_Worker legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,150 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=Worker path=Models/Ant/Family/CanopyKinAnt_Worker legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,150 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=LightSoldier path=Models/Ant/Family/CanopyKinAnt_LightSoldier legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,153 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=LightSoldier path=Models/Ant/Family/CanopyKinAnt_LightSoldier legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,153 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=LightSoldier path=Models/Ant/Family/CanopyKinAnt_LightSoldier legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,153 opaque=1 authoredClips=0
+MOONROOT_ANT_FAMILY_READY caste=HeavySoldier path=Models/Ant/Family/CanopyKinAnt_HeavySoldier legs=6 lod0=1 lod1=1 forwardDot=0,995 upSpan=0,156 opaque=1 authoredClips=0
+MOONROOT_SLICE_READY buildMs=968 renderers=3374 quality=2 edition=WindowsFull
+MOONROOT_COLLISION_CASE_OK tree-trunk-collider-present
+MOONROOT_COLLISION_CASE_OK root-compound-collider-present
+MOONROOT_COLLISION_CASE_OK every-modeled-tree-solid
+MOONROOT_COLLISION_CASE_OK nest-floors-walls-ceilings-continuous
+MOONROOT_COLLISION_CASE_OK player-collider-dimensions
+MOONROOT_COLLISION_CASE_OK walk-directly-into-tree
+MOONROOT_COLLISION_CASE_OK low-fps-sprint-into-tree-no-tunneling
+MOONROOT_COLLISION_CASE_OK camera-rotates-while-tree-blocks-player
+MOONROOT_COLLISION_CASE_OK camera-never-enters-tree-or-ground
+MOONROOT_COLLISION_CASE_OK walk-into-root-stops-outside
+MOONROOT_COLLISION_CASE_OK diagonal-root-contact-slides-without-wedging
+MOONROOT_COLLISION_CASE_OK camera-rotates-while-root-blocks-player
+MOONROOT_COLLISION_CASE_OK surface-terrain-seam-low-fps
+MOONROOT_COLLISION_CASE_OK save-near-root-loads-valid-position
+MOONROOT_COLLISION_CASE_OK walk-directly-into-nest-wall
+MOONROOT_COLLISION_CASE_OK run-directly-into-nest-wall-low-fps
+MOONROOT_COLLISION_CASE_OK diagonal-nest-corner-no-escape
+MOONROOT_COLLISION_CASE_OK anti-stuck-recovers-from-intentional-nest-corner
+MOONROOT_COLLISION_CASE_OK camera-independent-while-nest-wall-blocks-player
+MOONROOT_COLLISION_CASE_OK camera-outside-nest-walls-and-ceiling
+MOONROOT_TUNNEL_DIAGNOSTIC start=(-0.350, -5.400, -6.740) end=(-1.976, -5.335, -8.031) target=(-2.120, -5.395, -8.150) valid=True cast=Uneven excavated chamber floor parent=Modeled queen and brood excavation distance=0,508 normal=(-0.015, -0.999, -0.052)
+MOONROOT_COLLISION_CASE_OK narrow-curved-tunnel-traversal
+MOONROOT_COLLISION_CASE_OK narrow-tunnel-camera-clearance
+MOONROOT_COLLISION_CASE_OK save-beside-wall-loads-inside-nest
+MOONROOT_COLLISION_CASE_OK forced-camera-ceiling-resolves-inside
+MOONROOT_COLLISION_CASE_OK camera-resumes-after-pause
+MOONROOT_COLLISION_CASE_OK nest-exit-1-valid
+MOONROOT_COLLISION_CASE_OK nest-entry-1-valid
+MOONROOT_COLLISION_CASE_OK nest-exit-2-valid
+MOONROOT_COLLISION_CASE_OK nest-entry-2-valid
+MOONROOT_COLLISION_CASE_OK nest-exit-3-valid
+MOONROOT_COLLISION_CASE_OK nest-entry-3-valid
+MOONROOT_COLLISION_CASE_OK forced-camera-ground-resolves-above-terrain
+MOONROOT_COLLISION_CASE_OK npc-ant-colliders-present
+MOONROOT_COLLISION_CASE_OK solid-world-collider-audit-count
+MOONROOT_COLLISION_SAFETY_QA_OK tests=34 failures=0 solidMarkers=811 solidTrees=44 nestMeshes=18 squadBodies=8 recoveries=1 collider=CharacterController radius=0,23 height=0,68 center=(0.00, 0.34, 0.00)
+[Physics::Module] Cleanup current backned.
+[Physics::Module] Id: 0xf2b8ea05
+Input System module state changed to: ShutdownInProgress.
+Input System polling thread exited.
+Input System module state changed to: Shutdown.

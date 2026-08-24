@@ -50,6 +50,21 @@
       cursor: pointer;
     }
     #full { position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom)); }
+    #mouse-hint {
+      display: none;
+      position: fixed;
+      left: 50%;
+      bottom: max(18px, env(safe-area-inset-bottom));
+      transform: translateX(-50%);
+      max-width: min(90vw, 540px);
+      padding: 9px 14px;
+      border: 1px solid rgba(212, 184, 106, .7);
+      border-radius: 8px;
+      background: rgba(8, 11, 8, .88);
+      color: #f4e8be;
+      text-align: center;
+      pointer-events: none;
+    }
     #retry { display: none; margin: 18px auto 0; }
     @media (max-width: 700px) { #full { font-size: 13px; padding: 9px 12px; } }
   </style>
@@ -66,6 +81,7 @@
     </div>
   </div>
   <canvas id="unity-canvas" tabindex="0" aria-label="Canopy Kin game canvas"></canvas>
+  <div id="mouse-hint" role="status">Click the game to capture the mouse &middot; Esc releases it</div>
   <button id="full" type="button">Fullscreen</button>
   <script>
     const canvas = document.querySelector('#unity-canvas');
@@ -74,6 +90,7 @@
     const status = document.querySelector('#status');
     const errorBox = document.querySelector('#error');
     const retry = document.querySelector('#retry');
+    const mouseHint = document.querySelector('#mouse-hint');
     const query = new URLSearchParams(location.search);
     const diagnostics = [];
     window.webglDiagnostics = diagnostics;
@@ -82,13 +99,16 @@
       movementKeydowns: 0,
       focusedMovementKeydowns: 0,
       fullscreenRecoveries: 0,
+      pointerLockRequests: 0,
+      pointerLockChanges: 0,
       lastMovementCode: null
     };
     window.webglInputAcceptance = inputAcceptance;
     window.getWebglInputAcceptance = () => ({
       ...inputAcceptance,
       activeElement: document.activeElement === canvas ? 'canvas' : document.activeElement?.tagName || 'none',
-      fullscreen: Boolean(document.fullscreenElement)
+      fullscreen: Boolean(document.fullscreenElement),
+      pointerLocked: document.pointerLockElement === canvas
     });
 
     let revealed = false;
@@ -100,6 +120,7 @@
       shell.style.display = 'none';
       canvas.style.display = 'block';
       focusCanvas();
+      mouseHint.style.display = 'block';
     }
 
     const record = (level, message) => {
@@ -172,8 +193,24 @@
       try { canvas.focus({ preventScroll: true }); }
       catch { canvas.focus(); }
     }
+    function captureMouseFromGesture() {
+      focusCanvas();
+      if (!revealed || document.pointerLockElement === canvas || !canvas.requestPointerLock) return;
+      inputAcceptance.pointerLockRequests++;
+      try {
+        const request = canvas.requestPointerLock({ unadjustedMovement: true });
+        request?.catch?.(() => canvas.requestPointerLock());
+      } catch {
+        try { canvas.requestPointerLock(); } catch { /* Unsupported browser. */ }
+      }
+    }
     canvas.addEventListener('focus', () => inputAcceptance.canvasFocusEvents++);
-    canvas.addEventListener('pointerdown', focusCanvas);
+    canvas.addEventListener('pointerdown', captureMouseFromGesture);
+    document.addEventListener('pointerlockchange', () => {
+      inputAcceptance.pointerLockChanges++;
+      mouseHint.style.display = document.pointerLockElement === canvas ? 'none' : (revealed ? 'block' : 'none');
+      if (document.pointerLockElement === canvas) focusCanvas();
+    });
     window.addEventListener('focus', focusCanvas);
     document.addEventListener('fullscreenchange', () => setTimeout(() => {
       focusCanvas();
@@ -187,10 +224,17 @@
         event.preventDefault();
       }
     }, { passive: false });
-    document.querySelector('#full').onclick = () => {
+    document.querySelector('#full').onclick = async () => {
       focusCanvas();
-      if (window.game) window.game.SetFullscreen(1);
-      else document.documentElement.requestFullscreen?.();
+      try {
+        if (!document.fullscreenElement && canvas.requestFullscreen)
+          await canvas.requestFullscreen({ navigationUI: 'hide' });
+        else if (!document.fullscreenElement && window.game)
+          window.game.SetFullscreen(1);
+      } catch {
+        if (window.game) window.game.SetFullscreen(1);
+      }
+      captureMouseFromGesture();
     };
   </script>
 </body>

@@ -447,6 +447,7 @@ namespace CanopyKin
             {
                 MeshCollider collider = collisionSource.gameObject.AddComponent<MeshCollider>();
                 collider.sharedMesh = collisionSource.sharedMesh;
+                collisionSource.gameObject.AddComponent<SolidWorldGeometry>();
             }
             return root;
         }
@@ -500,6 +501,7 @@ namespace CanopyKin
                     {
                         MeshCollider meshCollider = low.gameObject.AddComponent<MeshCollider>();
                         meshCollider.sharedMesh = lowFilter.sharedMesh;
+                        low.gameObject.AddComponent<SolidWorldGeometry>();
                     }
                 }
             }
@@ -525,7 +527,10 @@ namespace CanopyKin
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             renderer.receiveShadows = true;
             if (collider)
+            {
                 item.AddComponent<MeshCollider>().sharedMesh = mesh;
+                item.AddComponent<SolidWorldGeometry>();
+            }
             return item;
         }
 
@@ -611,14 +616,51 @@ namespace CanopyKin
             bool collider = true)
         {
             Mesh mesh = OrganicMeshFactory.Tube(path, radii, 12);
-            return MeshObject(
+            GameObject root = MeshObject(
                 name,
                 parent,
                 mesh,
                 Vector3.zero,
                 Vector3.one,
                 ProceduralBarkMaterial(),
-                collider);
+                false);
+            if (collider) AddTubeCompoundColliders(root.transform, path, radii);
+            return root;
+        }
+
+        /// <summary>
+        /// Organic tube meshes are visually continuous, but a single concave
+        /// triangle collider can expose microscopic seams to a small character
+        /// controller. Overlapping capsules follow each authored section and
+        /// deliberately meet at every control point, providing a closed swept
+        /// collision boundary without blocking space outside the visible root.
+        /// </summary>
+        static void AddTubeCompoundColliders(
+            Transform root,
+            IReadOnlyList<Vector3> path,
+            IReadOnlyList<float> radii)
+        {
+            if (path == null || radii == null || path.Count < 2 || radii.Count != path.Count)
+                return;
+
+            for (int i = 0; i < path.Count - 1; i++)
+            {
+                Vector3 delta = path[i + 1] - path[i];
+                float length = delta.magnitude;
+                if (length < .001f) continue;
+
+                var collision = new GameObject($"Collision capsule {i + 1:D2}");
+                collision.transform.SetParent(root, false);
+                collision.transform.localPosition = (path[i] + path[i + 1]) * .5f;
+                collision.transform.localRotation =
+                    Quaternion.FromToRotation(Vector3.up, delta / length);
+                var capsule = collision.AddComponent<CapsuleCollider>();
+                capsule.direction = 1;
+                capsule.radius = Mathf.Max(.012f, Mathf.Max(radii[i], radii[i + 1]) * .94f);
+                capsule.height = Mathf.Max(capsule.radius * 2f, length + capsule.radius * 1.65f);
+                capsule.contactOffset = Mathf.Min(.02f, capsule.radius * .18f);
+                collision.AddComponent<SolidWorldGeometry>();
+            }
         }
 
         public static GameObject OrganicPart(
@@ -914,14 +956,16 @@ namespace CanopyKin
             bool collider = true)
         {
             Mesh mesh = OrganicMeshFactory.Tube(path, radii, 16);
-            return MeshObject(
+            GameObject root = MeshObject(
                 name,
                 parent,
                 mesh,
                 Vector3.zero,
                 Vector3.one,
                 ProceduralBarkMaterial(),
-                collider);
+                false);
+            if (collider) AddTubeCompoundColliders(root.transform, path, radii);
+            return root;
         }
 
         public static GameObject HeroPuddle(
@@ -996,7 +1040,7 @@ namespace CanopyKin
                         direction * length + Vector3.down * trunkRadius * .08f
                     },
                     new[] { trunkRadius * .48f, trunkRadius * .31f, trunkRadius * .075f },
-                    collider && rootIndex < 3);
+                    collider);
             }
 
             int branchCount = RuntimeQualityProfile.IsFullQuality ? 4 : 3;

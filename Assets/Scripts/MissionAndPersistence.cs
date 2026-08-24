@@ -281,7 +281,7 @@ namespace CanopyKin
         {
             try
             {
-                Vector3 position = world.Player.transform.position;
+                Vector3 position = world.Player.GetValidatedSavePosition();
                 var data = new SaveData
                 {
                     seeds = world.Colony.Seeds,
@@ -316,7 +316,8 @@ namespace CanopyKin
 
                 world.Colony.Restore(data);
                 world.Mission.Restore(MigrateMissionStep(data.version, data.missionStep), data.missionProgress);
-                world.Player.Teleport(new Vector3(data.player[0], data.player[1], data.player[2]));
+                Vector3 savedPosition = new(data.player[0], data.player[1], data.player[2]);
+                world.Player.Teleport(savedPosition);
                 world.RefreshWorldForMission();
                 return true;
             }
