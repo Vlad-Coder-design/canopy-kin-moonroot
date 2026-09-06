@@ -41,7 +41,7 @@ namespace CanopyKin.Editor
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
         const string PlayerPrefabPath =
             "Assets/Resources/Prefabs/PlayerScoutAnt.prefab";
-        const string ProductVersion = "0.9.2";
+        const string ProductVersion = "0.9.3";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()

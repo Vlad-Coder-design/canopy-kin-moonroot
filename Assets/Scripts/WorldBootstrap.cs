@@ -19,51 +19,83 @@ namespace CanopyKin
         public const float PlayerColliderRadius = .23f;
         public const float PlayerColliderHeight = .68f;
         public const float CameraCollisionRadius = .19f;
-        public const float MinimumNormalTunnelWidth = 1.84f;
-        public const float MinimumBusyTunnelWidth = 2.2f;
+        public const float MinimumNormalTunnelWidth = 2.3f;
+        public const float MinimumBusyTunnelWidth = 2.8f;
+        const int CentralChamberIndex = 0;
+        const int QueenChamberIndex = 1;
+        const int FoodChamberIndex = 2;
+        const int NurseryChamberIndex = 3;
+        const int EntranceChamberIndex = 4;
+        const int EggChamberIndex = 5;
+        const int PupaChamberIndex = 6;
+        const int SanitationChamberIndex = 7;
+        const int GuardChamberIndex = 8;
+        const int EntranceTunnelIndex = 3;
         static readonly Vector3[] UndergroundChamberCenters =
         {
-            new(0, 0, .45f), new(-2.9f, 0, -1.75f),
-            new(-3.35f, 0, .95f), new(2.9f, 0, -.25f),
-            new(0, 0, 3.38f)
+            new(0, 0, .35f), new(-7f, 0, -2.8f),
+            new(-7f, 0, 3.5f), new(7.2f, 0, -.6f),
+            new(0, 0, 7.3f), new(6.6f, 0, -6.8f),
+            new(7.4f, 0, 4.6f), new(-1.1f, 0, -6.7f),
+            new(3.8f, 0, 8.7f)
         };
         static readonly Vector3[] UndergroundChamberRadii =
         {
-            new(2.75f, 2.5f, 2.55f), new(2.55f, 2.3f, 2.05f),
-            new(2.15f, 1.95f, 1.85f), new(2.3f, 2.05f, 2.35f),
-            new(2.7f, 2.1f, 1.95f)
+            new(3.8f, 3.2f, 3.4f), new(3.3f, 2.8f, 2.8f),
+            new(3.1f, 2.6f, 2.7f), new(4.25f, 3.1f, 3.6f),
+            new(3.2f, 2.6f, 2.65f), new(3.2f, 2.6f, 2.7f),
+            new(3.2f, 2.6f, 2.8f), new(2.7f, 2.4f, 2.5f),
+            new(2.8f, 2.4f, 2.45f)
         };
         static readonly Vector3[][] UndergroundTunnelPaths =
         {
-            new[] { new Vector3(-2.12f,.02f,-1.15f), new Vector3(-1.84f,.018f,-.94f), new Vector3(-1.55f,.015f,-.72f), new Vector3(-1.24f,.018f,-.48f), new Vector3(-.91f,.02f,-.21f), new Vector3(-.59f,.016f,.07f), new Vector3(-.3f,.015f,.31f) },
-            new[] { new Vector3(-2.55f,.02f,.84f), new Vector3(-2.21f,.017f,.78f), new Vector3(-1.86f,.013f,.72f), new Vector3(-1.48f,.012f,.66f), new Vector3(-1.08f,.014f,.59f), new Vector3(-.69f,.013f,.53f), new Vector3(-.32f,.012f,.48f) },
-            new[] { new Vector3(2.15f,.02f,-.05f), new Vector3(1.81f,.016f,0), new Vector3(1.48f,.013f,.08f), new Vector3(1.15f,.015f,.16f), new Vector3(.82f,.018f,.26f), new Vector3(.53f,.015f,.35f), new Vector3(.3f,.012f,.42f) },
-            new[] { new Vector3(0,.015f,1.82f), new Vector3(.025f,.022f,2.05f), new Vector3(.055f,.035f,2.29f), new Vector3(.03f,.055f,2.54f), new Vector3(-.02f,.085f,2.82f), new Vector3(-.035f,.125f,3.13f), new Vector3(0,.18f,3.58f) }
+            new[] { new Vector3(-3f,.02f,-1.1f), new Vector3(-3.22f,.018f,-1.3f), new Vector3(-3.45f,.016f,-1.52f), new Vector3(-3.68f,.018f,-1.74f), new Vector3(-3.9f,.02f,-1.94f), new Vector3(-4.08f,.019f,-2.1f), new Vector3(-4.2f,.02f,-2.2f) },
+            new[] { new Vector3(-2.8f,.018f,1.7f), new Vector3(-3.04f,.015f,1.9f), new Vector3(-3.29f,.014f,2.13f), new Vector3(-3.55f,.016f,2.38f), new Vector3(-3.8f,.018f,2.62f), new Vector3(-4.02f,.017f,2.83f), new Vector3(-4.2f,.018f,3f) },
+            new[] { new Vector3(3f,.018f,-.1f), new Vector3(3.18f,.017f,-.18f), new Vector3(3.36f,.016f,-.27f), new Vector3(3.54f,.018f,-.35f), new Vector3(3.74f,.02f,-.42f), new Vector3(3.94f,.019f,-.47f), new Vector3(4.1f,.018f,-.5f) },
+            new[] { new Vector3(0,.018f,3f), new Vector3(.06f,.025f,3.34f), new Vector3(.1f,.038f,3.7f), new Vector3(.06f,.055f,4.05f), new Vector3(-.04f,.08f,4.4f), new Vector3(-.08f,.12f,4.72f), new Vector3(0,.18f,5f) },
+            new[] { new Vector3(6.6f,.018f,-3.15f), new Vector3(6.52f,.02f,-3.35f), new Vector3(6.48f,.022f,-3.55f), new Vector3(6.5f,.024f,-3.75f), new Vector3(6.56f,.022f,-3.96f), new Vector3(6.61f,.02f,-4.17f), new Vector3(6.6f,.018f,-4.35f) },
+            new[] { new Vector3(7.3f,.018f,2.25f), new Vector3(7.316f,.02f,2.275f), new Vector3(7.333f,.022f,2.3f), new Vector3(7.35f,.024f,2.325f), new Vector3(7.366f,.022f,2.35f), new Vector3(7.383f,.02f,2.375f), new Vector3(7.4f,.018f,2.4f) },
+            new[] { new Vector3(3.55f,.018f,-6.8f), new Vector3(3.22f,.02f,-6.88f), new Vector3(2.88f,.022f,-6.93f), new Vector3(2.52f,.024f,-6.94f), new Vector3(2.16f,.022f,-6.89f), new Vector3(1.8f,.02f,-6.79f), new Vector3(1.45f,.018f,-6.7f) },
+            new[] { new Vector3(-2.8f,.018f,-5.4f), new Vector3(-3.1f,.02f,-5.22f), new Vector3(-3.42f,.024f,-5.03f), new Vector3(-3.73f,.026f,-4.83f), new Vector3(-4.03f,.024f,-4.62f), new Vector3(-4.33f,.02f,-4.42f), new Vector3(-4.6f,.018f,-4.25f) },
+            new[] { new Vector3(-7f,.018f,-.4f), new Vector3(-7.08f,.02f,-.2f), new Vector3(-7.12f,.022f,.02f), new Vector3(-7.1f,.024f,.24f), new Vector3(-7.04f,.022f,.46f), new Vector3(-6.99f,.02f,.67f), new Vector3(-7f,.018f,.85f) },
+            new[] { new Vector3(-4.05f,.018f,4.15f), new Vector3(-3.82f,.02f,4.42f), new Vector3(-3.58f,.023f,4.72f), new Vector3(-3.34f,.028f,5.03f), new Vector3(-3.1f,.034f,5.36f), new Vector3(-2.85f,.042f,5.72f), new Vector3(-2.6f,.055f,6.05f) },
+            new[] { new Vector3(6f,.018f,6.7f), new Vector3(5.98f,.02f,6.86f), new Vector3(5.96f,.022f,7.02f), new Vector3(5.93f,.024f,7.18f), new Vector3(5.9f,.022f,7.32f), new Vector3(5.86f,.02f,7.44f), new Vector3(5.8f,.018f,7.55f) },
+            new[] { new Vector3(1.3f,.018f,8.2f), new Vector3(1.54f,.02f,8.23f), new Vector3(1.8f,.022f,8.23f), new Vector3(2.06f,.024f,8.19f), new Vector3(2.3f,.022f,8.12f), new Vector3(2.54f,.02f,8.02f), new Vector3(2.75f,.018f,7.9f) }
         };
-        static readonly float[] UndergroundTunnelRadii = { 1.05f, .92f, 1.1f, 1.35f };
-        static readonly float[] UndergroundTunnelHeights = { 1.65f, 1.5f, 1.7f, 2f };
-        static readonly bool[] UndergroundTunnelBusy = { false, false, true, true };
+        static readonly float[] UndergroundTunnelRadii = { 1.45f, 1.4f, 1.75f, 1.8f, 1.45f, 1.45f, 1.2f, 1.25f, 1.2f, 1.4f, 1.25f, 1.45f };
+        static readonly float[] UndergroundTunnelHeights = { 2.35f, 2.25f, 2.6f, 2.65f, 2.3f, 2.3f, 2.05f, 2.1f, 2.05f, 2.25f, 2.1f, 2.3f };
+        static readonly bool[] UndergroundTunnelBusy = { true, true, true, true, true, true, false, false, false, true, false, true };
         static readonly string[] UndergroundTunnelNames =
         {
-            "Queen chamber connecting tunnel", "Food storage connecting tunnel",
-            "Worker nursery two-way passage", "Main sloped entrance two-way passage"
+            "Queen gallery main tunnel", "Food storage main tunnel",
+            "Nursery main two-way tunnel", "Main sloped entrance tunnel",
+            "Nursery to egg gallery tunnel", "Nursery to pupa gallery tunnel",
+            "Egg gallery sanitation side tunnel", "Sanitation to queen side tunnel",
+            "Queen to food service tunnel", "Food to entrance alternate tunnel",
+            "Pupa gallery to guard post side tunnel", "Guard post to entrance tunnel"
         };
-        static readonly int[] UndergroundTunnelVariants = { 11, 12, 13, 14 };
+        static readonly int[] UndergroundTunnelVariants = { 11, 12, 13, 14, 21, 22, 23, 24, 25, 26, 27, 28 };
         static readonly string[] UndergroundChamberNames =
         {
-            "Modeled central traffic excavation", "Modeled queen and brood excavation",
-            "Modeled food storage excavation", "Modeled worker nursery excavation",
-            "Modeled defensive entrance vestibule"
+            "Central colony crossroads", "Queen chamber and royal brood",
+            "Food and seed storage chamber", "Great nursery chamber",
+            "Defensive entrance vestibule", "Egg incubation gallery",
+            "Larva and pupa gallery", "Sanitation and refuse chamber",
+            "Entrance guard and worker chamber"
         };
         static readonly float[][] UndergroundChamberPortals =
         {
-            new[] { -143f, 171f, -9f, 90f }, new[] { 37f }, new[] { -9f },
-            new[] { 166f }, new[] { -90f, 90f }
+            new[] { -154f, 154f, -9f, 90f }, new[] { 12f, -31f, 90f },
+            new[] { -10f, -90f, 12f }, new[] { 178f, -103f, 88f },
+            new[] { -90f, -154f, 12f }, new[] { 90f, 180f },
+            new[] { -90f, 124f }, new[] { 0f, 143f }, new[] { -30f, -169f }
         };
         static readonly float[][] UndergroundChamberPortalHalfAngles =
         {
-            new[] { 22f, 19f, 23f, 29f }, new[] { 27f }, new[] { 29f },
-            new[] { 27.5f }, new[] { 30f, 30f }
+            new[] { 32f, 32f, 40f, 40f }, new[] { 36f, 34f, 34f },
+            new[] { 38f, 34f, 38f }, new[] { 40f, 36f, 36f },
+            new[] { 40f, 36f, 36f }, new[] { 36f, 34f },
+            new[] { 36f, 34f }, new[] { 34f, 34f }, new[] { 34f, 36f }
         };
 
         public PlayerAnt Player { get; private set; }
@@ -76,8 +108,12 @@ namespace CanopyKin
         public bool IsAutomationSmoke { get; private set; }
         public Vector3 NestPosition => new(NestPoint.x, GroundHeight(NestPoint.x, NestPoint.z), NestPoint.z);
         public Vector3 SurfacePlayerSpawn => new(0, GroundHeight(0, -4.15f) + .05f, -4.15f);
-        public Vector3 UndergroundPlayerSpawn => UndergroundCenter + new Vector3(0, .28f, .9f);
-        public Vector3 UndergroundSquadBay => UndergroundCenter + new Vector3(1.45f, .035f, -.55f);
+        public Vector3 UndergroundPlayerSpawn => UndergroundCenter +
+            UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(-.75f, .035f, .25f);
+        public Vector3 UndergroundEntrySpawn => UndergroundCenter +
+            UndergroundChamberCenters[EntranceChamberIndex] + new Vector3(0, .035f, -1.15f);
+        public Vector3 UndergroundSquadBay => UndergroundCenter +
+            UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(-1.55f, .035f, 1.35f);
         public Vector3 PlayerRespawn => IsUnderground ? UndergroundPlayerSpawn : SurfacePlayerSpawn;
 
         public Vector3 ConstrainCameraPosition(Vector3 position)
@@ -342,6 +378,17 @@ namespace CanopyKin
         public static bool ValidateNestPassageSpecifications(out string report)
         {
             var failures = new List<string>();
+            if (UndergroundTunnelPaths.Length != UndergroundTunnelRadii.Length ||
+                UndergroundTunnelPaths.Length != UndergroundTunnelHeights.Length ||
+                UndergroundTunnelPaths.Length != UndergroundTunnelBusy.Length ||
+                UndergroundTunnelPaths.Length != UndergroundTunnelNames.Length ||
+                UndergroundTunnelPaths.Length != UndergroundTunnelVariants.Length)
+                failures.Add("tunnel specification arrays have different lengths");
+            if (UndergroundChamberCenters.Length != UndergroundChamberRadii.Length ||
+                UndergroundChamberCenters.Length != UndergroundChamberNames.Length ||
+                UndergroundChamberCenters.Length != UndergroundChamberPortals.Length ||
+                UndergroundChamberCenters.Length != UndergroundChamberPortalHalfAngles.Length)
+                failures.Add("chamber specification arrays have different lengths");
             float tightestWidth = float.MaxValue;
             float tightestHeight = float.MaxValue;
             for (int i = 0; i < UndergroundTunnelPaths.Length; i++)
@@ -366,7 +413,20 @@ namespace CanopyKin
                         failures.Add($"{UndergroundTunnelNames[i]} sharp corner {segment}");
                 }
             }
-            report = $"tunnels={UndergroundTunnelPaths.Length} minWidth={tightestWidth:F2} " +
+            for (int i = 0; i < UndergroundChamberCenters.Length; i++)
+            {
+                Vector3 radii = UndergroundChamberRadii[i];
+                if (radii.x < 2.65f || radii.z < 2.4f || radii.y < 2.35f)
+                    failures.Add($"{UndergroundChamberNames[i]} is below explorable chamber minimum");
+                if (UndergroundChamberPortals[i].Length !=
+                    UndergroundChamberPortalHalfAngles[i].Length)
+                    failures.Add($"{UndergroundChamberNames[i]} portal metadata mismatch");
+            }
+            if (UndergroundChamberRadii[NurseryChamberIndex].x < 4f ||
+                UndergroundChamberRadii[NurseryChamberIndex].z < 3.4f)
+                failures.Add("great nursery does not meet free-roaming size");
+            report = $"chambers={UndergroundChamberCenters.Length} " +
+                     $"tunnels={UndergroundTunnelPaths.Length} minWidth={tightestWidth:F2} " +
                      $"minHeight={tightestHeight:F2} playerDiameter={PlayerColliderRadius * 2f:F2} " +
                      $"playerHeight={PlayerColliderHeight:F2} busyMinimum={MinimumBusyTunnelWidth:F2} " +
                      $"failures={failures.Count}" +
@@ -509,6 +569,7 @@ namespace CanopyKin
         Light amberNestLight;
         Light tunnelFillLight;
         Light nurseryFillLight;
+        readonly List<Light> undergroundGuideLights = new();
         bool rivalWaveSpawned;
         bool threatRevealStarted;
         float toastUntil;
@@ -663,6 +724,13 @@ namespace CanopyKin
                              "-tunnel-clearance-video-qa",
                              System.StringComparison.OrdinalIgnoreCase)))
                 StartCoroutine(BeginTunnelClearanceVideoQa());
+            else if (System.Array.Exists(
+                         arguments,
+                         argument => string.Equals(
+                             argument,
+                             "-nest-home-qa",
+                             System.StringComparison.OrdinalIgnoreCase)))
+                StartCoroutine(BeginNestHomeQa());
             else if (System.Array.Exists(
                          arguments,
                          argument => string.Equals(
@@ -889,20 +957,24 @@ namespace CanopyKin
             IsCinematic = true;
             yield return new WaitForSecondsRealtime(.8f);
 
-            Vector3 queenFocus = UndergroundCenter + new Vector3(-2.9f, .55f, -1.75f);
+            Vector3 queenFocus = UndergroundCenter +
+                UndergroundChamberCenters[QueenChamberIndex] + Vector3.up * .55f;
             SetQaCamera(queenFocus, new Vector3(3.2f, 1.18f, 3.35f), 43f);
             yield return CaptureQaScreenshot("world-080-queen-chamber.tga");
             SetQaCamera(queenFocus + new Vector3(.35f, -.14f, .55f),
                 new Vector3(1.25f, .64f, 1.42f), 34f);
             yield return CaptureQaScreenshot("world-080-brood-detail.tga");
 
-            Vector3 storageFocus = UndergroundCenter + new Vector3(-3.35f, .38f, .95f);
+            Vector3 storageFocus = UndergroundCenter +
+                UndergroundChamberCenters[FoodChamberIndex] + Vector3.up * .38f;
             SetQaCamera(storageFocus, new Vector3(1.45f, .72f, 1.8f), 35f);
             yield return CaptureQaScreenshot("world-080-storage-cargo.tga");
-            SetQaCamera(UndergroundCenter + new Vector3(0, .72f, .72f),
+            SetQaCamera(UndergroundCenter + UndergroundChamberCenters[CentralChamberIndex] +
+                Vector3.up * .72f,
                 new Vector3(-3.7f, 1.45f, -3.45f), 49f);
             yield return CaptureQaScreenshot("world-080-colony-wide.tga");
-            SetQaCamera(UndergroundCenter + new Vector3(0, .78f, 3.05f),
+            SetQaCamera(UndergroundCenter + UndergroundChamberCenters[EntranceChamberIndex] +
+                new Vector3(0, .78f, -1.75f),
                 new Vector3(2.15f, 1.1f, -2.35f), 38f);
             yield return CaptureQaScreenshot("world-080-tunnel-entrance.tga");
 
@@ -984,14 +1056,16 @@ namespace CanopyKin
             RefreshWorldForMission();
             ApplyLocationLighting();
             Player.Teleport(UndergroundPlayerSpawn);
-            Vector3 queenFocus = UndergroundCenter + new Vector3(-2.9f, .72f, -1.75f);
+            Vector3 queenFocus = UndergroundCenter +
+                UndergroundChamberCenters[QueenChamberIndex] + Vector3.up * .72f;
             SetQaCamera(queenFocus, new Vector3(1.05f, .52f, .8f), 46f);
             yield return CaptureQaScreenshot("physical-090-queen-chamber-gameplay.png");
             yield return CaptureQaWireframeScreenshot("physical-090-queen-chamber-wireframe.png");
             SetQaCamera(UndergroundCenter + new Vector3(-1.32f, .48f, -.48f),
                 new Vector3(.62f, .08f, .48f), 52f);
             yield return CaptureQaWireframeScreenshot("physical-090-nest-tunnel-wireframe.png");
-            SetQaCamera(UndergroundCenter + new Vector3(-3.0f, .45f, -1.56f),
+            SetQaCamera(UndergroundCenter + UndergroundChamberCenters[QueenChamberIndex] +
+                new Vector3(0, .45f, .2f),
                 new Vector3(1.02f, .44f, .72f), 43f);
             yield return CaptureQaWireframeScreenshot("physical-090-resources-brood-wireframe.png");
 
@@ -1275,7 +1349,7 @@ namespace CanopyKin
                 "closed-watertight-underground-backstop-present");
 
             squads.enabled = false;
-            Vector3[] entrancePath = UndergroundTunnelPaths[3];
+            Vector3[] entrancePath = UndergroundTunnelPaths[EntranceTunnelIndex];
             Vector3 entranceStart = UndergroundCenter + entrancePath[0] + Vector3.up * .035f;
             Vector3 entranceEnd = UndergroundCenter + entrancePath[^1] + Vector3.up * .035f;
             Player.Teleport(entranceStart);
@@ -1396,7 +1470,7 @@ namespace CanopyKin
             Check(IsPlayerPositionValid(Player, Player.transform.position),
                 "final-player-position-valid-after-all-tunnel-tests");
 
-            string result = $"tests={tests} failures={failures} oldWidths=1.24-1.44 " +
+            string result = $"tests={tests} failures={failures} oldWidths=1.84-2.70 " +
                             $"newWidths={UndergroundTunnelRadii.Min() * 2f:F2}-{UndergroundTunnelRadii.Max() * 2f:F2} " +
                             $"newHeights={UndergroundTunnelHeights.Min():F2}-{UndergroundTunnelHeights.Max():F2} " +
                             $"playerRadius={Player.Body.radius:F2} playerHeight={Player.Body.height:F2} " +
@@ -1421,7 +1495,7 @@ namespace CanopyKin
             foreach (string oldFrame in Directory.GetFiles(directory, "frame-*.tga")) File.Delete(oldFrame);
             const float frameRate = 15f;
             int frameNumber = 0;
-            Vector3[] entrancePath = UndergroundTunnelPaths[3];
+            Vector3[] entrancePath = UndergroundTunnelPaths[EntranceTunnelIndex];
             Vector3 entranceStart = UndergroundCenter + entrancePath[0] + Vector3.up * .035f;
             Vector3 entranceEnd = UndergroundCenter + entrancePath[^1] + Vector3.up * .035f;
 
@@ -1475,6 +1549,220 @@ namespace CanopyKin
             Debug.Log($"MOONROOT_TUNNEL_CLEARANCE_VIDEO_QA_{(safe ? "OK" : "FAILED")} " +
                       $"frames={frameNumber} fps={frameRate} chapters=4 directory={directory}");
             if (!Application.isEditor) Application.Quit(safe ? 0 : 2);
+        }
+
+        IEnumerator BeginNestHomeQa()
+        {
+            IsAutomationSmoke = true;
+            yield return null;
+            BeginPlay();
+            Mission.Restore(MissionDirector.SpiderStep);
+            RefreshWorldForMission();
+            IsUnderground = true;
+            ApplyLocationLighting();
+
+            int tests = 0;
+            int failures = 0;
+            void Check(bool passed, string name, string detail = "")
+            {
+                tests++;
+                if (passed) Debug.Log($"MOONROOT_NEST_HOME_CASE_OK {name} {detail}");
+                else
+                {
+                    failures++;
+                    Debug.LogError($"MOONROOT_NEST_HOME_CASE_FAILED {name} {detail}");
+                }
+            }
+
+            NestChamberMarker[] chamberMarkers =
+                underground.GetComponentsInChildren<NestChamberMarker>(true);
+            TunnelClearanceMarker[] tunnelMarkers =
+                underground.GetComponentsInChildren<TunnelClearanceMarker>(true);
+            Check(chamberMarkers.Length == UndergroundChamberCenters.Length,
+                "all-explorable-chambers-built",
+                $"live={chamberMarkers.Length} specified={UndergroundChamberCenters.Length}");
+            Check(tunnelMarkers.Length == UndergroundTunnelPaths.Length,
+                "all-main-and-side-tunnels-built",
+                $"live={tunnelMarkers.Length} specified={UndergroundTunnelPaths.Length}");
+            Check(chamberMarkers.All(marker => marker.FloorCollider && marker.ShellCollider),
+                "every-chamber-has-floor-wall-and-ceiling-collision");
+            Check(tunnelMarkers.All(marker => marker.FloorCollider && marker.ShellCollider),
+                "every-tunnel-has-continuous-collision");
+            Check(chamberMarkers[NurseryChamberIndex].ClearRadii.x >= 4f &&
+                  chamberMarkers[NurseryChamberIndex].ClearRadii.z >= 3.4f,
+                "nursery-free-roaming-envelope",
+                $"radii={chamberMarkers[NurseryChamberIndex].ClearRadii:F2}");
+            Check(tunnelMarkers.Min(marker => marker.ClearWidth) >= MinimumNormalTunnelWidth,
+                "minimum-tunnel-width-relative-to-player",
+                $"minimum={tunnelMarkers.Min(marker => marker.ClearWidth):F2} " +
+                $"playerDiameter={Player.Body.radius * 2f:F2}");
+            Check(tunnelMarkers.Min(marker => marker.ClearHeight) >= 2.05f,
+                "minimum-tunnel-height-relative-to-player-and-camera",
+                $"minimum={tunnelMarkers.Min(marker => marker.ClearHeight):F2} " +
+                $"playerHeight={Player.Body.height:F2}");
+
+            (string name, Vector3[] localRoute)[] routes =
+            {
+                ("entrance-to-central-crossroads", ComposeNestRoute(
+                    UndergroundChamberCenters[EntranceChamberIndex],
+                    UndergroundChamberCenters[CentralChamberIndex],
+                    (EntranceTunnelIndex, true))),
+                ("central-to-great-nursery", ComposeNestRoute(
+                    UndergroundChamberCenters[CentralChamberIndex],
+                    UndergroundChamberCenters[NurseryChamberIndex],
+                    (2, false))),
+                ("complete-loop-around-nursery", new[]
+                {
+                    UndergroundChamberCenters[NurseryChamberIndex],
+                    UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(-2.6f,0,-1.8f),
+                    UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(0,0,-2.75f),
+                    UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(2.65f,0,-1.75f),
+                    UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(3.15f,0,.45f),
+                    UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(2.2f,0,2.35f),
+                    UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(-.35f,0,2.7f),
+                    UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(-2.75f,0,1.65f),
+                    UndergroundChamberCenters[NurseryChamberIndex]
+                }),
+                ("nursery-to-egg-gallery", ComposeNestRoute(
+                    UndergroundChamberCenters[NurseryChamberIndex],
+                    UndergroundChamberCenters[EggChamberIndex], (4, false))),
+                ("egg-gallery-to-sanitation", ComposeNestRoute(
+                    UndergroundChamberCenters[EggChamberIndex],
+                    UndergroundChamberCenters[SanitationChamberIndex], (6, false))),
+                ("sanitation-to-queen", ComposeNestRoute(
+                    UndergroundChamberCenters[SanitationChamberIndex],
+                    UndergroundChamberCenters[QueenChamberIndex], (7, false))),
+                ("queen-to-food-storage", ComposeNestRoute(
+                    UndergroundChamberCenters[QueenChamberIndex],
+                    UndergroundChamberCenters[FoodChamberIndex], (8, false))),
+                ("food-storage-to-entrance-alternate", ComposeNestRoute(
+                    UndergroundChamberCenters[FoodChamberIndex],
+                    UndergroundChamberCenters[EntranceChamberIndex], (9, false))),
+                ("entrance-to-guard-chamber", ComposeNestRoute(
+                    UndergroundChamberCenters[EntranceChamberIndex],
+                    UndergroundChamberCenters[GuardChamberIndex], (11, true))),
+                ("guard-to-pupa-gallery", ComposeNestRoute(
+                    UndergroundChamberCenters[GuardChamberIndex],
+                    UndergroundChamberCenters[PupaChamberIndex], (10, true))),
+                ("pupa-gallery-to-nursery", ComposeNestRoute(
+                    UndergroundChamberCenters[PupaChamberIndex],
+                    UndergroundChamberCenters[NurseryChamberIndex], (5, true))),
+                ("nursery-back-to-central", ComposeNestRoute(
+                    UndergroundChamberCenters[NurseryChamberIndex],
+                    UndergroundChamberCenters[CentralChamberIndex], (2, true))),
+                ("central-back-to-exit", ComposeNestRoute(
+                    UndergroundChamberCenters[CentralChamberIndex],
+                    UndergroundChamberCenters[EntranceChamberIndex],
+                    (EntranceTunnelIndex, false)))
+            };
+
+            squads.enabled = false;
+            foreach (SquadUnit unit in FindObjectsByType<SquadUnit>(FindObjectsSortMode.None))
+                unit.gameObject.SetActive(false);
+            Player.Teleport(UndergroundEntrySpawn);
+            bool remainedValid = true;
+            int totalWaypoints = 0;
+            for (int routeIndex = 0; routeIndex < routes.Length; routeIndex++)
+            {
+                (string routeName, Vector3[] localRoute) = routes[routeIndex];
+                bool reachedRouteEnd = true;
+                Vector3 lastTarget = Player.transform.position;
+                foreach (Vector3 localTarget in localRoute)
+                {
+                    totalWaypoints++;
+                    Vector3 target = UndergroundCenter + localTarget + Vector3.up * .035f;
+                    lastTarget = target;
+                    int steps = 0;
+                    while (Vector3.Distance(
+                               Vector3.ProjectOnPlane(Player.transform.position, Vector3.up),
+                               Vector3.ProjectOnPlane(target, Vector3.up)) > .2f && steps++ < 150)
+                    {
+                        Vector3 toward = target - Player.transform.position;
+                        toward.y = 0;
+                        Player.MoveForQa(toward, 3.05f, 1f / 45f);
+                        Physics.SyncTransforms();
+                        remainedValid &= IsPlayerPositionValid(Player, Player.transform.position) &&
+                                         !Player.HasBlockingOverlapAt(Player.transform.position, .016f);
+                        if ((steps & 3) == 0) yield return null;
+                    }
+                    if (steps >= 150) reachedRouteEnd = false;
+                }
+                Player.SetCameraOrbitForQa(routeIndex * 47f, 12f + routeIndex % 3 * 7f);
+                bool cameraClear = !CameraOverlapsSolid(
+                    Camera.main.transform.position, CameraCollisionRadius);
+                Check(reachedRouteEnd && remainedValid && cameraClear,
+                    routeName,
+                    $"player={Player.transform.position:F2} target={lastTarget:F2} " +
+                    $"cameraClear={cameraClear} " +
+                    Player.CollisionProbeForQa(lastTarget - Player.transform.position, 1.1f) + " " +
+                    Player.OverlapProbeForQa(Player.transform.position));
+            }
+            Check(remainedValid, "no-hidden-blockers-or-player-penetration-on-complete-tour",
+                $"waypoints={totalWaypoints} recoveries={Player.AntiStuckRecoveries}");
+
+            Player.Teleport(UndergroundCenter +
+                UndergroundChamberCenters[NurseryChamberIndex] + Vector3.up * .035f);
+            int clearCameraSamples = 0;
+            float cameraTravel = 0;
+            Vector3 lastCamera = Camera.main.transform.position;
+            for (int sample = 0; sample < 24; sample++)
+            {
+                Player.SetCameraOrbitForQa(sample * 15f, 8f + Mathf.PingPong(sample * 3f, 26f));
+                Vector3 cameraPosition = Camera.main.transform.position;
+                cameraTravel += Vector3.Distance(lastCamera, cameraPosition);
+                lastCamera = cameraPosition;
+                if (!CameraOverlapsSolid(cameraPosition, CameraCollisionRadius)) clearCameraSamples++;
+            }
+            Check(clearCameraSamples == 24 && cameraTravel > 4f,
+                "nursery-camera-free-and-contained",
+                $"clear={clearCameraSamples}/24 travel={cameraTravel:F2}");
+
+            NestWorkerRoutine[] workers =
+                underground.GetComponentsInChildren<NestWorkerRoutine>(true);
+            Check(workers.Length >= 12, "living-colony-worker-population",
+                $"workers={workers.Length}");
+            Check(workers.All(worker => worker.RoutePointCount >= 2),
+                "every-worker-has-a-real-room-to-room-route");
+            Check(workers.All(worker =>
+                    worker.GetComponent<Collider>() && worker.GetComponent<Collider>().isTrigger),
+                "ambient-workers-cannot-form-solid-player-plug");
+            Check(workers.Count(worker => worker.Load != NestWorkerLoad.None) >= 8,
+                "workers-visibly-carry-brood-food-and-refuse");
+
+            float[] workerTravelStarts = workers
+                .Select(worker => worker.TotalTravelDistance)
+                .ToArray();
+            float trafficTestStarted = Time.realtimeSinceStartup;
+            while (Time.realtimeSinceStartup - trafficTestStarted < 3.25f)
+                yield return null;
+            int movingWorkers = 0;
+            for (int i = 0; i < workers.Length; i++)
+                if (workers[i].TotalTravelDistance - workerTravelStarts[i] > .35f)
+                    movingWorkers++;
+            Check(movingWorkers >= Mathf.Min(9, workers.Length),
+                "colony-traffic-moves-between-rooms",
+                $"moving={movingWorkers}/{workers.Length}");
+
+            yield return CaptureQaScreenshot("nest-093-great-nursery-gameplay.png");
+            yield return CaptureQaWireframeScreenshot("nest-093-great-nursery-collision.png");
+            Player.Teleport(UndergroundEntrySpawn);
+            bool beforeExitValid = IsPlayerPositionValid(Player, Player.transform.position);
+            ToggleNest(Player, true);
+            yield return null;
+            Check(beforeExitValid && !IsUnderground &&
+                  IsPlayerPositionValid(Player, Player.transform.position),
+                "complete-tour-returns-outside-through-real-transition");
+
+            string result = $"tests={tests} failures={failures} chambers={chamberMarkers.Length} " +
+                            $"tunnels={tunnelMarkers.Length} workers={workers.Length} " +
+                            $"movingWorkers={movingWorkers} waypoints={totalWaypoints} " +
+                            $"width={tunnelMarkers.Min(marker => marker.ClearWidth):F2}-" +
+                            $"{tunnelMarkers.Max(marker => marker.ClearWidth):F2} " +
+                            $"height={tunnelMarkers.Min(marker => marker.ClearHeight):F2}-" +
+                            $"{tunnelMarkers.Max(marker => marker.ClearHeight):F2}";
+            if (failures == 0) Debug.Log("MOONROOT_NEST_HOME_QA_OK " + result);
+            else Debug.LogError("MOONROOT_NEST_HOME_QA_FAILED " + result);
+            if (!Application.isEditor) Application.Quit(failures == 0 ? 0 : 2);
         }
 
         IEnumerator BeginCollisionSafetyQa()
@@ -1627,7 +1915,8 @@ namespace CanopyKin
                 "save-near-root-loads-valid-position");
 
             ToggleNest(Player, false);
-            Vector3 queenCenter = UndergroundCenter + new Vector3(-2.9f, .035f, -1.75f);
+            Vector3 queenCenter = UndergroundCenter +
+                UndergroundChamberCenters[QueenChamberIndex] + Vector3.up * .035f;
             Vector3 wallDirection = new Vector3(-1f, 0, -.18f).normalized;
             Player.Teleport(queenCenter);
             QaPushPlayer(wallDirection, 2.55f, 1f / 60f, 120);
@@ -1647,7 +1936,9 @@ namespace CanopyKin
                   !Player.HasBlockingOverlapAt(Player.transform.position, .018f),
                 "diagonal-nest-corner-no-escape");
 
-            Vector3 invalidCorner = UndergroundCenter + new Vector3(-5.35f, .035f, -2.45f);
+            Vector3 invalidCorner = UndergroundCenter +
+                UndergroundChamberCenters[QueenChamberIndex] +
+                new Vector3(-UndergroundChamberRadii[QueenChamberIndex].x - .35f, .035f, -.4f);
             Player.ForceUnsafePositionForQa(invalidCorner);
             bool beganOutsideNest = !IsPlayerPositionValid(Player, invalidCorner);
             bool recoveredFromCorner = Player.RecoverNowForQa(Vector3.right);
@@ -1840,7 +2131,8 @@ namespace CanopyKin
             }
 
             ToggleNest(Player, false);
-            Vector3 queen = UndergroundCenter + new Vector3(-2.9f, .035f, -1.75f);
+            Vector3 queen = UndergroundCenter +
+                UndergroundChamberCenters[QueenChamberIndex] + Vector3.up * .035f;
             Vector3 wall = new Vector3(-1f, 0, -.18f).normalized;
             Player.Teleport(queen);
             Player.Face(queen + wall, 13f);
@@ -1861,7 +2153,9 @@ namespace CanopyKin
             }
 
             collisionQaCaption = "5/6  ANTI-STUCK — intentional overlap returns to safe ground";
-            Player.ForceUnsafePositionForQa(UndergroundCenter + new Vector3(-5.02f, .04f, -1.95f));
+            Player.ForceUnsafePositionForQa(UndergroundCenter +
+                UndergroundChamberCenters[QueenChamberIndex] +
+                new Vector3(-UndergroundChamberRadii[QueenChamberIndex].x - .2f, .04f, 0));
             Player.RecoverNowForQa(-wall);
             for (int frame = 0; frame < 42; frame++)
             {
@@ -2733,16 +3027,18 @@ namespace CanopyKin
                 // silhouettes must stay readable on ordinary browser displays.
                 // This uses ambient/fill energy rather than extra per-pixel
                 // lights, so WebGL draw cost is unchanged.
-                RenderSettings.ambientSkyColor = new Color(.43f, .41f, .34f);
-                RenderSettings.ambientEquatorColor = new Color(.32f, .285f, .22f);
-                RenderSettings.ambientGroundColor = new Color(.19f, .145f, .095f);
-                RenderSettings.fogColor = new Color(.205f, .21f, .18f);
-                RenderSettings.fogDensity = .0065f;
-                if (sunLight) sunLight.intensity = .17f;
-                if (skyFillLight) skyFillLight.intensity = .17f;
-                if (amberNestLight) amberNestLight.intensity = 2.05f;
-                if (tunnelFillLight) tunnelFillLight.intensity = 1.55f;
-                if (nurseryFillLight) nurseryFillLight.intensity = 1f;
+                RenderSettings.ambientSkyColor = new Color(.64f, .58f, .48f);
+                RenderSettings.ambientEquatorColor = new Color(.48f, .42f, .33f);
+                RenderSettings.ambientGroundColor = new Color(.31f, .245f, .17f);
+                RenderSettings.fogColor = new Color(.285f, .27f, .225f);
+                RenderSettings.fogDensity = .0036f;
+                if (sunLight) sunLight.intensity = .32f;
+                if (skyFillLight) skyFillLight.intensity = .35f;
+                if (amberNestLight) amberNestLight.intensity = 3f;
+                if (tunnelFillLight) tunnelFillLight.intensity = 2.25f;
+                if (nurseryFillLight) nurseryFillLight.intensity = 2.1f;
+                foreach (Light guide in undergroundGuideLights)
+                    if (guide) guide.enabled = true;
                 return;
             }
 
@@ -2756,6 +3052,8 @@ namespace CanopyKin
             if (amberNestLight) amberNestLight.intensity = .16f;
             if (tunnelFillLight) tunnelFillLight.intensity = .12f;
             if (nurseryFillLight) nurseryFillLight.intensity = .08f;
+            foreach (Light guide in undergroundGuideLights)
+                if (guide) guide.enabled = false;
         }
 
         void CacheLocationRenderers()
@@ -2947,20 +3245,20 @@ namespace CanopyKin
             VisualFactory.MeshObject(
                 "Closed watertight underground safety envelope",
                 underground,
-                NestGeometryFactory.ClosedNestSafetyEnvelope(new Vector3(9.2f, 6f, 9f)),
-                new Vector3(0, .35f, .15f),
+                NestGeometryFactory.ClosedNestSafetyEnvelope(new Vector3(16f, 8f, 15f)),
+                new Vector3(0, .5f, .45f),
                 Vector3.one,
                 VisualFactory.NestSoilMaterial(),
                 false);
 
             BuildModeledNestNetwork();
 
-            for (int i = 0; i < 6; i++)
+            for (int i = 0; i < 8; i++)
             {
-                float angle = i / 6f * Mathf.PI * 2f;
-                Vector3 lower = new(Mathf.Cos(angle) * 4.86f, -.48f, Mathf.Sin(angle) * 4.72f);
-                Vector3 middle = new(Mathf.Cos(angle) * 4.35f, 1.85f + Mathf.Sin(i * 1.8f) * .22f, Mathf.Sin(angle) * 4.12f);
-                Vector3 upper = new(Mathf.Cos(angle) * 3.15f, 4.25f, Mathf.Sin(angle) * 2.95f);
+                float angle = i / 8f * Mathf.PI * 2f;
+                Vector3 lower = new(Mathf.Cos(angle) * 12.8f, -.65f, Mathf.Sin(angle) * 11.6f);
+                Vector3 middle = new(Mathf.Cos(angle) * 11.5f, 3.1f + Mathf.Sin(i * 1.8f) * .28f, Mathf.Sin(angle) * 10.4f);
+                Vector3 upper = new(Mathf.Cos(angle) * 8.8f, 6.45f, Mathf.Sin(angle) * 7.9f);
                 VisualFactory.TexturedRoot(
                     "Buried structural root",
                     underground,
@@ -2970,11 +3268,18 @@ namespace CanopyKin
             }
             BuildQueenChamber();
             BuildStorageChambers();
-            CreateNestDoor("Tunnel to forest floor", UndergroundCenter + new Vector3(0, .3f, 3.45f), true);
+            BuildNurseryAndServiceZones();
+            BuildLivingColony();
+            CreateNestDoor(
+                "Tunnel to forest floor",
+                UndergroundCenter + UndergroundChamberCenters[EntranceChamberIndex] +
+                new Vector3(0, .3f, 1.5f),
+                true);
 
             amberNestLight = new GameObject("Amber chamber bounce").AddComponent<Light>();
             amberNestLight.transform.SetParent(underground, false);
-            amberNestLight.transform.localPosition = new Vector3(-1.2f, 2.45f, -.85f);
+            amberNestLight.transform.localPosition =
+                UndergroundChamberCenters[QueenChamberIndex] + new Vector3(.4f, 2.15f, .25f);
             amberNestLight.type = LightType.Point;
             amberNestLight.range = 12f;
             amberNestLight.intensity = 1.62f;
@@ -2984,7 +3289,8 @@ namespace CanopyKin
 
             tunnelFillLight = new GameObject("Cool tunnel fill").AddComponent<Light>();
             tunnelFillLight.transform.SetParent(underground, false);
-            tunnelFillLight.transform.localPosition = new Vector3(0, 1.1f, 3.3f);
+            tunnelFillLight.transform.localPosition =
+                UndergroundChamberCenters[CentralChamberIndex] + new Vector3(0, 1.65f, .35f);
             tunnelFillLight.type = LightType.Point;
             tunnelFillLight.range = 8f;
             tunnelFillLight.intensity = 1.26f;
@@ -2992,11 +3298,14 @@ namespace CanopyKin
 
             nurseryFillLight = new GameObject("Nursery soft fill").AddComponent<Light>();
             nurseryFillLight.transform.SetParent(underground, false);
-            nurseryFillLight.transform.localPosition = new Vector3(2f, 1.45f, -1.2f);
+            nurseryFillLight.transform.localPosition =
+                UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(0, 1.8f, 0);
             nurseryFillLight.type = LightType.Point;
             nurseryFillLight.range = 7f;
-            nurseryFillLight.intensity = .82f;
-            nurseryFillLight.color = new Color(.78f, .51f, .34f);
+            nurseryFillLight.intensity = 1.35f;
+            nurseryFillLight.color = new Color(.86f, .62f, .39f);
+
+            BuildNestGuideLights();
         }
 
         void BuildModeledNestNetwork()
@@ -3020,8 +3329,9 @@ namespace CanopyKin
                     UndergroundTunnelBusy[tunnel]);
 
             Debug.Log(
-                "MOONROOT_MODELED_NEST_READY chambers=5 tunnels=4 " +
-                "floors=solid shells=closed colliders=continuous source=single-specification");
+                $"MOONROOT_MODELED_NEST_READY chambers={UndergroundChamberCenters.Length} " +
+                $"tunnels={UndergroundTunnelPaths.Length} floors=solid shells=closed " +
+                "colliders=continuous routes=looped source=single-specification");
         }
 
         void BuildModeledChamber(
@@ -3056,7 +3366,7 @@ namespace CanopyKin
                 true);
             chamberFloorCollision.GetComponent<Renderer>().enabled = false;
             chamberFloorCollision.AddComponent<MovementSurface>().Initialize("Packed nest soil", .94f);
-            VisualFactory.MeshObject(
+            GameObject chamberShell = VisualFactory.MeshObject(
                 "Curved chamber walls and ceiling",
                 chamber,
                 NestGeometryFactory.ChamberShell(
@@ -3065,6 +3375,12 @@ namespace CanopyKin
                 Vector3.one,
                 soil,
                 true);
+            chamber.gameObject.AddComponent<NestChamberMarker>().Initialize(
+                name,
+                radii,
+                portalAngles?.Length ?? 0,
+                chamberFloorCollision.GetComponent<Collider>(),
+                chamberShell.GetComponent<Collider>());
 
             // Embedded clods and pebbles protrude from the wall so their depth
             // remains visible during lateral camera movement.
@@ -3157,9 +3473,15 @@ namespace CanopyKin
                 soil,
                 false);
             GameObject tunnelCollision = VisualFactory.MeshObject(
-                "Simplified tunnel walls and ceiling collision",
+                "Junction-trimmed tunnel walls and ceiling collision",
                 tunnel,
-                NestGeometryFactory.TunnelShell(variant, path, radius, height, 0, true),
+                // The visual excavation reaches into each chamber, but its
+                // collision shell begins only after the junction throat. This
+                // prevents the mouth of one tunnel becoming an invisible wall
+                // when the player circles around a chamber. The chamber shell
+                // remains solid around the authored portal, so this does not
+                // disable world collision or expose an escape gap.
+                NestGeometryFactory.TunnelShell(variant, path, radius, height, 2, true),
                 Vector3.zero,
                 Vector3.one,
                 soil,
@@ -3191,8 +3513,8 @@ namespace CanopyKin
         {
             var queen = new GameObject("Queen chamber").transform;
             queen.SetParent(underground, false);
-            queen.localPosition = new Vector3(-2.9f, .08f, -1.75f);
-            for (int i = 0; i < 11; i++)
+            queen.localPosition = UndergroundChamberCenters[QueenChamberIndex] + Vector3.up * .08f;
+            for (int i = 0; i < 18; i++)
             {
                 float angle = i * 2.399f;
                 BroodStage stage = i % 6 == 0 ? BroodStage.Pupa :
@@ -3200,30 +3522,14 @@ namespace CanopyKin
                 WorldAssetVisualFactory.Brood(
                     queen,
                     stage,
-                    new Vector3(Mathf.Cos(angle) * 1.62f, .24f + (i % 2) * .035f, Mathf.Sin(angle) * .76f),
+                    new Vector3(Mathf.Cos(angle) * (2.05f + (i % 3) * .16f),
+                        .18f + (i % 2) * .035f,
+                        Mathf.Sin(angle) * (1.65f + (i % 2) * .14f)),
                     stage == BroodStage.Egg ? .13f : stage == BroodStage.Pupa ? .25f : .21f,
                     i);
             }
             AntVisual.Create(queen, new Color(.23f, .045f, .012f), 1.28f, AntCaste.Queen)
-                .transform.localPosition = new Vector3(0, .28f, -.35f);
-            for (int nurseIndex = 0; nurseIndex < 2; nurseIndex++)
-            {
-                var nurse = new GameObject($"Brood nurse {nurseIndex + 1}").transform;
-                nurse.SetParent(queen, false);
-                nurse.localPosition = new Vector3(
-                    nurseIndex == 0 ? -1.05f : 1.08f,
-                    .25f,
-                    .28f + nurseIndex * .22f);
-                nurse.localRotation = Quaternion.Euler(
-                    0,
-                    nurseIndex == 0 ? 36f : -148f,
-                    0);
-                AntVisual.Create(
-                    nurse,
-                    new Color(.28f, .075f, .022f),
-                    .64f,
-                    AntCaste.Nurse);
-            }
+                .transform.localPosition = new Vector3(0, .28f, -.25f);
             queen.gameObject.AddComponent<QueenBriefing>().Initialize();
         }
 
@@ -3231,17 +3537,23 @@ namespace CanopyKin
         {
             var storage = new GameObject("Food storage chamber").transform;
             storage.SetParent(underground, false);
-            storage.localPosition = new Vector3(-3.35f, .16f, .95f);
-            for (int i = 0; i < 9; i++)
+            storage.localPosition = UndergroundChamberCenters[FoodChamberIndex] + Vector3.up * .12f;
+            for (int i = 0; i < 21; i++)
+            {
+                float angle = i / 21f * Mathf.PI * 2f;
+                float ring = i % 3 == 0 ? 2.05f : 2.35f;
                 ResourceNode.CreateCargoVisual(storage,
                     i % 5 == 0 ? ResourceKind.Resin : i % 4 == 0 ? ResourceKind.Protein : ResourceKind.Seed,
-                    new Vector3((i % 3 - 1) * .42f, .14f + i / 3 * .12f, (i / 3 - 1) * .36f),
+                    new Vector3(Mathf.Cos(angle) * ring, .12f + (i % 3) * .08f,
+                        Mathf.Sin(angle) * ring * .76f),
                     .24f,
                     i);
+            }
 
             var stationObject = new GameObject("Nursery growth site");
             stationObject.transform.SetParent(underground, false);
-            stationObject.transform.localPosition = new Vector3(2.9f, .25f, -.25f);
+            stationObject.transform.localPosition =
+                UndergroundChamberCenters[NurseryChamberIndex] + new Vector3(2.6f, .18f, 1.9f);
             VisualFactory.TexturedRoot(
                 "Unfinished chamber ribs",
                 stationObject.transform,
@@ -3259,13 +3571,247 @@ namespace CanopyKin
 
             undergroundUpgrade = new GameObject("Expanded worker and soldier chambers");
             undergroundUpgrade.transform.SetParent(underground, false);
-            undergroundUpgrade.transform.localPosition = new Vector3(2.9f, .12f, -.25f);
+            undergroundUpgrade.transform.localPosition =
+                UndergroundChamberCenters[GuardChamberIndex] + new Vector3(.2f, .12f, .15f);
             for (int i = 0; i < 7; i++)
             {
                 float a = i / 7f * Mathf.PI * 2f;
-                VisualFactory.Mushroom(undergroundUpgrade.transform, new Vector3(Mathf.Cos(a) * 1.2f, 0, Mathf.Sin(a) * .8f), .52f, new Color(.24f, .12f, .34f));
+                VisualFactory.Mushroom(undergroundUpgrade.transform,
+                    new Vector3(Mathf.Cos(a) * 1.95f, 0, Mathf.Sin(a) * 1.45f),
+                    .42f, new Color(.24f, .12f, .34f));
             }
             undergroundUpgrade.SetActive(false);
+        }
+
+        void BuildNurseryAndServiceZones()
+        {
+            Transform nursery = new GameObject("Living nursery work floor").transform;
+            nursery.SetParent(underground, false);
+            nursery.localPosition = UndergroundChamberCenters[NurseryChamberIndex] + Vector3.up * .08f;
+            BuildBroodZone(nursery, "Warm egg shelves", BroodStage.Egg,
+                new Vector3(-2.25f, 0, -1.55f), new Vector2(1.15f, .72f), 18, 310);
+            BuildBroodZone(nursery, "Feeding larva shelves", BroodStage.Larva,
+                new Vector3(1.85f, 0, -1.55f), new Vector2(1.28f, .74f), 15, 350);
+            BuildBroodZone(nursery, "Dry pupa shelves", BroodStage.Pupa,
+                new Vector3(2.05f, 0, 1.45f), new Vector2(1.15f, .7f), 12, 390);
+
+            // Low non-blocking berms separate the work zones visually while a
+            // broad central loop remains clear for the player and traffic.
+            for (int i = 0; i < 3; i++)
+            {
+                float angle = i / 3f * Mathf.PI * 2f + .55f;
+                WorldAssetVisualFactory.ChamberBerm(
+                    nursery,
+                    "Low nursery brood shelf edge",
+                    new Vector3(Mathf.Cos(angle) * 2.7f, .02f, Mathf.Sin(angle) * 2.05f),
+                    new Vector3(1.15f, .16f, .32f),
+                    430 + i,
+                    false);
+            }
+
+            Transform eggs = new GameObject("Dedicated egg incubation gallery").transform;
+            eggs.SetParent(underground, false);
+            eggs.localPosition = UndergroundChamberCenters[EggChamberIndex] + Vector3.up * .08f;
+            BuildBroodZone(eggs, "Humidity sorted egg beds", BroodStage.Egg,
+                new Vector3(0, 0, -.2f), new Vector2(2.15f, 1.55f), 30, 470);
+
+            Transform pupae = new GameObject("Larva feeding and pupa gallery").transform;
+            pupae.SetParent(underground, false);
+            pupae.localPosition = UndergroundChamberCenters[PupaChamberIndex] + Vector3.up * .08f;
+            BuildBroodZone(pupae, "Larva feeding beds", BroodStage.Larva,
+                new Vector3(-1.05f, 0, -.15f), new Vector2(1.25f, 1.55f), 18, 520);
+            BuildBroodZone(pupae, "Pupa drying beds", BroodStage.Pupa,
+                new Vector3(1.2f, 0, .15f), new Vector2(1.15f, 1.45f), 16, 560);
+
+            Transform sanitation = new GameObject("Sanitation and refuse sorting zone").transform;
+            sanitation.SetParent(underground, false);
+            sanitation.localPosition = UndergroundChamberCenters[SanitationChamberIndex] + Vector3.up * .04f;
+            for (int i = 0; i < 14; i++)
+            {
+                float angle = i * 2.399f;
+                VisualFactory.OrganicPart(
+                    "Sorted dry refuse pellet",
+                    sanitation,
+                    OrganicMeshFactory.BodyShape.Brood,
+                    new Vector3(Mathf.Cos(angle) * (1.55f + i % 2 * .28f), .08f,
+                        Mathf.Sin(angle) * (1.35f + i % 3 * .12f)),
+                    new Vector3(.14f, .09f, .18f),
+                    new Color(.21f, .13f, .07f),
+                    .04f);
+            }
+
+            Transform guard = new GameObject("Entrance guard and tool chamber").transform;
+            guard.SetParent(underground, false);
+            guard.localPosition = UndergroundChamberCenters[GuardChamberIndex] + Vector3.up * .06f;
+            for (int i = 0; i < 9; i++)
+            {
+                float angle = i / 9f * Mathf.PI * 2f;
+                ResourceNode.CreateCargoVisual(
+                    guard,
+                    i % 3 == 0 ? ResourceKind.Resin : ResourceKind.Seed,
+                    new Vector3(Mathf.Cos(angle) * 1.8f, .1f, Mathf.Sin(angle) * 1.45f),
+                    .17f,
+                    610 + i);
+            }
+        }
+
+        static void BuildBroodZone(
+            Transform parent,
+            string name,
+            BroodStage stage,
+            Vector3 center,
+            Vector2 extents,
+            int count,
+            int variantBase)
+        {
+            Transform zone = new GameObject(name).transform;
+            zone.SetParent(parent, false);
+            zone.localPosition = center;
+            for (int i = 0; i < count; i++)
+            {
+                float angle = i * 2.399963f;
+                float radial = Mathf.Sqrt((i + .5f) / count);
+                Vector3 position = new(
+                    Mathf.Cos(angle) * extents.x * radial,
+                    .1f + (i % 3) * .018f,
+                    Mathf.Sin(angle) * extents.y * radial);
+                float scale = stage == BroodStage.Egg ? .105f :
+                    stage == BroodStage.Larva ? .17f : .2f;
+                WorldAssetVisualFactory.Brood(
+                    zone,
+                    stage,
+                    position,
+                    scale * (.9f + (i % 4) * .04f),
+                    variantBase + i);
+            }
+        }
+
+        void BuildLivingColony()
+        {
+            Vector3 nursery = UndergroundChamberCenters[NurseryChamberIndex];
+            Vector3 queen = UndergroundChamberCenters[QueenChamberIndex];
+            Vector3 food = UndergroundChamberCenters[FoodChamberIndex];
+            Vector3 eggs = UndergroundChamberCenters[EggChamberIndex];
+            Vector3 pupae = UndergroundChamberCenters[PupaChamberIndex];
+            Vector3 sanitation = UndergroundChamberCenters[SanitationChamberIndex];
+            Vector3 entrance = UndergroundChamberCenters[EntranceChamberIndex];
+            Vector3 guard = UndergroundChamberCenters[GuardChamberIndex];
+
+            CreateNestWorker("Nursery nurse A", new[]
+            {
+                nursery + new Vector3(-2.2f, 0, -1.1f),
+                nursery + new Vector3(-1.1f, 0, -2.25f),
+                nursery + new Vector3(.2f, 0, -2.45f),
+                nursery + new Vector3(1.4f, 0, -1.75f),
+                nursery + new Vector3(.55f, 0, -.65f)
+            }, 1.12f, NestWorkerLoad.Larva, 0);
+            CreateNestWorker("Nursery nurse B", new[]
+            {
+                nursery + new Vector3(2.15f, 0, 1.15f),
+                nursery + new Vector3(1.1f, 0, 2.25f),
+                nursery + new Vector3(-.5f, 0, 2.35f),
+                nursery + new Vector3(-1.8f, 0, 1.25f),
+                nursery + new Vector3(-.2f, 0, .55f)
+            }, 1.05f, NestWorkerLoad.Egg, 1);
+            CreateNestWorker("Egg transfer worker", ComposeNestRoute(
+                nursery, eggs, (4, false)), 1.2f, NestWorkerLoad.Egg, 2);
+            CreateNestWorker("Pupa transfer worker", ComposeNestRoute(
+                nursery, pupae, (5, false)), 1.08f, NestWorkerLoad.Pupa, 3);
+            CreateNestWorker("Seed porter", ComposeNestRoute(
+                food, nursery, (1, true), (2, false)), 1.22f, NestWorkerLoad.Seed, 4);
+            CreateNestWorker("Protein porter", ComposeNestRoute(
+                entrance, food, (9, true)), 1.16f, NestWorkerLoad.Protein, 5);
+            CreateNestWorker("Royal brood attendant", ComposeNestRoute(
+                queen, nursery, (0, true), (2, false)), 1.04f, NestWorkerLoad.Larva, 6);
+            CreateNestWorker("Queen chamber attendant", ComposeNestRoute(
+                queen + new Vector3(-1.25f, 0, -.8f),
+                queen + new Vector3(1.45f, 0, 1.05f)),
+                0.88f, NestWorkerLoad.None, 7);
+            CreateNestWorker("Sanitation worker", ComposeNestRoute(
+                sanitation, queen, (7, false)), 1.08f, NestWorkerLoad.Refuse, 8);
+            CreateNestWorker("Egg gallery cleaner", ComposeNestRoute(
+                eggs, sanitation, (6, false)), 1.12f, NestWorkerLoad.Refuse, 9);
+            CreateNestWorker("Guard relief worker", ComposeNestRoute(
+                guard, pupae, (10, true)), 1.18f, NestWorkerLoad.None, 10);
+            CreateNestWorker("Entrance traffic worker", ComposeNestRoute(
+                entrance, guard, (11, true)), 1.24f, NestWorkerLoad.Seed, 11);
+        }
+
+        Vector3[] ComposeNestRoute(
+            Vector3 start,
+            Vector3 end,
+            params (int tunnelIndex, bool reverse)[] sections)
+        {
+            var route = new List<Vector3> { start };
+            foreach ((int tunnelIndex, bool reverse) in sections)
+            {
+                IReadOnlyList<Vector3> path = UndergroundTunnelPaths[tunnelIndex];
+                if (reverse)
+                {
+                    for (int i = path.Count - 1; i >= 0; i--) route.Add(path[i]);
+                }
+                else
+                {
+                    for (int i = 0; i < path.Count; i++) route.Add(path[i]);
+                }
+            }
+            route.Add(end);
+            return route.ToArray();
+        }
+
+        void CreateNestWorker(
+            string name,
+            IReadOnlyList<Vector3> localRoute,
+            float speed,
+            NestWorkerLoad load,
+            int phase)
+        {
+            var worker = new GameObject(name);
+            worker.transform.SetParent(underground, false);
+            worker.transform.position = UndergroundCenter + localRoute[0] + Vector3.up * .035f;
+            AntVisual visual = AntVisual.Create(
+                worker.transform,
+                new Color(.24f, .055f, .016f),
+                load is NestWorkerLoad.Egg or NestWorkerLoad.Larva or NestWorkerLoad.Pupa ? .6f : .66f,
+                load is NestWorkerLoad.Egg or NestWorkerLoad.Larva or NestWorkerLoad.Pupa
+                    ? AntCaste.Nurse
+                    : AntCaste.Worker);
+            var body = worker.AddComponent<SphereCollider>();
+            body.center = new Vector3(0, .22f, 0);
+            body.radius = .17f;
+            body.isTrigger = true;
+            Vector3[] worldRoute = localRoute
+                .Select(point => UndergroundCenter + point + Vector3.up * .035f)
+                .ToArray();
+            worker.AddComponent<NestWorkerRoutine>().Initialize(
+                worldRoute, speed, load, phase, visual, body);
+        }
+
+        void BuildNestGuideLights()
+        {
+            undergroundGuideLights.Clear();
+            (int chamber, Color color, float range, float intensity)[] lights =
+            {
+                (CentralChamberIndex, new Color(.7f,.55f,.36f), 7.5f, 1.45f),
+                (FoodChamberIndex, new Color(.74f,.48f,.27f), 6f, 1.16f),
+                (EntranceChamberIndex, new Color(.38f,.62f,.55f), 6.5f, 1.28f),
+                (EggChamberIndex, new Color(.82f,.67f,.45f), 6f, 1.34f),
+                (PupaChamberIndex, new Color(.72f,.5f,.34f), 6f, 1.22f),
+                (SanitationChamberIndex, new Color(.4f,.5f,.35f), 5.2f, .9f),
+                (GuardChamberIndex, new Color(.5f,.62f,.45f), 5.5f, 1.08f)
+            };
+            foreach ((int chamber, Color color, float range, float intensity) in lights)
+            {
+                Light light = new GameObject($"Soft reflected chamber light {chamber}").AddComponent<Light>();
+                light.transform.SetParent(underground, false);
+                light.transform.localPosition = UndergroundChamberCenters[chamber] + Vector3.up * 1.55f;
+                light.type = LightType.Point;
+                light.range = range;
+                light.intensity = intensity;
+                light.color = color;
+                light.shadows = LightShadows.None;
+                undergroundGuideLights.Add(light);
+            }
         }
 
         void CreateNestDoor(string name, Vector3 position, bool undergroundDoor)
@@ -4171,9 +4717,14 @@ namespace CanopyKin
             else
             {
                 IsUnderground = true;
-                player.Teleport(UndergroundPlayerSpawn);
-                player.Face(UndergroundCenter + new Vector3(-2.9f, .35f, -1.75f), 12f);
-                squads.Teleport(UndergroundSquadBay);
+                player.Teleport(UndergroundEntrySpawn);
+                player.Face(
+                    UndergroundCenter + UndergroundChamberCenters[CentralChamberIndex] +
+                    Vector3.up * .35f,
+                    12f);
+                squads.Teleport(
+                    UndergroundCenter + UndergroundChamberCenters[EntranceChamberIndex] +
+                    new Vector3(1.15f, .035f, -.25f));
                 ShowToast(GameText.Pick("Moonroot underground colony", "Подземная колония Лунного Корня"));
             }
             ApplyLocationLighting();
@@ -4557,6 +5108,29 @@ namespace CanopyKin
         {
             Time.timeScale = 1;
             if (Instance == this) Instance = null;
+        }
+    }
+
+    public sealed class NestChamberMarker : MonoBehaviour
+    {
+        public string ChamberName { get; private set; }
+        public Vector3 ClearRadii { get; private set; }
+        public int PortalCount { get; private set; }
+        public Collider FloorCollider { get; private set; }
+        public Collider ShellCollider { get; private set; }
+
+        public void Initialize(
+            string chamberName,
+            Vector3 clearRadii,
+            int portalCount,
+            Collider floorCollider,
+            Collider shellCollider)
+        {
+            ChamberName = chamberName;
+            ClearRadii = clearRadii;
+            PortalCount = portalCount;
+            FloorCollider = floorCollider;
+            ShellCollider = shellCollider;
         }
     }
 

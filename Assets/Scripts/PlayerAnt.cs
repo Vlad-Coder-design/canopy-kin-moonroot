@@ -385,6 +385,13 @@ namespace CanopyKin
             {
                 RaycastHit candidate = castHits[i];
                 if (!candidate.collider || IgnoreMovementCollider(candidate.collider)) continue;
+                // A horizontal capsule cast begins exactly on the supporting
+                // floor. MeshCollider contact at distance zero can report a
+                // near-horizontal edge normal and falsely turn the floor into
+                // an invisible wall. The CharacterController still collides
+                // with this real floor in body.Move; it is ignored only by the
+                // extra horizontal wall pre-cast.
+                if (candidate.collider.GetComponentInParent<MovementSurface>()) continue;
                 if (candidate.distance >= nearest) continue;
                 nearest = candidate.distance;
                 best = candidate;

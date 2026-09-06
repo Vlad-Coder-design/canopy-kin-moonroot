@@ -67,7 +67,11 @@ namespace CanopyKin
             for (int segment = 0; segment < segments; segment++)
             {
                 float angle = (segment + .5f) / segments * 360f;
-                bool portal = level < levels * .42f &&
+                // A portal must clear the ant, its antennae and the close
+                // camera boom.  The previous 42% opening left a hidden brow
+                // across otherwise-wide junctions.  The upper third remains
+                // closed, so every chamber still has a real soil ceiling.
+                bool portal = level < levels * .66f &&
                               IsPortal(angle, portalAnglesDegrees, portalHalfAnglesDegrees);
                 if (portal) continue;
                 int a = level * row + segment;

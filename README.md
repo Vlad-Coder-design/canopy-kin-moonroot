@@ -5,6 +5,16 @@ articulated ant, explores a rolling forest-floor region and an underground nurse
 gathers and carries resources, commands worker and soldier squads, fights multiple
 insect castes, upgrades the colony, and completes the Moonroot tutorial mission.
 
+Version 0.9.3 turns the underground colony into a freely explorable home with
+nine distinct chambers, twelve main and side tunnels, looped alternate routes,
+separate egg/larva/pupa work areas and twelve visible colony workers carrying
+brood, seeds, protein and refuse. The great nursery is now a 8.5 × 7.2 m chamber
+with a broad clear circulation loop; passages are 2.40-3.60 m wide and
+2.05-2.65 m high. All decorative brood shelves and wall roots remain outside the
+playable clearance envelope, while real soil floors, walls and ceilings retain
+collision. Warm reflected chamber lighting improves readability without a flat
+background or false geometry. See `QA/NEST_HOME_IMPLEMENTATION_093.md`.
+
 Version 0.9.2 rebuilds the underground traffic network around measured player,
 NPC and camera envelopes. Main passages are now 1.84-2.70 m wide and
 1.50-2.00 m high, have smooth continuous collision floors, widened organic
@@ -70,7 +80,7 @@ browser has not captured the mouse.
 Public build: https://vlad-coder-design.github.io/canopy-kin-moonroot/
 
 `Builds/WebGL` is deployed by `.github/workflows/pages.yml` on pushes to `main`.
-Version 0.9.2 uses hash-named gzip WebGL artifacts with Unity's JavaScript
+Version 0.9.3 uses hash-named gzip WebGL artifacts with Unity's JavaScript
 decompression fallback. This keeps the data file below GitHub's per-file limit
 while still loading correctly from GitHub Pages without custom response headers.
 The page restores keyboard focus and requests pointer lock from a click or
