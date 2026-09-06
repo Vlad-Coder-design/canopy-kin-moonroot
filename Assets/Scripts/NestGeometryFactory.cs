@@ -17,12 +17,17 @@ namespace CanopyKin
         public static Mesh ChamberShell(
             int variant,
             Vector3 radii,
-            params float[] portalAnglesDegrees)
+            float[] portalAnglesDegrees,
+            float[] portalHalfAnglesDegrees)
         {
             string portals = portalAnglesDegrees == null
                 ? "none"
                 : string.Join("-", portalAnglesDegrees);
-            string key = $"nest-chamber-shell-{variant}-{radii.x:F2}-{radii.y:F2}-{radii.z:F2}-{portals}";
+            string portalWidths = portalHalfAnglesDegrees == null
+                ? "none"
+                : string.Join("-", portalHalfAnglesDegrees);
+            string key = $"nest-chamber-shell-{variant}-{radii.x:F2}-{radii.y:F2}-{radii.z:F2}-" +
+                         $"{portals}-{portalWidths}";
             if (Cache.TryGetValue(key, out Mesh cached)) return cached;
             const int segments = 56;
             const int levels = 14;
@@ -62,7 +67,8 @@ namespace CanopyKin
             for (int segment = 0; segment < segments; segment++)
             {
                 float angle = (segment + .5f) / segments * 360f;
-                bool portal = level < levels * .42f && IsPortal(angle, portalAnglesDegrees);
+                bool portal = level < levels * .42f &&
+                              IsPortal(angle, portalAnglesDegrees, portalHalfAnglesDegrees);
                 if (portal) continue;
                 int a = level * row + segment;
                 int b = a + row;
@@ -76,9 +82,9 @@ namespace CanopyKin
                 vertices, uv, colors, triangles));
         }
 
-        public static Mesh ChamberFloor(int variant, Vector2 radii)
+        public static Mesh ChamberFloor(int variant, Vector2 radii, bool collisionProfile = false)
         {
-            string key = $"nest-chamber-floor-{variant}-{radii.x:F2}-{radii.y:F2}";
+            string key = $"nest-chamber-floor-{variant}-{radii.x:F2}-{radii.y:F2}-collision{collisionProfile}";
             if (Cache.TryGetValue(key, out Mesh cached)) return cached;
             const int rings = 12;
             const int segments = 56;
@@ -97,21 +103,17 @@ namespace CanopyKin
                     float z = Mathf.Sin(angle) * radii.y * radial;
                     float broad = (Mathf.PerlinNoise(
                         x * .72f + variant * 2.1f + 11f,
-                        z * .72f + variant * .9f + 27f) - .5f) * .15f;
-                    float grains = (Mathf.PerlinNoise(x * 2.7f + 5f, z * 2.7f + 19f) - .5f) * .035f;
-                    float worn = -Mathf.Exp(-Mathf.Pow(z / Mathf.Max(.2f, radii.y * .34f), 2f)) * .045f;
-                    float rim = Mathf.Pow(radial, 5f) * .11f;
+                        z * .72f + variant * .9f + 27f) - .5f) *
+                        (collisionProfile ? .045f : .15f);
+                    float grains = collisionProfile ? 0 :
+                        (Mathf.PerlinNoise(x * 2.7f + 5f, z * 2.7f + 19f) - .5f) * .035f;
+                    float worn = collisionProfile ? 0 :
+                        -Mathf.Exp(-Mathf.Pow(z / Mathf.Max(.2f, radii.y * .34f), 2f)) * .045f;
+                    float rim = collisionProfile ? 0 : Mathf.Pow(radial, 5f) * .11f;
                     vertices.Add(new Vector3(x, broad + grains + worn + rim, z));
                     uv.Add(new Vector2(x / 1.4f, z / 1.4f));
                     colors.Add(new Color(radial, broad + .5f, grains + .5f, 1f));
                 }
-            }
-            int topVertexCount = vertices.Count;
-            for (int i = 0; i < topVertexCount; i++)
-            {
-                vertices.Add(vertices[i] + Vector3.down * .18f);
-                uv.Add(uv[i]);
-                colors.Add(colors[i]);
             }
             int row = segments + 1;
             for (int ring = 0; ring < rings; ring++)
@@ -121,6 +123,24 @@ namespace CanopyKin
                 int b = a + row;
                 triangles.Add(a); triangles.Add(b); triangles.Add(a + 1);
                 triangles.Add(a + 1); triangles.Add(b); triangles.Add(b + 1);
+            }
+
+            if (collisionProfile)
+                return Store(key, Finish($"Open smooth chamber floor collision {variant}",
+                    vertices, uv, colors, triangles));
+
+            int topVertexCount = vertices.Count;
+            for (int i = 0; i < topVertexCount; i++)
+            {
+                vertices.Add(vertices[i] + Vector3.down * .18f);
+                uv.Add(uv[i]);
+                colors.Add(colors[i]);
+            }
+            for (int ring = 0; ring < rings; ring++)
+            for (int segment = 0; segment < segments; segment++)
+            {
+                int a = ring * row + segment;
+                int b = a + row;
 
                 int lowerA = topVertexCount + a;
                 int lowerB = topVertexCount + b;
@@ -147,38 +167,50 @@ namespace CanopyKin
             IReadOnlyList<Vector3> path,
             float radius,
             float height,
-            int trimmedEndSegments = 0)
+            int trimmedEndSegments = 0,
+            bool collisionProfile = false,
+            float wallThickness = 0f)
         {
             trimmedEndSegments = Mathf.Clamp(trimmedEndSegments, 0,
                 Mathf.Max(0, (path.Count - 2) / 2));
-            string key = $"nest-tunnel-shell-{variant}-{path.Count}-{radius:F2}-{height:F2}-trim{trimmedEndSegments}";
+            wallThickness = collisionProfile ? 0 : Mathf.Max(0, wallThickness);
+            string key = $"nest-tunnel-shell-{variant}-{path.Count}-{radius:F2}-{height:F2}-" +
+                         $"trim{trimmedEndSegments}-collision{collisionProfile}-thick{wallThickness:F2}";
             if (Cache.TryGetValue(key, out Mesh cached)) return cached;
-            const int crossSegments = 18;
+            int crossSegments = collisionProfile ? 18 : 28;
             var vertices = new List<Vector3>();
             var uv = new List<Vector2>();
             var colors = new List<Color>();
             var triangles = new List<int>();
 
-            for (int pointIndex = 0; pointIndex < path.Count; pointIndex++)
+            void AddSurface(float surfaceRadius, float surfaceHeight, bool detailed)
             {
-                Vector3 tangent = PathTangent(path, pointIndex);
-                Vector3 side = Vector3.Cross(Vector3.up, tangent).normalized;
-                float pathT = pointIndex / (float)(path.Count - 1);
-                for (int cross = 0; cross <= crossSegments; cross++)
+                for (int pointIndex = 0; pointIndex < path.Count; pointIndex++)
                 {
-                    float u = cross / (float)crossSegments;
-                    float angle = u * Mathf.PI;
-                    float irregular = 1f + Mathf.Sin(cross * .91f + pointIndex * .77f + variant) * .045f;
-                    Vector3 offset = side * Mathf.Cos(angle) * radius * irregular +
-                                     Vector3.up * Mathf.Sin(angle) * height * irregular;
-                    float gouge = (Mathf.PerlinNoise(
-                        cross * .21f + variant,
-                        pointIndex * .43f + 9f) - .5f) * .055f;
-                    vertices.Add(path[pointIndex] + offset + tangent * gouge);
-                    uv.Add(new Vector2(u * 2.2f, pathT * 4f));
-                    colors.Add(new Color(Mathf.Sin(angle), pathT, gouge + .5f, 1f));
+                    Vector3 tangent = PathTangent(path, pointIndex);
+                    Vector3 side = Vector3.Cross(Vector3.up, tangent).normalized;
+                    float pathT = pointIndex / (float)(path.Count - 1);
+                    for (int cross = 0; cross <= crossSegments; cross++)
+                    {
+                        float u = cross / (float)crossSegments;
+                        float angle = u * Mathf.PI;
+                        float irregular = detailed
+                            ? 1f + Mathf.Sin(cross * .91f + pointIndex * .77f + variant) * .028f
+                            : 1f;
+                        Vector3 offset = side * Mathf.Cos(angle) * surfaceRadius * irregular +
+                                         Vector3.up * Mathf.Sin(angle) * surfaceHeight * irregular;
+                        float gouge = detailed
+                            ? (Mathf.PerlinNoise(cross * .21f + variant,
+                                pointIndex * .43f + 9f) - .5f) * .035f
+                            : 0;
+                        vertices.Add(path[pointIndex] + offset + tangent * gouge);
+                        uv.Add(new Vector2(u * 2.2f, pathT * 4f));
+                        colors.Add(new Color(Mathf.Sin(angle), pathT, gouge + .5f, 1f));
+                    }
                 }
             }
+
+            AddSurface(radius, height, !collisionProfile);
             int row = crossSegments + 1;
             for (int pointIndex = trimmedEndSegments;
                  pointIndex < path.Count - 1 - trimmedEndSegments;
@@ -192,25 +224,55 @@ namespace CanopyKin
                 triangles.Add(a); triangles.Add(b); triangles.Add(a + 1);
                 triangles.Add(a + 1); triangles.Add(b); triangles.Add(b + 1);
             }
+
+            if (wallThickness > .001f)
+            {
+                int outerStart = vertices.Count;
+                AddSurface(radius + wallThickness, height + wallThickness, false);
+                for (int pointIndex = 0; pointIndex < path.Count - 1; pointIndex++)
+                for (int cross = 0; cross < crossSegments; cross++)
+                {
+                    int a = outerStart + pointIndex * row + cross;
+                    int b = a + row;
+                    triangles.Add(a); triangles.Add(a + 1); triangles.Add(b);
+                    triangles.Add(a + 1); triangles.Add(b + 1); triangles.Add(b);
+                }
+
+                for (int pointIndex = 0; pointIndex < path.Count - 1; pointIndex++)
+                {
+                    int innerLeftA = pointIndex * row;
+                    int innerLeftB = innerLeftA + row;
+                    int outerLeftA = outerStart + innerLeftA;
+                    int outerLeftB = outerStart + innerLeftB;
+                    AddSide(triangles, innerLeftA, innerLeftB, outerLeftA, outerLeftB, false);
+
+                    int innerRightA = pointIndex * row + crossSegments;
+                    int innerRightB = innerRightA + row;
+                    int outerRightA = outerStart + innerRightA;
+                    int outerRightB = outerStart + innerRightB;
+                    AddSide(triangles, innerRightA, innerRightB, outerRightA, outerRightB, true);
+                }
+            }
             return Store(key, Finish(
-                trimmedEndSegments > 0
-                    ? $"Curved excavated tunnel shell collision {variant}"
-                    : $"Curved excavated tunnel shell {variant}",
+                collisionProfile
+                    ? $"Continuous smooth tunnel collision shell {variant}"
+                    : $"Thick curved excavated tunnel shell {variant}",
                 vertices, uv, colors, triangles));
         }
 
         public static Mesh TunnelFloor(
             int variant,
             IReadOnlyList<Vector3> path,
-            float halfWidth)
+            float halfWidth,
+            bool collisionProfile = false)
         {
-            string key = $"nest-tunnel-floor-{variant}-{path.Count}-{halfWidth:F2}";
+            string key = $"nest-tunnel-floor-{variant}-{path.Count}-{halfWidth:F2}-collision{collisionProfile}";
             if (Cache.TryGetValue(key, out Mesh cached)) return cached;
             var vertices = new List<Vector3>();
             var uv = new List<Vector2>();
             var colors = new List<Color>();
             var triangles = new List<int>();
-            const int widthSegments = 6;
+            int widthSegments = collisionProfile ? 4 : 8;
             const float thickness = .16f;
             int row = widthSegments + 1;
 
@@ -222,10 +284,11 @@ namespace CanopyKin
                 for (int widthIndex = 0; widthIndex <= widthSegments; widthIndex++)
                 {
                     float across = widthIndex / (float)widthSegments * 2f - 1f;
-                    float irregular = (Mathf.PerlinNoise(
+                    float irregular = collisionProfile ? 0 : (Mathf.PerlinNoise(
                         pointIndex * .61f + variant,
-                        widthIndex * .47f + 3f) - .5f) * .055f;
-                    float worn = -Mathf.Exp(-Mathf.Pow(across / .38f, 2f)) * .035f;
+                        widthIndex * .47f + 3f) - .5f) * .045f;
+                    float worn = collisionProfile ? 0 :
+                        -Mathf.Exp(-Mathf.Pow(across / .38f, 2f)) * .03f;
                     Vector3 point = path[pointIndex] + side * halfWidth * across +
                                     Vector3.up * (irregular + worn - (surface == 0 ? 0 : thickness));
                     vertices.Add(point);
@@ -256,17 +319,66 @@ namespace CanopyKin
                 AddSide(triangles, right, right + row,
                     surfaceStride + right, surfaceStride + right + row, false);
             }
-            return Store(key, Finish($"Solid worn tunnel floor {variant}",
+            return Store(key, Finish(collisionProfile
+                    ? $"Continuous smooth tunnel floor collision {variant}"
+                    : $"Solid worn tunnel floor {variant}",
                 vertices, uv, colors, triangles));
         }
 
-        static bool IsPortal(float angle, IReadOnlyList<float> portals)
+        static bool IsPortal(
+            float angle,
+            IReadOnlyList<float> portals,
+            IReadOnlyList<float> halfAngles)
         {
             if (portals == null) return false;
             for (int i = 0; i < portals.Count; i++)
-                if (Mathf.Abs(Mathf.DeltaAngle(angle, portals[i])) < 20f)
+                if (Mathf.Abs(Mathf.DeltaAngle(angle, portals[i])) <
+                    (halfAngles != null && i < halfAngles.Count ? halfAngles[i] : 24f))
                     return true;
             return false;
+        }
+
+        public static Mesh ClosedNestSafetyEnvelope(Vector3 radii)
+        {
+            string key = $"closed-nest-safety-envelope-{radii.x:F1}-{radii.y:F1}-{radii.z:F1}";
+            if (Cache.TryGetValue(key, out Mesh cached)) return cached;
+            const int segments = 64;
+            const int rings = 32;
+            var vertices = new List<Vector3>();
+            var uv = new List<Vector2>();
+            var colors = new List<Color>();
+            var triangles = new List<int>();
+            for (int ring = 0; ring <= rings; ring++)
+            {
+                float v = ring / (float)rings;
+                float latitude = Mathf.Lerp(-Mathf.PI * .5f, Mathf.PI * .5f, v);
+                float radial = Mathf.Cos(latitude);
+                for (int segment = 0; segment <= segments; segment++)
+                {
+                    float u = segment / (float)segments;
+                    float longitude = u * Mathf.PI * 2f;
+                    float strata = 1f + Mathf.Sin(longitude * 5f + latitude * 3f) * .018f;
+                    vertices.Add(new Vector3(
+                        Mathf.Cos(longitude) * radii.x * radial * strata,
+                        Mathf.Sin(latitude) * radii.y,
+                        Mathf.Sin(longitude) * radii.z * radial * strata));
+                    uv.Add(new Vector2(u * 7f, v * 4f));
+                    colors.Add(new Color(v, strata - .98f, .5f, 1f));
+                }
+            }
+            int row = segments + 1;
+            for (int ring = 0; ring < rings; ring++)
+            for (int segment = 0; segment < segments; segment++)
+            {
+                int a = ring * row + segment;
+                int b = a + row;
+                // Inward-facing triangles form a final opaque, watertight
+                // backdrop even when several curved portals align on camera.
+                triangles.Add(a); triangles.Add(a + 1); triangles.Add(b);
+                triangles.Add(a + 1); triangles.Add(b + 1); triangles.Add(b);
+            }
+            return Store(key, Finish("Closed watertight underground safety envelope",
+                vertices, uv, colors, triangles));
         }
 
         static Vector3 PathTangent(IReadOnlyList<Vector3> path, int index)

@@ -5,6 +5,16 @@ articulated ant, explores a rolling forest-floor region and an underground nurse
 gathers and carries resources, commands worker and soldier squads, fights multiple
 insect castes, upgrades the colony, and completes the Moonroot tutorial mission.
 
+Version 0.9.2 rebuilds the underground traffic network around measured player,
+NPC and camera envelopes. Main passages are now 1.84-2.70 m wide and
+1.50-2.00 m high, have smooth continuous collision floors, widened organic
+junctions and a closed safety shell. Squad ants use two-way lanes, yield to the
+player, separate from one another and recover from congestion without blocking
+the player. The close camera is constrained to the active passage and can keep
+orbiting while movement is obstructed. The packaged build passes all 16 live
+tunnel/camera/traffic tests; four evidence videos and exact measurements are in
+`QA/TUNNEL_CLEARANCE_IMPLEMENTATION_092.md`.
+
 Version 0.9.1 hardens the complete playable slice against geometry tunnelling and
 camera clipping. The player is now loaded from
 `Assets/Resources/Prefabs/PlayerScoutAnt.prefab`, moves through swept substeps,
@@ -60,7 +70,7 @@ browser has not captured the mouse.
 Public build: https://vlad-coder-design.github.io/canopy-kin-moonroot/
 
 `Builds/WebGL` is deployed by `.github/workflows/pages.yml` on pushes to `main`.
-Version 0.9.1 uses hash-named gzip WebGL artifacts with Unity's JavaScript
+Version 0.9.2 uses hash-named gzip WebGL artifacts with Unity's JavaScript
 decompression fallback. This keeps the data file below GitHub's per-file limit
 while still loading correctly from GitHub Pages without custom response headers.
 The page restores keyboard focus and requests pointer lock from a click or

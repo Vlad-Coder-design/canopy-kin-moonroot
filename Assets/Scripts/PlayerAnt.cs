@@ -790,6 +790,11 @@ namespace CanopyKin
             float tacticalPitch = Mathf.Lerp(pitch, 68f, tacticalBlend);
             float distance = Mathf.Lerp(2.72f, 9.2f, tacticalBlend);
             float height = Mathf.Lerp(.36f, 3.4f, tacticalBlend);
+            distance = WorldBootstrap.Instance.CameraBoomDistanceAt(transform.position, distance);
+            if (WorldBootstrap.Instance.IsUnderground &&
+                WorldBootstrap.Instance.TryGetUndergroundPassageFrame(
+                    transform.position, out _, out _, out _, out _, out float passageHeight, out _))
+                height = Mathf.Min(height, Mathf.Max(.3f, passageHeight * .27f));
             Quaternion orbit = Quaternion.Euler(tacticalPitch, yaw, 0);
             Vector3 wanted = target + orbit * new Vector3(0, height, -distance);
             wanted = ResolveCameraPlacement(target, wanted);
@@ -814,8 +819,11 @@ namespace CanopyKin
             if (!viewCamera) viewCamera = Camera.main;
             if (!viewCamera) return;
             Vector3 target = transform.position + Vector3.up * .38f;
+            float distance = WorldBootstrap.Instance
+                ? WorldBootstrap.Instance.CameraBoomDistanceAt(transform.position, 2.72f)
+                : 2.72f;
             Vector3 wanted = target + Quaternion.Euler(pitch, yaw, 0) *
-                             new Vector3(0, .36f, -2.72f);
+                             new Vector3(0, .36f, -distance);
             viewCamera.transform.position = ResolveCameraPlacement(target, wanted);
             viewCamera.transform.rotation = Quaternion.LookRotation(target - viewCamera.transform.position);
         }
@@ -823,7 +831,7 @@ namespace CanopyKin
         Vector3 ResolveCameraPlacement(Vector3 target, Vector3 wanted)
         {
             WorldBootstrap world = WorldBootstrap.Instance;
-            if (world != null) wanted = world.ConstrainCameraPosition(wanted);
+            if (world != null) wanted = world.ConstrainCameraPosition(wanted, transform.position);
 
             Vector3 direction = wanted - target;
             float distance = direction.magnitude;
@@ -836,7 +844,7 @@ namespace CanopyKin
                 wanted = hit.point - direction.normalized * .22f;
 
             if (world != null)
-                wanted = world.ConstrainCameraPosition(wanted);
+                wanted = world.ConstrainCameraPosition(wanted, transform.position);
             Vector3 resolved = ResolveCameraOverlaps(target, wanted, world);
             if (Vector3.Distance(resolved, target) < .9f)
             {
@@ -846,7 +854,7 @@ namespace CanopyKin
                 Vector3 orbitBack = Quaternion.Euler(0, yaw, 0) * Vector3.back;
                 Vector3 elevated = target + Vector3.up * 1.08f + orbitBack * .72f;
                 if (world != null)
-                    elevated = world.ConstrainCameraPosition(elevated);
+                    elevated = world.ConstrainCameraPosition(elevated, transform.position);
                 resolved = ResolveCameraOverlaps(target, elevated, world);
             }
             return resolved;
@@ -903,7 +911,7 @@ namespace CanopyKin
                     separated = true;
                 }
                 if (world != null)
-                    wanted = world.ConstrainCameraPosition(wanted);
+                    wanted = world.ConstrainCameraPosition(wanted, transform.position);
                 if (!separated) break;
             }
             return wanted;

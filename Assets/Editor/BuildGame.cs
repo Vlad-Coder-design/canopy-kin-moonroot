@@ -41,7 +41,7 @@ namespace CanopyKin.Editor
             "Assets/Resources/Models/Environment/CanopyKinRootNetwork.fbx";
         const string PlayerPrefabPath =
             "Assets/Resources/Prefabs/PlayerScoutAnt.prefab";
-        const string ProductVersion = "0.9.1";
+        const string ProductVersion = "0.9.2";
 
         [MenuItem("Canopy Kin/Build Windows")]
         public static void BuildWindows()
@@ -97,6 +97,10 @@ namespace CanopyKin.Editor
             if (!File.Exists(ScenePath)) throw new FileNotFoundException("Gameplay scene is missing", ScenePath);
             EnsurePlayerPrefab();
             ValidateProductionAssets();
+            if (!WorldBootstrap.ValidateNestPassageSpecifications(out string tunnelReport))
+                throw new InvalidOperationException(
+                    "Nest passage clearance validation failed: " + tunnelReport);
+            Debug.Log("MOONROOT_TUNNEL_SPECIFICATION_OK " + tunnelReport);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             PlayerSettings.productName = "Canopy Kin: Moonroot";
             PlayerSettings.companyName = "Moonroot Studio";

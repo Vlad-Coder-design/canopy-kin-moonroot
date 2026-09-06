@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace CanopyKin
@@ -311,6 +312,11 @@ namespace CanopyKin
             bodyCollider.center = new Vector3(0, .23f, 0);
             bodyCollider.radius = role == UnitRole.HeavySoldier ? .23f : .18f;
             bodyCollider.contactOffset = .012f;
+            // Squad ants remain detectable for selection/commands but never
+            // form an inescapable PhysX plug around the CharacterController.
+            // The controller below provides visual separation, lanes and
+            // yielding while triggers provide the fail-safe escape guarantee.
+            bodyCollider.isTrigger = true;
             BuildStateMarkers();
         }
 
@@ -712,6 +718,7 @@ namespace CanopyKin
             public float Cooldown;
             public float Stuck;
             public Vector3 Last;
+            public Vector3? QaGoal;
         }
 
         public SquadOrder Order { get; private set; } = SquadOrder.Follow;
@@ -815,13 +822,33 @@ namespace CanopyKin
         public void Teleport(Vector3 center)
         {
             WorldBootstrap world = WorldBootstrap.Instance;
+            var placed = new List<Vector3>();
             for (int i = 0; i < units.Count; i++)
             {
                 Unit unit = units[i];
                 if (!unit.Actor) continue;
-                Vector3 position = center + FormationOffset(i, unit.Actor.Role) * 1.15f;
-                position = world.ConstrainActorPosition(position, .19f);
+                Vector3 preferred = center + FormationOffset(i, unit.Actor.Role) * .82f;
+                Vector3 position = world.ConstrainActorPosition(preferred, .24f);
+                float radius = unit.Actor.Role == UnitRole.HeavySoldier ? .23f : .18f;
+                for (int ring = 0; ring < 5; ring++)
+                {
+                    Vector3 candidate = ring == 0
+                        ? position
+                        : world.ConstrainActorPosition(preferred + new Vector3(
+                            Mathf.Cos(i * 2.19f + ring) * ring * .38f,
+                            0,
+                            Mathf.Sin(i * 2.19f + ring) * ring * .38f), .24f);
+                    bool clear = !world.Player ||
+                                 Vector3.Distance(candidate, world.Player.transform.position) >
+                                 radius + WorldBootstrap.PlayerColliderRadius + .42f;
+                    for (int placedIndex = 0; clear && placedIndex < placed.Count; placedIndex++)
+                        clear &= Vector3.Distance(candidate, placed[placedIndex]) > radius * 2f + .16f;
+                    if (!clear) continue;
+                    position = candidate;
+                    break;
+                }
                 unit.Actor.transform.position = position;
+                placed.Add(position);
                 unit.Last = position;
                 unit.Stuck = 0;
             }
@@ -848,6 +875,7 @@ namespace CanopyKin
         {
             WorldBootstrap world = WorldBootstrap.Instance;
             SquadUnit actor = unit.Actor;
+            if (unit.QaGoal.HasValue) return unit.QaGoal.Value;
             Vector3 offset = FormationOffset(index, actor.Role);
             if (actor.HasCargo)
             {
@@ -926,10 +954,32 @@ namespace CanopyKin
         {
             SquadUnit actor = unit.Actor;
             WorldBootstrap world = WorldBootstrap.Instance;
+            bool inPassage = world.TryGetUndergroundPassageFrame(
+                actor.transform.position,
+                out Vector3 centerline,
+                out Vector3 passageForward,
+                out Vector3 passageSide,
+                out float passageHalfWidth,
+                out _,
+                out bool busyPassage);
+            if (inPassage)
+            {
+                Vector3 toGoal = goal - actor.transform.position;
+                if (Vector3.Dot(toGoal, passageForward) < 0) passageForward = -passageForward;
+                float advance = Mathf.Clamp(Vector3.ProjectOnPlane(toGoal, Vector3.up).magnitude,
+                    .45f, busyPassage ? 1.35f : 1.05f);
+                float laneOffset = Mathf.Min(passageHalfWidth * .38f, busyPassage ? .46f : .34f);
+                float laneSign = (index & 1) == 0 ? -1f : 1f;
+                goal = centerline + passageForward * advance + passageSide * laneOffset * laneSign;
+            }
             goal = world.ConstrainActorPosition(goal, .19f);
             Vector3 direction = goal - actor.transform.position;
             direction.y = 0;
-            if (direction.sqrMagnitude < .045f) return;
+            if (direction.sqrMagnitude < .045f)
+            {
+                if (!inPassage) return;
+                direction = passageForward * ((index & 1) == 0 ? 1f : -1f);
+            }
             direction.Normalize();
 
             Vector3 separation = Vector3.zero;
@@ -942,7 +992,28 @@ namespace CanopyKin
                 if (distance > .01f && distance < .52f)
                     separation += away.normalized * (1f - distance / .52f);
             }
-            direction = (direction + separation * .85f).normalized;
+            if (world.Player)
+            {
+                Vector3 fromPlayer = actor.transform.position - world.Player.transform.position;
+                fromPlayer.y = 0;
+                float playerDistance = fromPlayer.magnitude;
+                float yieldDistance = inPassage ? 1.18f : .82f;
+                if (playerDistance > .01f && playerDistance < yieldDistance)
+                {
+                    Vector3 yield = fromPlayer.normalized * (1f - playerDistance / yieldDistance);
+                    if (inPassage)
+                    {
+                        float preferredSide = (index & 1) == 0 ? -1f : 1f;
+                        yield = passageSide * preferredSide +
+                                passageForward * Mathf.Sign(Vector3.Dot(fromPlayer, passageForward)) * .55f;
+                    }
+                    separation += yield * 2.25f;
+                }
+            }
+            Vector3 combinedDirection = direction + separation * (inPassage ? 1.35f : .85f);
+            direction = combinedDirection.sqrMagnitude > .01f
+                ? combinedDirection.normalized
+                : (inPassage ? passageForward : direction);
             Vector3 origin = actor.transform.position + Vector3.up * .26f;
             if (Physics.SphereCast(origin, .1f, direction, out RaycastHit hit, .42f, ~0, QueryTriggerInteraction.Ignore) &&
                 !hit.collider.GetComponentInParent<SquadUnit>())
@@ -988,14 +1059,43 @@ namespace CanopyKin
         {
             Vector3[] formation =
             {
-                new(-1.25f, 0, 1.05f), new(1.25f, 0, 1.05f),
-                new(-1.72f, 0, 1.82f), new(1.72f, 0, 1.82f),
-                new(-1.05f, 0, 2.55f), new(1.05f, 0, 2.55f),
-                new(-.35f, 0, 3.05f), new(.35f, 0, 3.05f)
+                new(-.82f, 0, -1.12f), new(.82f, 0, -1.12f),
+                new(-1.18f, 0, -1.78f), new(1.18f, 0, -1.78f),
+                new(-.82f, 0, -2.42f), new(.82f, 0, -2.42f),
+                new(-.3f, 0, -2.98f), new(.3f, 0, -2.98f)
             };
             Vector3 result = formation[index % formation.Length];
             if (role == UnitRole.HeavySoldier) result *= .82f;
             return result;
+        }
+
+        public bool BeginOpposingPassForQa(
+            Vector3 firstStart,
+            Vector3 firstGoal,
+            Vector3 secondStart,
+            Vector3 secondGoal,
+            out SquadUnit first,
+            out SquadUnit second)
+        {
+            first = null;
+            second = null;
+            var available = units.Where(unit => unit.Actor && unit.Actor.gameObject.activeSelf)
+                .Take(2).ToArray();
+            if (available.Length < 2) return false;
+            first = available[0].Actor;
+            second = available[1].Actor;
+            first.transform.position = WorldBootstrap.Instance.ConstrainActorPosition(firstStart, .2f);
+            second.transform.position = WorldBootstrap.Instance.ConstrainActorPosition(secondStart, .2f);
+            available[0].Last = first.transform.position;
+            available[1].Last = second.transform.position;
+            available[0].QaGoal = firstGoal;
+            available[1].QaGoal = secondGoal;
+            return true;
+        }
+
+        public void EndOpposingPassForQa()
+        {
+            foreach (Unit unit in units) unit.QaGoal = null;
         }
 
         static string OrderMessage(SquadOrder order) => order switch
